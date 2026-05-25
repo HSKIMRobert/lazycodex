@@ -1,0 +1,99 @@
+name: Web CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/web/**"
+      - ".github/workflows/web-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/web/**"
+      - ".github/workflows/web-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck-build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: packages/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: packages/web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: packages/web/.next/cache
+          key: ${{ runner.os }}-web-next-${{ hashFiles('packages/web/pnpm-lock.yaml', 'packages/web/package.json', 'packages/web/next.config.ts', 'packages/web/open-next.config.ts', 'packages/web/postcss.config.mjs') }}-${{ hashFiles('packages/web/app/**', 'packages/web/lib/**') }}
+          restore-keys: |
+            ${{ runner.os }}-web-next-${{ hashFiles('packages/web/pnpm-lock.yaml', 'packages/web/package.json', 'packages/web/next.config.ts', 'packages/web/open-next.config.ts', 'packages/web/postcss.config.mjs') }}-
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Type check
+        run: pnpm run type-check
+
+      - name: Build
+        run: pnpm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Install Google Chrome stable
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E + Lighthouse audits
+        run: pnpm run test:e2e
+        env:
+          CI: "true"
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: packages/web/e2e/lighthouse-reports/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            packages/web/playwright-report/
+            packages/web/test-results/
+            packages/web/e2e/lighthouse-reports/
+          retention-days: 7
+
+      - name: OpenNext (Cloudflare) build check
+        run: pnpm exec opennextjs-cloudflare build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"

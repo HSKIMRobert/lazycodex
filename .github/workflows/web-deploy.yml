@@ -1,0 +1,121 @@
+name: Web Deploy (Cloudflare Workers)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Wrangler environment (leave blank for default)"
+        required: false
+        default: ""
+  push:
+    branches: [main]
+    paths:
+      - "packages/web/**"
+      - ".github/workflows/web-deploy.yml"
+
+concurrency:
+  group: web-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: web-production
+      url: https://lazycodex.ai
+    defaults:
+      run:
+        working-directory: packages/web
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: packages/web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build with OpenNext for Cloudflare
+        run: pnpm exec opennextjs-cloudflare build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: packages/web
+          command: ${{ inputs.environment && format('deploy --env {0}', inputs.environment) || 'deploy' }}
+
+      - name: Post-deploy smoke checks
+        run: |
+          set -euo pipefail
+          echo "::group::Apex serves 200"
+          curl -sI https://lazycodex.ai/ | head -5
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://lazycodex.ai/)" = "200"
+          echo "::endgroup::"
+
+          echo "::group::www.lazycodex.ai 301 → lazycodex.ai"
+          loc=$(curl -sI https://www.lazycodex.ai/ | awk -F': ' '/^[Ll]ocation:/ {print $2}' | tr -d '\r')
+          echo "Location: $loc"
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://www.lazycodex.ai/)" = "301"
+          echo "$loc" | grep -qE '^https://lazycodex\.ai/?$'
+          echo "::endgroup::"
+
+          echo "::group::lazycodex.dev 301 → lazycodex.ai"
+          loc=$(curl -sI https://lazycodex.dev/ | awk -F': ' '/^[Ll]ocation:/ {print $2}' | tr -d '\r')
+          echo "Location: $loc"
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://lazycodex.dev/)" = "301"
+          echo "$loc" | grep -qE '^https://lazycodex\.ai/?$'
+          echo "::endgroup::"
+
+          echo "::group::www.lazycodex.dev 301 → lazycodex.ai"
+          loc=$(curl -sI https://www.lazycodex.dev/ | awk -F': ' '/^[Ll]ocation:/ {print $2}' | tr -d '\r')
+          echo "Location: $loc"
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://www.lazycodex.dev/)" = "301"
+          echo "$loc" | grep -qE '^https://lazycodex\.ai/?$'
+          echo "::endgroup::"
+
+      - name: PageSpeed Insights — Lighthouse 100/100/100/100 (live URL)
+        run: |
+          set -euo pipefail
+          # Google PageSpeed Insights audits the live URL from Google's servers
+          # — the canonical Lighthouse measurement (immune to any local/CI
+          # rendering quirks). No API key needed for occasional invocations.
+          for strategy in mobile desktop; do
+            echo "::group::PSI ${strategy}"
+            json=$(curl -sfG \
+              --data-urlencode "url=https://lazycodex.ai/" \
+              --data-urlencode "strategy=${strategy}" \
+              --data-urlencode "category=performance" \
+              --data-urlencode "category=accessibility" \
+              --data-urlencode "category=best-practices" \
+              --data-urlencode "category=seo" \
+              "https://www.googleapis.com/pagespeedonline/v5/runPagespeed")
+            python3 - <<PY
+          import json, sys
+          d = json.loads(r'''$json''')
+          cats = d['lighthouseResult']['categories']
+          scores = {k: round((cats[k]['score'] or 0) * 100) for k in ('performance','accessibility','best-practices','seo')}
+          print('strategy=${strategy}', scores)
+          fails = {k: v for k, v in scores.items() if v < 100}
+          if fails:
+            print('FAIL: scores below 100:', fails)
+            sys.exit(1)
+          PY
+            echo "::endgroup::"
+          done
