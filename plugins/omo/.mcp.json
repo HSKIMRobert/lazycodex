@@ -25,7 +25,7 @@
 		"lsp": {
 			"command": "node",
 			"args": [
-				"./components/lsp-tools-mcp/dist/cli.js",
+				"./components/lsp-daemon/dist/cli.js",
 				"mcp"
 			],
 			"cwd": "."
