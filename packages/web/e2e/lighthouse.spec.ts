@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test"
 import lighthouse from "lighthouse"
+import type { SharedFlagsSettings } from "lighthouse/types/lhr/settings.js"
 import { writeFileSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { createServer, type AddressInfo } from "node:net"
@@ -66,8 +67,11 @@ async function prewarmServer(url: string): Promise<void> {
     try {
       const response = await fetch(url, { method: "GET" })
       await response.text()
-    } catch {
-      // Ignore; the real Lighthouse run will surface failures.
+    } catch (error) {
+      if (process.env.DEBUG_LIGHTHOUSE_PREWARM === "1") {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn(`[Lighthouse prewarm] ${message}`)
+      }
     }
   }
 }
@@ -76,8 +80,7 @@ type ChromiumModule = import("@playwright/test").BrowserType
 
 async function lighthouseOnce(
   url: string,
-  // biome-ignore lint/suspicious/noExplicitAny: lighthouse settings shape is internal
-  settings: any,
+  settings: SharedFlagsSettings,
   chromium: ChromiumModule,
 ): Promise<LighthouseResult | undefined> {
   const cdpPort = await findFreePort()
@@ -108,9 +111,9 @@ async function lighthouseOnce(
     })
   }
   try {
-    // Open a real page first so Lighthouse has a target tab to navigate.
     const context = await browser.newContext()
     const page = await context.newPage()
+    await page.goto(url, { waitUntil: "networkidle" })
     await page.goto("about:blank")
 
     const result = (await lighthouse(
@@ -144,6 +147,8 @@ async function runLighthouse(
     formFactor === "mobile"
       ? {
           formFactor: "mobile" as const,
+          disableStorageReset: true,
+          throttlingMethod: "provided" as const,
           screenEmulation: {
             mobile: true,
             width: 412,
@@ -154,6 +159,8 @@ async function runLighthouse(
         }
       : {
           formFactor: "desktop" as const,
+          disableStorageReset: true,
+          throttlingMethod: "provided" as const,
           screenEmulation: {
             mobile: false,
             width: 1350,
