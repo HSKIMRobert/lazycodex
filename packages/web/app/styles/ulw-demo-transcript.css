@@ -1,0 +1,225 @@
+/* Transcript + footer layer for the interactive Ultrawork demo window —
+   document flow faithful to the app frames (creation-03.png): user command
+   bubble, prose, tool-activity rows, inline code chip, then the Step pill,
+   Pursuing-goal row, and the decorative composer. Imported by ulw-demo.css
+   (split for the file-size limit). */
+
+@layer components {
+  /* ---- Transcript document flow. */
+
+  .ulw-app-transcript {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 22px 8px;
+    min-height: 0;
+    /* The replay APPENDS: the transcript scrolls internally while the
+       window's outer box never moves. */
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+  }
+
+  .ulw-app-user {
+    align-self: flex-end;
+    max-width: 92%;
+    min-width: 0;
+    background: var(--codex-window-chip);
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+
+  .ulw-app-user code {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    white-space: nowrap;
+    /* Horizontal scroll is allowed ONLY inside code rows. */
+    overflow-x: auto;
+  }
+
+  .ulw-app-tool {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--codex-window-text-soft);
+  }
+
+  .ulw-app-tool span {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ulw-app-code {
+    background: var(--codex-window-chip);
+    border-radius: 8px;
+    padding: 7px 10px;
+    min-width: 0;
+  }
+
+  .ulw-app-code code {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--codex-window-text-soft);
+    white-space: nowrap;
+    /* Horizontal scroll is allowed ONLY inside code rows. */
+    overflow-x: auto;
+  }
+
+  /* ---- Footer: Step pill, Pursuing-goal row, decorative composer. */
+
+  .ulw-app-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 22px 16px;
+    flex-shrink: 0;
+  }
+
+  .ulw-app-working {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ulw-app-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--codex-window-border);
+    color: var(--codex-window-text-soft);
+    white-space: nowrap;
+  }
+
+  /* Run progress — how far through the goal the recording is. The fill is
+     scaleX-driven (compositor-safe) and eases forward on each scene, so the
+     run visibly accumulates instead of the screen merely switching. */
+  .ulw-run-progress {
+    flex: 1;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--codex-window-chip);
+    overflow: hidden;
+  }
+
+  .ulw-run-progress span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--codex-window-accent);
+    transform-origin: left center;
+    transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Scene continuity: new transcript content flows up into place, reading
+     as the session carrying on rather than a slide swap. */
+  .ulw-entry {
+    animation: ulw-flow-in 420ms ease-out;
+  }
+
+  @keyframes ulw-flow-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ulw-entry {
+      animation: none;
+    }
+
+    .ulw-run-progress span {
+      transition: none;
+    }
+  }
+
+  .ulw-app-goal-elapsed {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    white-space: nowrap;
+    color: var(--codex-window-accent);
+  }
+
+  .ulw-app-goal {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--codex-window-border);
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-size: 11.5px;
+    color: var(--codex-window-text-soft);
+  }
+
+  .ulw-app-goal strong {
+    font-weight: 600;
+    color: var(--codex-window-text);
+    white-space: nowrap;
+  }
+
+  .ulw-app-goal span {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ulw-app-composer {
+    border: 1px solid var(--codex-window-border);
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--codex-window-bg);
+  }
+
+  .ulw-app-composer-placeholder {
+    font-size: 13px;
+    color: var(--codex-window-text-soft);
+  }
+
+  .ulw-app-composer-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ulw-app-composer-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--codex-window-text-soft);
+    white-space: nowrap;
+  }
+
+  .ulw-app-composer-grow {
+    flex: 1;
+  }
+
+  .ulw-app-composer-send {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: var(--codex-window-text);
+    color: var(--codex-window-bg);
+  }
+}

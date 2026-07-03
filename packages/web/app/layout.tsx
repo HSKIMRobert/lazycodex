@@ -12,7 +12,7 @@ const DESCRIPTION =
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#22c55e",
+  themeColor: "#0e1012",
   colorScheme: "dark",
 }
 

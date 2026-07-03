@@ -10,23 +10,24 @@ interface ClassNameProps extends ChildrenProps {
 }
 
 interface SkipLinkProps {
-  readonly children?: ReactNode
   readonly className?: string
-  readonly href?: string
 }
 
 export function PageShell({ children }: ChildrenProps): JSX.Element {
-  return <div className="flex min-h-[100dvh] flex-col">{children}</div>
+  return (
+    <div className="relative flex min-h-[100dvh] flex-col">
+      {/* Atmosphere backdrop: static low-alpha green glows behind everything.
+          Absolute + pointer-events-none — zero layout cost, no CLS. */}
+      <div aria-hidden className="glow-backdrop pointer-events-none absolute inset-0" />
+      <div className="relative flex min-h-[100dvh] flex-col">{children}</div>
+    </div>
+  )
 }
 
-export function SkipLink({
-  children = "Skip to main content",
-  className = "skip-link",
-  href = "#content",
-}: SkipLinkProps): JSX.Element {
+export function SkipLink({ className = "skip-link" }: SkipLinkProps): JSX.Element {
   return (
-    <a href={href} className={className}>
-      {children}
+    <a href="#content" className={className}>
+      Skip to main content
     </a>
   )
 }
@@ -61,9 +62,21 @@ export function MarketingSection({
   )
 }
 
-export function MarketingRuleGrid({ children }: ChildrenProps): JSX.Element {
+interface MarketingRuleGridProps extends ChildrenProps {
+  readonly ruleStyle?: "solid" | "dotted"
+}
+
+export function MarketingRuleGrid({
+  children,
+  ruleStyle = "solid",
+}: MarketingRuleGridProps): JSX.Element {
   return (
-    <div className="grid gap-8 border-y border-white/10 py-12 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:py-16">
+    <div
+      className={cx(
+        "grid gap-8 border-y border-[color:var(--border-subtle)] py-12 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:py-16",
+        ruleStyle === "dotted" && "rule-grid-dotted",
+      )}
+    >
       {children}
     </div>
   )

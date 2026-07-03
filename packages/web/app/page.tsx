@@ -13,7 +13,10 @@ import { Hero } from "../components/site/hero"
 import { InstallBlock } from "../components/site/install-block"
 import { SiteFooter } from "../components/site/site-footer"
 import { SiteHeader } from "../components/site/site-header"
+import { TeamModeSection } from "../components/site/team-mode-section"
 import { UltraworkSection } from "../components/site/ultrawork-section"
+import { UlwDemoSection } from "../components/site/ulw-demo/ulw-demo-section"
+import { UlwResearchSection } from "../components/site/ulw-research-section"
 
 export default function LandingPage(): JSX.Element {
   return (
@@ -26,9 +29,12 @@ export default function LandingPage(): JSX.Element {
         <MarketingContainer>
           <Hero />
         </MarketingContainer>
+        <UlwDemoSection />
         <InstallBlock />
         <CommandCards />
         <FeatureWorkflowsSection />
+        <TeamModeSection />
+        <UlwResearchSection />
         <HephaestusSection />
         <UltraworkSection />
         <DocsCta />

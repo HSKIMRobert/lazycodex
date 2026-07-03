@@ -1,0 +1,116 @@
+/* Interactive Ultrawork demo — Codex Desktop window on the site canvas,
+   themed light (default, faithful to the app frames) or dark via
+   data-window-theme on .ulw-window. Tokens: the --codex-window-* adapter
+   palette (DESIGN.md § Codex window adapter). The .ulw-app-* window-shell
+   layer lives in ulw-demo-app.css (split for the file-size limit).
+   .ulw-window/.ulw-titlebar/.ulw-traffic/.ulw-window-tab(s) below are ALSO
+   used by team-mode-section.tsx — keep them stable. */
+
+@import "./ulw-demo-app.css";
+@import "./ulw-demo-transcript.css";
+@import "./ulw-demo-panel.css";
+
+@layer components {
+  .ulw-window {
+    width: 100%;
+    max-width: 1060px;
+    min-height: 560px;
+    border-radius: 14px;
+    border: 1px solid var(--border-default);
+    background: var(--codex-window-bg);
+    color: var(--codex-window-text);
+    box-shadow:
+      0 24px 70px rgba(16, 25, 20, 0.16),
+      0 2px 8px rgba(16, 25, 20, 0.06);
+    overflow: hidden;
+    text-align: left;
+  }
+
+  .ulw-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 14px;
+    background: var(--codex-window-chrome);
+    border-bottom: 1px solid var(--codex-window-border);
+  }
+
+  .ulw-traffic {
+    display: inline-flex;
+    gap: 6px;
+  }
+
+  .ulw-traffic span {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--codex-window-chip);
+  }
+
+  .ulw-traffic span:nth-child(1) { background: var(--codex-window-traffic-red); }
+  .ulw-traffic span:nth-child(2) { background: var(--codex-window-traffic-amber); }
+  .ulw-traffic span:nth-child(3) { background: var(--codex-window-traffic-green); }
+
+  .ulw-window-tabs {
+    display: flex;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--codex-window-text-soft);
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .ulw-window-tab {
+    padding: 4px 10px;
+    border-radius: 7px;
+    white-space: nowrap;
+  }
+
+  .ulw-window-tab[data-current="true"] {
+    background: var(--codex-window-bg);
+    border: 1px solid var(--codex-window-border);
+    color: var(--codex-window-text);
+  }
+
+  /* ---- Scene transcript content (strings from lib/ulw-demo-scenes.ts). */
+
+  .ulw-mode-flag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--codex-window-accent);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .ulw-scene-status {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    color: var(--codex-window-text-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ulw-scene-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .ulw-scene-copy h3 {
+    font-size: 19px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  .ulw-scene-copy p {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--codex-window-text-soft);
+    max-width: 62ch;
+  }
+}

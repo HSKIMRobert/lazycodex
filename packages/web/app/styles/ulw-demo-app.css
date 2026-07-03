@@ -1,0 +1,168 @@
+/* App-shell chrome for the Ultrawork demo — the .ulw-app-* layer built to
+   the real Codex desktop anatomy (.omo/reference/app-frames/creation-03.png):
+   sidebar with the run's single session, per-session title bar, transcript
+   document flow, decorative composer. The demo is a staged recording with no
+   controls and no progress bar — it simply looks like a session in progress.
+   Split from ulw-demo.css to keep files under the size limit.
+   Motion: transform/opacity/color only. Zero outer layout shift: the
+   window box is fixed-height and the transcript scrolls internally. */
+
+@layer components {
+  .ulw-window.ulw-app {
+    max-width: 1120px;
+    /* FIXED height: the appending transcript scrolls inside; the outer box
+       never grows (zero layout shift is a binding contract). */
+    height: 680px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ulw-app-frame {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 212px minmax(0, 1fr) 264px;
+    min-height: 0;
+  }
+
+  /* ---- Left sidebar: traffic lights, nav list, Pinned/Projects groups. */
+
+  .ulw-app-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 14px 10px;
+    background: var(--codex-window-chrome);
+    border-right: 1px solid var(--codex-window-border);
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .ulw-app-sidebar .ulw-traffic {
+    padding-left: 4px;
+  }
+
+  .ulw-app-nav,
+  .ulw-app-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .ulw-app-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 7px;
+    font-size: 12px;
+    color: var(--codex-window-text-soft);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .ulw-app-group-label {
+    padding: 6px 8px 2px;
+    font-size: 11px;
+    color: var(--codex-window-text-soft);
+  }
+
+  /* The ONE session of the run — static (not navigation; no hover): the
+     whole demo is a single goal being pursued, so the sidebar never changes. */
+  .ulw-app-session {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    text-align: left;
+    padding: 5px 8px 5px 14px;
+    border-radius: 7px;
+    font-size: 12px;
+    color: var(--codex-window-text-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ulw-app-session[aria-current="true"] {
+    background: var(--codex-window-active);
+    color: var(--codex-window-text);
+    font-weight: 600;
+  }
+
+  /* Running-session spinner — the app's alive indicator. Transform-only
+     rotation (compositor-safe); reduced motion freezes it into a static
+     ring so the marker survives without movement. */
+  .ulw-spinner {
+    flex-shrink: 0;
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    border: 1.5px solid var(--codex-window-border);
+    border-top-color: var(--codex-window-accent);
+    animation: ulw-spin 900ms linear infinite;
+  }
+
+  @keyframes ulw-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ulw-spinner {
+      animation: none;
+    }
+  }
+
+  .ulw-app-showmore {
+    padding-left: 30px;
+  }
+
+  .ulw-app-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .ulw-app-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--codex-window-border);
+    flex-shrink: 0;
+  }
+
+  .ulw-app-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--codex-window-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ulw-app-title-dots {
+    color: var(--codex-window-text-soft);
+  }
+
+  .ulw-icon {
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 768px) {
+    .ulw-window.ulw-app {
+      height: 560px;
+    }
+
+    .ulw-app-frame {
+      grid-template-columns: 1fr;
+    }
+
+    .ulw-app-sidebar {
+      display: none;
+    }
+  }
+
+}
