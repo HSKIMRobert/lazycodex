@@ -55,7 +55,9 @@ export function GithubStarsPill(): JSX.Element {
 
   return (
     <a
-      href={SITE_CONFIG.githubStarsUrl}
+      // GitHub restricted /stargazers pages to repo admins (July 2026), so a
+      // deep link there 404s for visitors — send them to the repo instead.
+      href={SITE_CONFIG.githubUrl}
       target="_blank"
       rel="noopener noreferrer"
       className="group flex h-8 items-center gap-1.5 rounded-full border border-[color:var(--accent-primary-border)] bg-[color:var(--accent-primary-soft)] px-3 text-sm font-medium text-[color:var(--accent-primary)] transition-colors hover:border-[color:var(--accent-primary)] hover:bg-[color:var(--accent-primary-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-primary)]"

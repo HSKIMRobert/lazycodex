@@ -84,19 +84,23 @@ test.describe("landing page — install + commands", () => {
 })
 
 test.describe("landing page — links + footer", () => {
-  test("github stars pill links to the stargazers url with a count", async ({ page }) => {
+  test("github stars pill links to the repository with a count", async ({ page }) => {
     await page.goto("/")
-    const stars = page.locator(`a[href="${SITE_CONFIG.githubStarsUrl}"]`).first()
+    const stars = page.locator(`a[href="${SITE_CONFIG.githubUrl}"]`).first()
     await expect(stars).toBeVisible()
     await expect(stars).toContainText(/stars/i)
     await expect(stars).toContainText(/\d/)
     await expect(stars).not.toContainText(/^0\sstars$/)
+    // GitHub restricted /stargazers pages to repo admins (July 2026) — deep
+    // links there now 404 for visitors, so the pill must never point at one.
+    const stargazersLinks = page.locator('a[href*="/stargazers"]')
+    await expect(stargazersLinks).toHaveCount(0)
   })
 
   test("updates the github stars pill from the live API", async ({ page }) => {
     await page.goto("/")
 
-    const stars = page.locator(`a[href="${SITE_CONFIG.githubStarsUrl}"]`).first()
+    const stars = page.locator(`a[href="${SITE_CONFIG.githubUrl}"]`).first()
     await expect(stars).toContainText(/^\d+(?:\.\d+[kM])?\sstars$/)
     await expect(stars).toHaveAttribute("aria-label", /\d+(?:\.\d+[kM])?\sstars on GitHub/)
   })
