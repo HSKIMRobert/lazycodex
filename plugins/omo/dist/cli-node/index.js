@@ -2146,7 +2146,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "4.17.0",
+    version: "4.17.1",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -2357,18 +2357,18 @@ var init_package = __esm(() => {
       typescript: "^6.0.3"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "4.17.0",
-      "oh-my-opencode-darwin-x64": "4.17.0",
-      "oh-my-opencode-darwin-x64-baseline": "4.17.0",
-      "oh-my-opencode-linux-arm64": "4.17.0",
-      "oh-my-opencode-linux-arm64-musl": "4.17.0",
-      "oh-my-opencode-linux-x64": "4.17.0",
-      "oh-my-opencode-linux-x64-baseline": "4.17.0",
-      "oh-my-opencode-linux-x64-musl": "4.17.0",
-      "oh-my-opencode-linux-x64-musl-baseline": "4.17.0",
-      "oh-my-opencode-windows-arm64": "4.17.0",
-      "oh-my-opencode-windows-x64": "4.17.0",
-      "oh-my-opencode-windows-x64-baseline": "4.17.0"
+      "oh-my-opencode-darwin-arm64": "4.17.1",
+      "oh-my-opencode-darwin-x64": "4.17.1",
+      "oh-my-opencode-darwin-x64-baseline": "4.17.1",
+      "oh-my-opencode-linux-arm64": "4.17.1",
+      "oh-my-opencode-linux-arm64-musl": "4.17.1",
+      "oh-my-opencode-linux-x64": "4.17.1",
+      "oh-my-opencode-linux-x64-baseline": "4.17.1",
+      "oh-my-opencode-linux-x64-musl": "4.17.1",
+      "oh-my-opencode-linux-x64-musl-baseline": "4.17.1",
+      "oh-my-opencode-windows-arm64": "4.17.1",
+      "oh-my-opencode-windows-x64": "4.17.1",
+      "oh-my-opencode-windows-x64-baseline": "4.17.1"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.80.3",
@@ -9224,7 +9224,7 @@ var init_agent_model_requirements = __esm(() => {
         {
           providers: ["openai", "vercel"],
           model: "gpt-5.6-sol",
-          variant: "medium"
+          variant: "high"
         },
         {
           providers: ["openai", "github-copilot", "opencode", "vercel"],
@@ -65104,15 +65104,20 @@ var init_command_loader = __esm(() => {
   init_logger3();
 });
 
-// packages/claude-code-compat-core/src/shared/skill-path-resolver.ts
+// packages/utils/src/skill-path-resolver.ts
 var init_skill_path_resolver = () => {};
+
+// packages/claude-code-compat-core/src/shared/skill-path-resolver.ts
+var init_skill_path_resolver2 = __esm(() => {
+  init_skill_path_resolver();
+});
 
 // packages/claude-code-compat-core/src/features/claude-code-plugin-loader/skill-loader.ts
 var init_skill_loader = __esm(() => {
   init_frontmatter3();
   init_file_utils3();
   init_model_sanitizer2();
-  init_skill_path_resolver();
+  init_skill_path_resolver2();
   init_logger3();
 });
 // packages/claude-code-compat-core/src/shared/model-format-normalizer.ts
@@ -72652,7 +72657,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "4.17.0",
+    version: "4.17.1",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -75952,6 +75957,14 @@ function parseAgentHeaderName(header) {
   const path7 = parseTomlDottedKey(header);
   return path7?.[0] === "agents" ? path7[1] ?? null : null;
 }
+function parseJsonString(value) {
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 function parseHookStateHeaderKey(header) {
   const path7 = parseTomlDottedKey(header);
   if (path7?.[0] !== "hooks" || path7[1] !== "state")
@@ -77107,16 +77120,6 @@ function isSectionHeader3(line) {
 }
 function agentNameFromToml(fileName) {
   return fileName.endsWith(".toml") ? fileName.slice(0, -".toml".length) : fileName;
-}
-function parseJsonString(value) {
-  try {
-    const parsed = JSON.parse(value);
-    return typeof parsed === "string" ? parsed : null;
-  } catch (error) {
-    if (error instanceof Error)
-      return null;
-    return null;
-  }
 }
 async function exists2(path7) {
   try {

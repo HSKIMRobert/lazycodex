@@ -1,14 +1,15 @@
 import { handleLspMcpRequest } from "@oh-my-opencode/lsp-core/mcp";
 import { runWithRequestContext } from "@oh-my-opencode/lsp-core/request-context";
+import { isPlainRecord } from "@oh-my-opencode/mcp-stdio-core/record";
 export const CONTEXT_KEY = "_context";
 export function extractRequestContext(raw) {
-    if (!isRecord(raw) || raw["method"] !== "tools/call")
+    if (!isPlainRecord(raw) || raw["method"] !== "tools/call")
         return { input: raw, context: undefined };
     const params = raw["params"];
-    if (!isRecord(params))
+    if (!isPlainRecord(params))
         return { input: raw, context: undefined };
     const args = params["arguments"];
-    if (!isRecord(args))
+    if (!isPlainRecord(args))
         return { input: raw, context: undefined };
     const context = parseContext(args[CONTEXT_KEY]);
     if (!context)
@@ -25,7 +26,7 @@ export function handleDaemonMessage(raw) {
     return handleLspMcpRequest(input);
 }
 function parseContext(value) {
-    if (!isRecord(value))
+    if (!isPlainRecord(value))
         return undefined;
     const context = {};
     const cwd = value["cwd"];
@@ -36,9 +37,6 @@ function parseContext(value) {
         context.env = env;
     return context.cwd === undefined && context.env === undefined ? undefined : context;
 }
-function isRecord(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function isStringRecord(value) {
-    return isRecord(value) && Object.values(value).every((item) => typeof item === "string");
+    return isPlainRecord(value) && Object.values(value).every((item) => typeof item === "string");
 }

@@ -1415,6 +1415,11 @@ async function disposeDefaultLspManager() {
 // src/daemon-client.ts
 import { connect as connect2 } from "node:net";
 
+// ../mcp-stdio-core/src/record.ts
+function isPlainRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 // src/ensure-daemon.ts
 import { spawn as spawn2 } from "node:child_process";
 import { closeSync as closeSync2, existsSync as existsSync2, mkdirSync as mkdirSync2, openSync as openSync2 } from "node:fs";
@@ -1631,11 +1636,6 @@ function resolveSocketPath(dir, version) {
   if (natural.length < MAX_SOCKET_PATH_LENGTH)
     return natural;
   return join2(tmpdir(), `omo-lsp-${version}-${digest}.sock`);
-}
-
-// ../mcp-stdio-core/src/record.ts
-function isPlainRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 // ../mcp-stdio-core/src/responses.ts
 function successResponse(id, result) {
@@ -3550,13 +3550,13 @@ function requestedProtocolVersion(params) {
 // src/request-routing.ts
 var CONTEXT_KEY = "_context";
 function extractRequestContext(raw) {
-  if (!isRecord5(raw) || raw["method"] !== "tools/call")
+  if (!isPlainRecord(raw) || raw["method"] !== "tools/call")
     return { input: raw, context: undefined };
   const params = raw["params"];
-  if (!isRecord5(params))
+  if (!isPlainRecord(params))
     return { input: raw, context: undefined };
   const args = params["arguments"];
-  if (!isRecord5(args))
+  if (!isPlainRecord(args))
     return { input: raw, context: undefined };
   const context = parseContext(args[CONTEXT_KEY]);
   if (!context)
@@ -3573,7 +3573,7 @@ function handleDaemonMessage(raw) {
   return handleLspMcpRequest(input);
 }
 function parseContext(value) {
-  if (!isRecord5(value))
+  if (!isPlainRecord(value))
     return;
   const context = {};
   const cwd = value["cwd"];
@@ -3584,11 +3584,8 @@ function parseContext(value) {
     context.env = env;
   return context.cwd === undefined && context.env === undefined ? undefined : context;
 }
-function isRecord5(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function isStringRecord2(value) {
-  return isRecord5(value) && Object.values(value).every((item) => typeof item === "string");
+  return isPlainRecord(value) && Object.values(value).every((item) => typeof item === "string");
 }
 
 // src/socket-jsonrpc.ts
@@ -3715,19 +3712,16 @@ function sendToolCall(socketPath, name, args, timeoutMs) {
   });
 }
 function toToolResult(message) {
-  if (!isRecord6(message) || message["id"] !== REQUEST_ID)
+  if (!isPlainRecord(message) || message["id"] !== REQUEST_ID)
     return null;
   const result = message["result"];
-  if (!isRecord6(result) || !Array.isArray(result["content"]))
+  if (!isPlainRecord(result) || !Array.isArray(result["content"]))
     return null;
   return {
     content: result["content"],
     isError: result["isError"] === true,
     details: result["details"]
   };
-}
-function isRecord6(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function errorText(error) {
   return error instanceof Error ? error.message : String(error);

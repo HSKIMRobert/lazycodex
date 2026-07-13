@@ -875,6 +875,329 @@ import { basename as basename3, join as join10 } from "node:path";
 import { lstat, readFile as readFile4, readdir, writeFile as writeFile3 } from "node:fs/promises";
 import { join as join8 } from "node:path";
 
+// ../src/install/toml-section-editor.ts
+function findTomlSection(config, header) {
+  const headerLine = `[${header}]`;
+  const targetHeaderPath = parseTomlDottedKey(header);
+  const lines = config.match(/[^\n]*\n?|$/g) ?? [];
+  let offset = 0;
+  let start = -1;
+  for (const line of lines) {
+    if (line.length === 0)
+      break;
+    const trimmed = line.trim();
+    if (start === -1) {
+      if (tomlTableHeaderMatches(trimmed, headerLine, targetHeaderPath))
+        start = offset;
+    } else if (isTomlTableHeaderLine(line)) {
+      return { start, end: offset, text: config.slice(start, offset) };
+    }
+    offset += line.length;
+  }
+  if (start === -1)
+    return null;
+  return { start, end: config.length, text: config.slice(start) };
+}
+function replaceOrInsertSetting(config, section, key, value) {
+  const linePattern = new RegExp(`^[ \\t]*${escapeRegExp(key)}[ \\t]*=.*$`, "m");
+  const replacement = linePattern.test(section.text) ? section.text.replace(linePattern, `${key} = ${value}`) : insertSetting(section.text, key, value);
+  return config.slice(0, section.start) + replacement + config.slice(section.end);
+}
+function removeSetting(config, section, key) {
+  const linePattern = new RegExp(`^[ \\t]*${escapeRegExp(key)}[ \\t]*=.*(?:\\n|$)`, "m");
+  const replacement = section.text.replace(linePattern, "");
+  return config.slice(0, section.start) + replacement + config.slice(section.end);
+}
+function replaceOrInsertRootSetting(config, key, value) {
+  const sectionStart = findFirstTableStart(config);
+  const root = config.slice(0, sectionStart);
+  const suffix = config.slice(sectionStart);
+  const linePattern = new RegExp(`^[ \\t]*${escapeRegExp(key)}[ \\t]*=.*$`, "m");
+  const replacement = linePattern.test(root) ? root.replace(linePattern, `${key} = ${value}`) : `${root.trimEnd()}${root.trimEnd().length > 0 ? `
+` : ""}${key} = ${value}
+`;
+  if (suffix.length === 0)
+    return replacement;
+  return `${replacement.trimEnd()}
+
+${suffix.trimStart()}`;
+}
+function appendBlock(config, block) {
+  const prefix = config.trimEnd();
+  return `${prefix}${prefix.length > 0 ? `
+
+` : ""}${block.trimEnd()}
+`;
+}
+function findFirstTableStart(config) {
+  const lines = config.match(/[^\n]*\n?|$/g) ?? [];
+  let offset = 0;
+  for (const line of lines) {
+    if (line.length === 0)
+      break;
+    if (isTomlTableHeaderLine(line))
+      return offset;
+    offset += line.length;
+  }
+  return config.length;
+}
+function insertSetting(sectionText, key, value) {
+  const lines = sectionText.split(`
+`);
+  lines.splice(1, 0, `${key} = ${value}`);
+  return lines.join(`
+`);
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function tomlTableHeaderMatches(line, headerLine, targetHeaderPath) {
+  const normalizedLine = stripUnquotedInlineComment(line).trim();
+  if (normalizedLine === headerLine)
+    return true;
+  if (!targetHeaderPath)
+    return false;
+  const candidateHeaderPath = parseTomlTableHeader(normalizedLine);
+  if (!candidateHeaderPath || candidateHeaderPath.length !== targetHeaderPath.length)
+    return false;
+  return candidateHeaderPath.every((part, index) => part === targetHeaderPath[index]);
+}
+function parseTomlTableHeader(line) {
+  const normalizedLine = stripUnquotedInlineComment(line).trim();
+  if (!normalizedLine.startsWith("[") || !normalizedLine.endsWith("]") || normalizedLine.startsWith("[["))
+    return null;
+  return parseTomlDottedKey(normalizedLine.slice(1, -1).trim());
+}
+function isTomlTableHeaderLine(line) {
+  const normalizedLine = stripUnquotedInlineComment(line).trim();
+  return normalizedLine.startsWith("[") && normalizedLine.endsWith("]");
+}
+function stripUnquotedInlineComment(line) {
+  let quote = null;
+  let index = 0;
+  while (index < line.length) {
+    const char = line[index];
+    if (quote === '"') {
+      if (char === "\\") {
+        index += 2;
+        continue;
+      }
+      if (char === '"')
+        quote = null;
+      index += 1;
+      continue;
+    }
+    if (quote === "'") {
+      if (char === "'")
+        quote = null;
+      index += 1;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      index += 1;
+      continue;
+    }
+    if (char === "#")
+      return line.slice(0, index);
+    index += 1;
+  }
+  return line;
+}
+function parseTomlDottedKey(input) {
+  const parts = [];
+  let index = 0;
+  while (index < input.length) {
+    index = skipWhitespace(input, index);
+    const parsedKey = parseTomlKeyPart(input, index);
+    if (!parsedKey)
+      return null;
+    parts.push(parsedKey.value);
+    index = skipWhitespace(input, parsedKey.nextIndex);
+    if (index === input.length)
+      return parts;
+    if (input[index] !== ".")
+      return null;
+    index += 1;
+  }
+  return parts.length > 0 ? parts : null;
+}
+function parseTomlKeyPart(input, startIndex) {
+  const quote = input[startIndex];
+  if (quote === "'")
+    return parseLiteralTomlString(input, startIndex);
+  if (quote === '"')
+    return parseBasicTomlString(input, startIndex);
+  return parseBareTomlKey(input, startIndex);
+}
+function parseLiteralTomlString(input, startIndex) {
+  let index = startIndex + 1;
+  let value = "";
+  while (index < input.length) {
+    const char = input[index];
+    if (char === "'")
+      return { value, nextIndex: index + 1 };
+    value += char;
+    index += 1;
+  }
+  return null;
+}
+function parseBasicTomlString(input, startIndex) {
+  let index = startIndex + 1;
+  let value = "";
+  while (index < input.length) {
+    const char = input[index];
+    if (char === '"')
+      return { value, nextIndex: index + 1 };
+    if (char !== "\\") {
+      value += char;
+      index += 1;
+      continue;
+    }
+    const escaped = parseBasicTomlEscape(input, index);
+    if (!escaped)
+      return null;
+    value += escaped.value;
+    index = escaped.nextIndex;
+  }
+  return null;
+}
+function parseBasicTomlEscape(input, backslashIndex) {
+  const escape = input[backslashIndex + 1];
+  if (escape === undefined)
+    return null;
+  if (escape === "b")
+    return { value: "\b", nextIndex: backslashIndex + 2 };
+  if (escape === "t")
+    return { value: "\t", nextIndex: backslashIndex + 2 };
+  if (escape === "n")
+    return { value: `
+`, nextIndex: backslashIndex + 2 };
+  if (escape === "f")
+    return { value: "\f", nextIndex: backslashIndex + 2 };
+  if (escape === "r")
+    return { value: "\r", nextIndex: backslashIndex + 2 };
+  if (escape === '"')
+    return { value: '"', nextIndex: backslashIndex + 2 };
+  if (escape === "\\")
+    return { value: "\\", nextIndex: backslashIndex + 2 };
+  if (escape === "u")
+    return parseUnicodeEscape(input, backslashIndex + 2, 4);
+  if (escape === "U")
+    return parseUnicodeEscape(input, backslashIndex + 2, 8);
+  return null;
+}
+function parseUnicodeEscape(input, digitsStart, digitCount) {
+  const digits = input.slice(digitsStart, digitsStart + digitCount);
+  if (digits.length !== digitCount || !/^[0-9A-Fa-f]+$/.test(digits))
+    return null;
+  const codePoint = Number.parseInt(digits, 16);
+  if (codePoint > 1114111)
+    return null;
+  return { value: String.fromCodePoint(codePoint), nextIndex: digitsStart + digitCount };
+}
+function parseBareTomlKey(input, startIndex) {
+  let index = startIndex;
+  while (index < input.length && /[A-Za-z0-9_-]/.test(input[index]))
+    index += 1;
+  if (index === startIndex)
+    return null;
+  return { value: input.slice(startIndex, index), nextIndex: index };
+}
+function skipWhitespace(input, startIndex) {
+  let index = startIndex;
+  while (index < input.length && /\s/.test(input[index]))
+    index += 1;
+  return index;
+}
+
+// ../src/install/codex-config-toml-sections.ts
+function removeTomlSections(config, shouldRemove) {
+  return splitTomlSections(config).filter((section) => section.header === null || !shouldRemove(section.header, section)).map((section) => section.text).join("").replace(/\n{3,}/g, `
+
+`);
+}
+function splitTomlSections(config) {
+  const lines = config.match(/[^\n]*\n?|$/g) ?? [];
+  const sections = [];
+  let current = { header: null, text: "" };
+  for (const line of lines) {
+    if (line.length === 0)
+      break;
+    const header = parseTomlHeader2(line);
+    if (header !== null) {
+      if (current.text.length > 0)
+        sections.push(current);
+      current = { header, text: line };
+    } else {
+      current = { ...current, text: current.text + line };
+    }
+  }
+  if (current.text.length > 0)
+    sections.push(current);
+  return sections;
+}
+function parsePluginHeaderKey(header) {
+  const path = parseTomlDottedKey(header);
+  return path?.[0] === "plugins" ? path[1] ?? null : null;
+}
+function parseAgentHeaderName(header) {
+  const path = parseTomlDottedKey(header);
+  return path?.[0] === "agents" ? path[1] ?? null : null;
+}
+function parseJsonString(value) {
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function parseHookStateHeaderKey(header) {
+  const path = parseTomlDottedKey(header);
+  if (path?.[0] !== "hooks" || path[1] !== "state")
+    return null;
+  return path[2] ?? null;
+}
+function parseTomlHeader2(line) {
+  const trimmed = stripTomlLineComment(line).trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]") || trimmed.startsWith("[["))
+    return null;
+  return trimmed.slice(1, -1);
+}
+function stripTomlLineComment(line) {
+  let quote = null;
+  let index = 0;
+  while (index < line.length) {
+    const char = line[index];
+    if (quote === '"') {
+      if (char === "\\") {
+        index += 2;
+        continue;
+      }
+      if (char === '"')
+        quote = null;
+      index += 1;
+      continue;
+    }
+    if (quote === "'") {
+      if (char === "'")
+        quote = null;
+      index += 1;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      index += 1;
+      continue;
+    }
+    if (char === "#")
+      return line.slice(0, index);
+    index += 1;
+  }
+  return line;
+}
+
 // ../src/install/managed-agent-reasoning-defaults.ts
 var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
   [
@@ -1110,16 +1433,6 @@ function isSectionHeader(line) {
 }
 function agentNameFromToml(fileName) {
   return fileName.endsWith(".toml") ? fileName.slice(0, -".toml".length) : fileName;
-}
-function parseJsonString(value) {
-  try {
-    const parsed = JSON.parse(value);
-    return typeof parsed === "string" ? parsed : null;
-  } catch (error) {
-    if (error instanceof Error)
-      return null;
-    return null;
-  }
 }
 async function exists(path) {
   try {
@@ -1777,321 +2090,6 @@ async function existingNonSymlink(path) {
 // ../src/install/codex-config-toml.ts
 import { mkdir as mkdir6, readFile as readFile10 } from "node:fs/promises";
 import { dirname as dirname8 } from "node:path";
-
-// ../src/install/toml-section-editor.ts
-function findTomlSection(config, header) {
-  const headerLine = `[${header}]`;
-  const targetHeaderPath = parseTomlDottedKey(header);
-  const lines = config.match(/[^\n]*\n?|$/g) ?? [];
-  let offset = 0;
-  let start = -1;
-  for (const line of lines) {
-    if (line.length === 0)
-      break;
-    const trimmed = line.trim();
-    if (start === -1) {
-      if (tomlTableHeaderMatches(trimmed, headerLine, targetHeaderPath))
-        start = offset;
-    } else if (isTomlTableHeaderLine(line)) {
-      return { start, end: offset, text: config.slice(start, offset) };
-    }
-    offset += line.length;
-  }
-  if (start === -1)
-    return null;
-  return { start, end: config.length, text: config.slice(start) };
-}
-function replaceOrInsertSetting(config, section, key, value) {
-  const linePattern = new RegExp(`^[ \\t]*${escapeRegExp(key)}[ \\t]*=.*$`, "m");
-  const replacement = linePattern.test(section.text) ? section.text.replace(linePattern, `${key} = ${value}`) : insertSetting(section.text, key, value);
-  return config.slice(0, section.start) + replacement + config.slice(section.end);
-}
-function removeSetting(config, section, key) {
-  const linePattern = new RegExp(`^[ \\t]*${escapeRegExp(key)}[ \\t]*=.*(?:\\n|$)`, "m");
-  const replacement = section.text.replace(linePattern, "");
-  return config.slice(0, section.start) + replacement + config.slice(section.end);
-}
-function replaceOrInsertRootSetting(config, key, value) {
-  const sectionStart = findFirstTableStart(config);
-  const root = config.slice(0, sectionStart);
-  const suffix = config.slice(sectionStart);
-  const linePattern = new RegExp(`^[ \\t]*${escapeRegExp(key)}[ \\t]*=.*$`, "m");
-  const replacement = linePattern.test(root) ? root.replace(linePattern, `${key} = ${value}`) : `${root.trimEnd()}${root.trimEnd().length > 0 ? `
-` : ""}${key} = ${value}
-`;
-  if (suffix.length === 0)
-    return replacement;
-  return `${replacement.trimEnd()}
-
-${suffix.trimStart()}`;
-}
-function appendBlock(config, block) {
-  const prefix = config.trimEnd();
-  return `${prefix}${prefix.length > 0 ? `
-
-` : ""}${block.trimEnd()}
-`;
-}
-function findFirstTableStart(config) {
-  const lines = config.match(/[^\n]*\n?|$/g) ?? [];
-  let offset = 0;
-  for (const line of lines) {
-    if (line.length === 0)
-      break;
-    if (isTomlTableHeaderLine(line))
-      return offset;
-    offset += line.length;
-  }
-  return config.length;
-}
-function insertSetting(sectionText, key, value) {
-  const lines = sectionText.split(`
-`);
-  lines.splice(1, 0, `${key} = ${value}`);
-  return lines.join(`
-`);
-}
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function tomlTableHeaderMatches(line, headerLine, targetHeaderPath) {
-  const normalizedLine = stripUnquotedInlineComment(line).trim();
-  if (normalizedLine === headerLine)
-    return true;
-  if (!targetHeaderPath)
-    return false;
-  const candidateHeaderPath = parseTomlTableHeader(normalizedLine);
-  if (!candidateHeaderPath || candidateHeaderPath.length !== targetHeaderPath.length)
-    return false;
-  return candidateHeaderPath.every((part, index) => part === targetHeaderPath[index]);
-}
-function parseTomlTableHeader(line) {
-  const normalizedLine = stripUnquotedInlineComment(line).trim();
-  if (!normalizedLine.startsWith("[") || !normalizedLine.endsWith("]") || normalizedLine.startsWith("[["))
-    return null;
-  return parseTomlDottedKey(normalizedLine.slice(1, -1).trim());
-}
-function isTomlTableHeaderLine(line) {
-  const normalizedLine = stripUnquotedInlineComment(line).trim();
-  return normalizedLine.startsWith("[") && normalizedLine.endsWith("]");
-}
-function stripUnquotedInlineComment(line) {
-  let quote = null;
-  let index = 0;
-  while (index < line.length) {
-    const char = line[index];
-    if (quote === '"') {
-      if (char === "\\") {
-        index += 2;
-        continue;
-      }
-      if (char === '"')
-        quote = null;
-      index += 1;
-      continue;
-    }
-    if (quote === "'") {
-      if (char === "'")
-        quote = null;
-      index += 1;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      index += 1;
-      continue;
-    }
-    if (char === "#")
-      return line.slice(0, index);
-    index += 1;
-  }
-  return line;
-}
-function parseTomlDottedKey(input) {
-  const parts = [];
-  let index = 0;
-  while (index < input.length) {
-    index = skipWhitespace(input, index);
-    const parsedKey = parseTomlKeyPart(input, index);
-    if (!parsedKey)
-      return null;
-    parts.push(parsedKey.value);
-    index = skipWhitespace(input, parsedKey.nextIndex);
-    if (index === input.length)
-      return parts;
-    if (input[index] !== ".")
-      return null;
-    index += 1;
-  }
-  return parts.length > 0 ? parts : null;
-}
-function parseTomlKeyPart(input, startIndex) {
-  const quote = input[startIndex];
-  if (quote === "'")
-    return parseLiteralTomlString(input, startIndex);
-  if (quote === '"')
-    return parseBasicTomlString(input, startIndex);
-  return parseBareTomlKey(input, startIndex);
-}
-function parseLiteralTomlString(input, startIndex) {
-  let index = startIndex + 1;
-  let value = "";
-  while (index < input.length) {
-    const char = input[index];
-    if (char === "'")
-      return { value, nextIndex: index + 1 };
-    value += char;
-    index += 1;
-  }
-  return null;
-}
-function parseBasicTomlString(input, startIndex) {
-  let index = startIndex + 1;
-  let value = "";
-  while (index < input.length) {
-    const char = input[index];
-    if (char === '"')
-      return { value, nextIndex: index + 1 };
-    if (char !== "\\") {
-      value += char;
-      index += 1;
-      continue;
-    }
-    const escaped = parseBasicTomlEscape(input, index);
-    if (!escaped)
-      return null;
-    value += escaped.value;
-    index = escaped.nextIndex;
-  }
-  return null;
-}
-function parseBasicTomlEscape(input, backslashIndex) {
-  const escape = input[backslashIndex + 1];
-  if (escape === undefined)
-    return null;
-  if (escape === "b")
-    return { value: "\b", nextIndex: backslashIndex + 2 };
-  if (escape === "t")
-    return { value: "\t", nextIndex: backslashIndex + 2 };
-  if (escape === "n")
-    return { value: `
-`, nextIndex: backslashIndex + 2 };
-  if (escape === "f")
-    return { value: "\f", nextIndex: backslashIndex + 2 };
-  if (escape === "r")
-    return { value: "\r", nextIndex: backslashIndex + 2 };
-  if (escape === '"')
-    return { value: '"', nextIndex: backslashIndex + 2 };
-  if (escape === "\\")
-    return { value: "\\", nextIndex: backslashIndex + 2 };
-  if (escape === "u")
-    return parseUnicodeEscape(input, backslashIndex + 2, 4);
-  if (escape === "U")
-    return parseUnicodeEscape(input, backslashIndex + 2, 8);
-  return null;
-}
-function parseUnicodeEscape(input, digitsStart, digitCount) {
-  const digits = input.slice(digitsStart, digitsStart + digitCount);
-  if (digits.length !== digitCount || !/^[0-9A-Fa-f]+$/.test(digits))
-    return null;
-  const codePoint = Number.parseInt(digits, 16);
-  if (codePoint > 1114111)
-    return null;
-  return { value: String.fromCodePoint(codePoint), nextIndex: digitsStart + digitCount };
-}
-function parseBareTomlKey(input, startIndex) {
-  let index = startIndex;
-  while (index < input.length && /[A-Za-z0-9_-]/.test(input[index]))
-    index += 1;
-  if (index === startIndex)
-    return null;
-  return { value: input.slice(startIndex, index), nextIndex: index };
-}
-function skipWhitespace(input, startIndex) {
-  let index = startIndex;
-  while (index < input.length && /\s/.test(input[index]))
-    index += 1;
-  return index;
-}
-
-// ../src/install/codex-config-toml-sections.ts
-function removeTomlSections(config, shouldRemove) {
-  return splitTomlSections(config).filter((section) => section.header === null || !shouldRemove(section.header, section)).map((section) => section.text).join("").replace(/\n{3,}/g, `
-
-`);
-}
-function splitTomlSections(config) {
-  const lines = config.match(/[^\n]*\n?|$/g) ?? [];
-  const sections = [];
-  let current = { header: null, text: "" };
-  for (const line of lines) {
-    if (line.length === 0)
-      break;
-    const header = parseTomlHeader2(line);
-    if (header !== null) {
-      if (current.text.length > 0)
-        sections.push(current);
-      current = { header, text: line };
-    } else {
-      current = { ...current, text: current.text + line };
-    }
-  }
-  if (current.text.length > 0)
-    sections.push(current);
-  return sections;
-}
-function parsePluginHeaderKey(header) {
-  const path = parseTomlDottedKey(header);
-  return path?.[0] === "plugins" ? path[1] ?? null : null;
-}
-function parseAgentHeaderName(header) {
-  const path = parseTomlDottedKey(header);
-  return path?.[0] === "agents" ? path[1] ?? null : null;
-}
-function parseHookStateHeaderKey(header) {
-  const path = parseTomlDottedKey(header);
-  if (path?.[0] !== "hooks" || path[1] !== "state")
-    return null;
-  return path[2] ?? null;
-}
-function parseTomlHeader2(line) {
-  const trimmed = stripTomlLineComment(line).trim();
-  if (!trimmed.startsWith("[") || !trimmed.endsWith("]") || trimmed.startsWith("[["))
-    return null;
-  return trimmed.slice(1, -1);
-}
-function stripTomlLineComment(line) {
-  let quote = null;
-  let index = 0;
-  while (index < line.length) {
-    const char = line[index];
-    if (quote === '"') {
-      if (char === "\\") {
-        index += 2;
-        continue;
-      }
-      if (char === '"')
-        quote = null;
-      index += 1;
-      continue;
-    }
-    if (quote === "'") {
-      if (char === "'")
-        quote = null;
-      index += 1;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      index += 1;
-      continue;
-    }
-    if (char === "#")
-      return line.slice(0, index);
-    index += 1;
-  }
-  return line;
-}
 
 // ../src/install/codex-config-agents.ts
 var LEGACY_MANAGED_CODEX_AGENT_NAMES_TO_PURGE = ["codex-ultrawork-reviewer"];

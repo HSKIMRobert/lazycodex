@@ -1423,6 +1423,9 @@ async function disposeDefaultLspManager() {
     await m.stopAll();
   }
 }
+function isPlainRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 function isProcessAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0)
     return false;
@@ -3313,19 +3316,16 @@ function sendToolCall(socketPath, name, args, timeoutMs) {
   });
 }
 function toToolResult(message) {
-  if (!isRecord6(message) || message["id"] !== REQUEST_ID)
+  if (!isPlainRecord(message) || message["id"] !== REQUEST_ID)
     return null;
   const result = message["result"];
-  if (!isRecord6(result) || !Array.isArray(result["content"]))
+  if (!isPlainRecord(result) || !Array.isArray(result["content"]))
     return null;
   return {
     content: result["content"],
     isError: result["isError"] === true,
     details: result["details"]
   };
-}
-function isRecord6(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function errorText(error) {
   return error instanceof Error ? error.message : String(error);
@@ -3450,7 +3450,7 @@ function readSessionState(path) {
       return parsed;
     return emptyState();
   } catch (error) {
-    if (error instanceof SyntaxError || isRecord7(error) && error["code"] === "ENOENT")
+    if (error instanceof SyntaxError || isRecord6(error) && error["code"] === "ENOENT")
       return emptyState();
     throw error;
   }
@@ -3471,12 +3471,12 @@ function safePathSegment(value) {
   return value.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120) || "unknown-session";
 }
 function isLspSessionState(value) {
-  if (!isRecord7(value) || !Array.isArray(value["unavailableExtensions"]))
+  if (!isRecord6(value) || !Array.isArray(value["unavailableExtensions"]))
     return false;
   const postCompactProbePending = value["postCompactProbePending"];
   return value["unavailableExtensions"].every((item) => typeof item === "string") && (postCompactProbePending === undefined || typeof postCompactProbePending === "boolean");
 }
-function isRecord7(value) {
+function isRecord6(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -3487,7 +3487,7 @@ function extractMutatedFilePaths(input) {
     return [];
   if (isFailedToolResponse(input.tool_response))
     return [];
-  const toolInput = isRecord9(input.tool_input) ? input.tool_input : {};
+  const toolInput = isRecord7(input.tool_input) ? input.tool_input : {};
   const paths = new Set;
   addStringValue(paths, toolInput["path"]);
   addStringValue(paths, toolInput["filePath"]);
@@ -3506,7 +3506,7 @@ function isMutationTool(value) {
   return MUTATION_TOOL_NAMES.has(value.toLowerCase());
 }
 function isFailedToolResponse(value) {
-  if (!isRecord9(value))
+  if (!isRecord7(value))
     return false;
   return value["isError"] === true || value["is_error"] === true || value["error"] === true || value["status"] === "error";
 }
@@ -3549,7 +3549,7 @@ function addPatchFiles(paths, value) {
   if (!Array.isArray(value))
     return;
   for (const item of value) {
-    if (!isRecord9(item))
+    if (!isRecord7(item))
       continue;
     addStringValue(paths, item["path"]);
     addStringValue(paths, item["filePath"]);
@@ -3558,7 +3558,7 @@ function addPatchFiles(paths, value) {
     addStringValue(paths, item["move_path"]);
   }
 }
-function isRecord9(value) {
+function isRecord7(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -3742,7 +3742,7 @@ function limitHookText(text2, maxChars) {
 function isCleanDiagnostics(diagnostics) {
   return diagnostics.length === 0 || diagnostics === CLEAN_DIAGNOSTICS_TEXT || diagnostics.startsWith(UNSUPPORTED_EXTENSION_TEXT);
 }
-function isRecord10(value) {
+function isRecord8(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -3759,7 +3759,7 @@ async function runHookCli(runHook, stdin) {
     if (!raw.trim())
       return;
     const parsed = JSON.parse(raw);
-    const input = isRecord10(parsed) ? parsed : {};
+    const input = isRecord8(parsed) ? parsed : {};
     const output = await runHook(input);
     if (output)
       process.stdout.write(output);

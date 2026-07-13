@@ -1,4 +1,5 @@
 import { connect } from "node:net";
+import { isPlainRecord } from "@oh-my-opencode/mcp-stdio-core/record";
 import { ensureDaemonRunning } from "./ensure-daemon.js";
 import { daemonPaths } from "./paths.js";
 import { CONTEXT_KEY } from "./request-routing.js";
@@ -95,19 +96,16 @@ function sendToolCall(socketPath, name, args, timeoutMs) {
     });
 }
 function toToolResult(message) {
-    if (!isRecord(message) || message["id"] !== REQUEST_ID)
+    if (!isPlainRecord(message) || message["id"] !== REQUEST_ID)
         return null;
     const result = message["result"];
-    if (!isRecord(result) || !Array.isArray(result["content"]))
+    if (!isPlainRecord(result) || !Array.isArray(result["content"]))
         return null;
     return {
         content: result["content"],
         isError: result["isError"] === true,
         details: result["details"],
     };
-}
-function isRecord(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function errorText(error) {
     return error instanceof Error ? error.message : String(error);
