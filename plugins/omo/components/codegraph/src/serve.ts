@@ -16,6 +16,7 @@ import {
 	buildCodegraphChildEnv,
 	buildCodegraphEnv,
 } from "../../../../../utils/src/codegraph/env.ts";
+import { resolvePinnedCodegraphBin } from "../../../../../utils/src/codegraph/managed-runtime.ts";
 import type { ParentWatchdogConfig } from "../../../../../mcp-stdio-core/src/index.ts";
 import { CODEGRAPH_PINNED_VERSION } from "../../../../../utils/src/codegraph/manifest.ts";
 import {
@@ -142,7 +143,7 @@ export async function runCodegraphServe(options: RunCodegraphServeOptions = {}):
 	}
 
 	const runProcess = options.runProcess ?? runBridgedCodegraphProcess;
-	const codegraphEnv = codegraphEnvForConfig(trustedInstallDir, homeDir, codegraphConfig.daemon === true, options.buildEnv);
+	const codegraphEnv = codegraphEnvForConfig(trustedInstallDir, homeDir, codegraphConfig.daemon !== false, options.buildEnv);
 	const mergedEnv = buildCodegraphChildEnv({ ambientEnv: env, codegraphEnv, runtimeEnv: env });
 	return runProcess(resolution.command, [...resolution.argsPrefix, "serve", "--mcp"], {
 		cwd: projectCwd,
@@ -221,9 +222,7 @@ function resolveProjectCwd(env: Record<string, string | undefined>, fallback: st
 }
 
 function provisionedBinFromInstallDir(installDir: string | undefined): string | null {
-	if (installDir === undefined) return null;
-	const candidate = join(installDir, "bin", process.platform === "win32" ? "codegraph.cmd" : "codegraph");
-	return existsSync(candidate) ? candidate : null;
+	return resolvePinnedCodegraphBin(installDir);
 }
 
 export async function runCodegraphServeCli(): Promise<void> {

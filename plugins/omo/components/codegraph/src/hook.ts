@@ -1,6 +1,5 @@
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { homedir } from "node:os";
-import { join } from "node:path";
 import {
 	cwd as processCwd,
 	env as processEnv,
@@ -13,7 +12,9 @@ import { fileURLToPath } from "node:url";
 
 import { buildCodegraphChildEnv, buildCodegraphEnv } from "../../../../../utils/src/codegraph/env.ts";
 import { buildCodegraphInitGuidanceForToolResult } from "../../../../../utils/src/codegraph/guidance.ts";
+import { resolvePinnedCodegraphBin } from "../../../../../utils/src/codegraph/managed-runtime.ts";
 import { resolveCodegraphCommand } from "../../../../../utils/src/codegraph/resolve.ts";
+import { runProcessWithTreeTimeout } from "../../../../../utils/src/process-tree.ts";
 import { shouldExcludeCodegraphProject } from "../../../../../utils/src/codegraph/workspace.ts";
 import { getCodexOmoConfig } from "../../../shared/src/config-loader.ts";
 import { pruneCodegraphProjectStoresBestEffort } from "./cache-gc.js";
@@ -66,13 +67,6 @@ export async function executeCodegraphSessionStartHook(options: SessionStartHook
 	const projectRoot = resolveProjectRoot(input, options.cwd ?? processCwd());
 	const homeDir = resolveHomeDir(env);
 	const config = options.config ?? getCodexOmoConfig({ cwd: projectRoot, env, homeDir });
-	pruneCodegraphProjectStoresBestEffort(homeDir, { debugLog: writeDebugLog });
-	await sweepCodegraphZombiesBestEffort({
-		env,
-		homeDir,
-		...(config.trustedCodegraphInstallDir === undefined ? {} : { trustedCodegraphInstallDir: config.trustedCodegraphInstallDir }),
-		log: writeDebugLog,
-	}, options.sweepZombies);
 
 	if (config.codegraph?.enabled === false) {
 		return { action: "skipped-disabled", exitCode: 0 };
@@ -86,8 +80,16 @@ export async function executeCodegraphSessionStartHook(options: SessionStartHook
 		return { action: "skipped-excluded", exitCode: 0 };
 	}
 
+	pruneCodegraphProjectStoresBestEffort(homeDir, { debugLog: writeDebugLog });
+	await sweepCodegraphZombiesBestEffort({
+		env,
+		homeDir,
+		...(config.trustedCodegraphInstallDir === undefined ? {} : { trustedCodegraphInstallDir: config.trustedCodegraphInstallDir }),
+		log: writeDebugLog,
+	}, options.sweepZombies);
+
 	const isInitialized = await (options.statusProbe ?? isCodegraphProjectInitialized)({
-		daemon: config.codegraph?.daemon === true,
+		daemon: config.codegraph?.daemon !== false,
 		env,
 		homeDir,
 		projectRoot,
@@ -145,27 +147,14 @@ function runStatusProbe(
 	args: readonly string[],
 	env: Record<string, string>,
 ): Promise<{ readonly exitCode: number; readonly stdout: string; readonly timedOut: boolean }> {
-	return new Promise((resolveProbe) => {
-		execFile(
-			command,
-			[...args],
-			{
-				cwd: projectRoot,
-				encoding: "utf8",
-				env,
-				maxBuffer: 1024 * 1024,
-				timeout: STATUS_PROBE_TIMEOUT_MS,
-				windowsHide: true,
-			},
-			(error, stdout) => {
-				if (error === null) {
-					resolveProbe({ exitCode: 0, stdout: toOutputText(stdout), timedOut: false });
-					return;
-				}
-				resolveProbe({ exitCode: resolveExitCode(error), stdout: toOutputText(stdout), timedOut: error.killed === true });
-			},
-		);
-	});
+	return runProcessWithTreeTimeout({
+		args,
+		command,
+		cwd: projectRoot,
+		env,
+		maxBuffer: 1024 * 1024,
+		timeoutMs: STATUS_PROBE_TIMEOUT_MS,
+	}).then(({ exitCode, stdout, timedOut }) => ({ exitCode, stdout, timedOut }));
 }
 
 function codegraphStatusSaysInitialized(stdout: string): boolean {
@@ -180,8 +169,7 @@ function codegraphStatusSaysInitialized(stdout: string): boolean {
 }
 
 function provisionedBinFromInstallDir(installDir: string | undefined): string | null {
-	if (installDir === undefined) return null;
-	return join(installDir, "bin", process.platform === "win32" ? "codegraph.cmd" : "codegraph");
+	return resolvePinnedCodegraphBin(installDir);
 }
 
 export async function executeCodegraphPostToolUseHook(options: PostToolUseHookOptions = {}): Promise<PostToolUseHookResult> {
@@ -231,15 +219,6 @@ function spawnDetachedWorker(invocation: WorkerSpawnInvocation): void {
 
 function resolveHomeDir(env: Record<string, string | undefined>): string {
 	return env["HOME"] ?? env["USERPROFILE"] ?? homedir();
-}
-
-function resolveExitCode(error: Error): number {
-	if ("code" in error && typeof error.code === "number") return error.code;
-	return 1;
-}
-
-function toOutputText(value: string | Buffer): string {
-	return Buffer.isBuffer(value) ? value.toString("utf8") : value;
 }
 
 function resolveProjectRoot(input: unknown, fallback: string): string {
