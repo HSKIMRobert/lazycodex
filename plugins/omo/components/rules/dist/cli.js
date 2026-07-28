@@ -31,7 +31,7 @@ var __toESM = (mod, isNodeMode, target) => {
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 
-// ../../../node_modules/.bun/picomatch@4.0.4/node_modules/picomatch/lib/constants.js
+// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/lib/constants.js
 var require_constants = __commonJS((exports, module) => {
   var WIN_SLASH = "\\\\/";
   var WIN_NO_SLASH = `[^${WIN_SLASH}]`;
@@ -176,7 +176,7 @@ var require_constants = __commonJS((exports, module) => {
   };
 });
 
-// ../../../node_modules/.bun/picomatch@4.0.4/node_modules/picomatch/lib/utils.js
+// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/lib/utils.js
 var require_utils = __commonJS((exports) => {
   var {
     REGEX_BACKSLASH,
@@ -239,7 +239,7 @@ var require_utils = __commonJS((exports) => {
   };
 });
 
-// ../../../node_modules/.bun/picomatch@4.0.4/node_modules/picomatch/lib/scan.js
+// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/lib/scan.js
 var require_scan = __commonJS((exports, module) => {
   var utils = require_utils();
   var {
@@ -554,7 +554,7 @@ var require_scan = __commonJS((exports, module) => {
   module.exports = scan;
 });
 
-// ../../../node_modules/.bun/picomatch@4.0.4/node_modules/picomatch/lib/parse.js
+// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/lib/parse.js
 var require_parse = __commonJS((exports, module) => {
   var constants = require_constants();
   var utils = require_utils();
@@ -730,7 +730,11 @@ var require_parse = __commonJS((exports, module) => {
       }
     }
   };
-  var getStarExtglobSequenceOutput = (pattern) => {
+  var buildCharClassStar = (chars) => {
+    const source = chars.length === 1 ? utils.escapeRegex(chars[0]) : `[${chars.map((ch) => utils.escapeRegex(ch)).join("")}]`;
+    return `${source}*`;
+  };
+  var getStarExtglobSequenceChars = (pattern) => {
     let index = 0;
     const chars = [];
     while (index < pattern.length) {
@@ -752,8 +756,7 @@ var require_parse = __commonJS((exports, module) => {
     if (chars.length < 1) {
       return;
     }
-    const source = chars.length === 1 ? utils.escapeRegex(chars[0]) : `[${chars.map((ch) => utils.escapeRegex(ch)).join("")}]`;
-    return `${source}*`;
+    return chars;
   };
   var repeatedExtglobRecursion = (pattern) => {
     let depth = 0;
@@ -777,14 +780,28 @@ var require_parse = __commonJS((exports, module) => {
         return { risky: true };
       }
     }
+    const safeChars = [];
+    let sawStarSequence = false;
+    let combinable = true;
     for (const branch of branches) {
-      const safeOutput = getStarExtglobSequenceOutput(branch);
-      if (safeOutput) {
-        return { risky: true, safeOutput };
+      const chars = getStarExtglobSequenceChars(branch);
+      if (chars) {
+        sawStarSequence = true;
+        safeChars.push(...chars);
+        continue;
       }
+      const literal = normalizeSimpleBranch(branch);
+      if (literal && literal.length === 1) {
+        safeChars.push(literal);
+        continue;
+      }
+      combinable = false;
       if (repeatedExtglobRecursion(branch) > max) {
         return { risky: true };
       }
+    }
+    if (sawStarSequence) {
+      return combinable ? { risky: true, safeOutput: buildCharClassStar([...new Set(safeChars)]) } : { risky: true };
     }
     return { risky: false };
   };
@@ -1556,7 +1573,7 @@ var require_parse = __commonJS((exports, module) => {
   module.exports = parse;
 });
 
-// ../../../node_modules/.bun/picomatch@4.0.4/node_modules/picomatch/lib/picomatch.js
+// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/lib/picomatch.js
 var require_picomatch = __commonJS((exports, module) => {
   var scan = require_scan();
   var parse = require_parse();
@@ -1641,9 +1658,9 @@ var require_picomatch = __commonJS((exports, module) => {
     }
     return { isMatch: Boolean(match), match, output };
   };
-  picomatch.matchBase = (input, glob, options) => {
+  picomatch.matchBase = (input, glob, options, posix = options && options.windows) => {
     const regex = glob instanceof RegExp ? glob : picomatch.makeRe(glob, options);
-    return regex.test(utils.basename(input));
+    return regex.test(utils.basename(input, { windows: posix }));
   };
   picomatch.isMatch = (str, patterns, options) => picomatch(patterns, options)(str);
   picomatch.parse = (pattern, options) => {
@@ -1696,7 +1713,7 @@ var require_picomatch = __commonJS((exports, module) => {
   module.exports = picomatch;
 });
 
-// ../../../node_modules/.bun/picomatch@4.0.4/node_modules/picomatch/index.js
+// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/index.js
 var require_picomatch2 = __commonJS((exports, module) => {
   var pico = require_picomatch();
   var utils = require_utils();
