@@ -2146,7 +2146,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "4.19.3",
+    version: "4.19.4",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -2358,18 +2358,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "4.19.3",
-      "oh-my-opencode-darwin-x64": "4.19.3",
-      "oh-my-opencode-darwin-x64-baseline": "4.19.3",
-      "oh-my-opencode-linux-arm64": "4.19.3",
-      "oh-my-opencode-linux-arm64-musl": "4.19.3",
-      "oh-my-opencode-linux-x64": "4.19.3",
-      "oh-my-opencode-linux-x64-baseline": "4.19.3",
-      "oh-my-opencode-linux-x64-musl": "4.19.3",
-      "oh-my-opencode-linux-x64-musl-baseline": "4.19.3",
-      "oh-my-opencode-windows-arm64": "4.19.3",
-      "oh-my-opencode-windows-x64": "4.19.3",
-      "oh-my-opencode-windows-x64-baseline": "4.19.3"
+      "oh-my-opencode-darwin-arm64": "4.19.4",
+      "oh-my-opencode-darwin-x64": "4.19.4",
+      "oh-my-opencode-darwin-x64-baseline": "4.19.4",
+      "oh-my-opencode-linux-arm64": "4.19.4",
+      "oh-my-opencode-linux-arm64-musl": "4.19.4",
+      "oh-my-opencode-linux-x64": "4.19.4",
+      "oh-my-opencode-linux-x64-baseline": "4.19.4",
+      "oh-my-opencode-linux-x64-musl": "4.19.4",
+      "oh-my-opencode-linux-x64-musl-baseline": "4.19.4",
+      "oh-my-opencode-windows-arm64": "4.19.4",
+      "oh-my-opencode-windows-x64": "4.19.4",
+      "oh-my-opencode-windows-x64-baseline": "4.19.4"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.80.3",
@@ -22146,24 +22146,149 @@ var init_zod = __esm(() => {
   init_external();
 });
 
+// packages/omo-config-core/src/schema/reasoning-vocabulary.ts
+function isReasoningLevel(value) {
+  return REASONING_LEVEL_SET.has(value);
+}
+function normalizeReasoning(input) {
+  const normalized = input.trim().toLowerCase();
+  if (!normalized)
+    return {};
+  if (normalized === "none")
+    return { level: "off" };
+  if (normalized === REASONING_AUTO)
+    return { level: REASONING_AUTO };
+  if (isReasoningLevel(normalized))
+    return { level: normalized };
+  return { passthrough: normalized };
+}
+function splitReasoningSuffix(model, options) {
+  if (typeof model !== "string")
+    return { base: "" };
+  const trimmed = model.trim();
+  if (!trimmed)
+    return { base: "" };
+  const separatorIndex = trimmed.lastIndexOf(":");
+  if (separatorIndex === -1)
+    return { base: trimmed };
+  const base = trimmed.slice(0, separatorIndex).trim();
+  const token = trimmed.slice(separatorIndex + 1).trim().toLowerCase();
+  if (!base || !REASONING_LEVEL_OR_AUTO_SET.has(token))
+    return { base: trimmed };
+  if (token === "max" && !(options?.allowMaxSuffix ?? base.includes("/")))
+    return { base: trimmed };
+  return { base, level: token };
+}
+var REASONING_LEVELS, REASONING_AUTO = "auto", REASONING_LEVEL_SET, REASONING_LEVEL_OR_AUTO_SET;
+var init_reasoning_vocabulary = __esm(() => {
+  REASONING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+  REASONING_LEVEL_SET = new Set(REASONING_LEVELS);
+  REASONING_LEVEL_OR_AUTO_SET = new Set([...REASONING_LEVELS, REASONING_AUTO]);
+});
+
+// packages/omo-config-core/src/schema/model-ref.ts
+var REASONING_LEVELS_OR_AUTO, OmoReasoningSchema, OmoModelRefObjectSchema, OmoModelRefSchema;
+var init_model_ref = __esm(() => {
+  init_zod();
+  init_reasoning_vocabulary();
+  REASONING_LEVELS_OR_AUTO = [...REASONING_LEVELS, "auto"];
+  OmoReasoningSchema = union([
+    _enum2(REASONING_LEVELS_OR_AUTO),
+    string2()
+  ]);
+  OmoModelRefObjectSchema = object({
+    model: string2(),
+    reasoning: OmoReasoningSchema.optional(),
+    temperature: number2().min(0).max(2).optional(),
+    top_p: number2().min(0).max(1).optional(),
+    max_tokens: number2().int().positive().optional(),
+    provider_options: record(string2(), unknown()).optional()
+  }).strict();
+  OmoModelRefSchema = union([string2(), OmoModelRefObjectSchema]);
+});
+
 // packages/omo-config-core/src/schema/fallback-models.ts
-var OmoThinkingConfigSchema, OmoReasoningEffortSchema, OmoFallbackModelObjectSchema, OmoFallbackModelsSchema;
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function canonicalReasoning(value) {
+  if (typeof value !== "string")
+    return;
+  const normalized = normalizeReasoning(value);
+  return normalized.level ?? normalized.passthrough;
+}
+function canonicalModelString(model) {
+  const colon = splitReasoningSuffix(model, { allowMaxSuffix: true });
+  if (colon.level !== undefined)
+    return `${colon.base}:${colon.level}`;
+  const trimmed = model.trim();
+  const parenthesized = trimmed.match(/^(.*)\(([^()]+)\)\s*$/);
+  const spaced = parenthesized === null ? trimmed.match(/^(.*\S)\s+([a-z][a-z0-9_-]*)$/i) : null;
+  const base = (parenthesized?.[1] ?? spaced?.[1])?.trim();
+  const token = (parenthesized?.[2] ?? spaced?.[2])?.trim();
+  if (base === undefined || token === undefined)
+    return trimmed;
+  const normalized = normalizeReasoning(token);
+  return normalized.level === undefined ? trimmed : `${base}:${normalized.level}`;
+}
+function normalizeLegacyModelFields(entry) {
+  const normalized = { ...entry };
+  delete normalized["variant"];
+  delete normalized["reasoningEffort"];
+  delete normalized["thinking"];
+  delete normalized["textVerbosity"];
+  delete normalized["maxTokens"];
+  delete normalized["providerOptions"];
+  if (typeof entry["model"] === "string")
+    normalized["model"] = canonicalModelString(entry["model"]);
+  const explicitReasoning = canonicalReasoning(entry["reasoning"]);
+  const variant = canonicalReasoning(entry["variant"]);
+  const reasoningEffort = canonicalReasoning(entry["reasoningEffort"]);
+  const thinking = isRecord2(entry["thinking"]) ? entry["thinking"] : undefined;
+  const reasoning = explicitReasoning ?? reasoningEffort ?? variant ?? (thinking?.["type"] === "disabled" ? "off" : undefined);
+  if (reasoning !== undefined)
+    normalized["reasoning"] = reasoning;
+  const providerOptions = isRecord2(entry["provider_options"]) ? { ...entry["provider_options"] } : isRecord2(entry["providerOptions"]) ? { ...entry["providerOptions"] } : {};
+  if (thinking?.["type"] === "enabled")
+    providerOptions["thinking"] = { ...thinking };
+  if (entry["textVerbosity"] !== undefined)
+    providerOptions["textVerbosity"] = entry["textVerbosity"];
+  if (Object.keys(providerOptions).length > 0)
+    normalized["provider_options"] = providerOptions;
+  if (entry["max_tokens"] !== undefined)
+    normalized["max_tokens"] = entry["max_tokens"];
+  else if (entry["maxTokens"] !== undefined)
+    normalized["max_tokens"] = entry["maxTokens"];
+  return normalized;
+}
+function normalizeLegacyModelEntry(entry) {
+  return OmoModelRefObjectSchema.parse(normalizeLegacyModelFields(entry));
+}
+var OmoThinkingConfigSchema, OmoReasoningEffortSchema, OmoLegacyFallbackModelObjectInputSchema, OmoFallbackModelObjectSchema, OmoFallbackModelsSchema;
 var init_fallback_models = __esm(() => {
   init_zod();
+  init_model_ref();
+  init_reasoning_vocabulary();
   OmoThinkingConfigSchema = object({
     type: _enum2(["enabled", "disabled"]),
     budgetTokens: number2().optional()
   }).strict();
-  OmoReasoningEffortSchema = _enum2(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
-  OmoFallbackModelObjectSchema = object({
+  OmoReasoningEffortSchema = OmoReasoningSchema;
+  OmoLegacyFallbackModelObjectInputSchema = object({
     model: string2(),
-    variant: string2().optional(),
-    reasoningEffort: OmoReasoningEffortSchema.optional(),
+    reasoning: OmoReasoningSchema.optional(),
     temperature: number2().min(0).max(2).optional(),
     top_p: number2().min(0).max(1).optional(),
+    max_tokens: number2().int().positive().optional(),
+    provider_options: record(string2(), unknown()).optional(),
+    variant: string2().optional(),
+    reasoningEffort: OmoReasoningEffortSchema.optional(),
+    thinking: OmoThinkingConfigSchema.optional(),
+    textVerbosity: _enum2(["low", "medium", "high"]).optional(),
     maxTokens: number2().optional(),
-    thinking: OmoThinkingConfigSchema.optional()
+    providerOptions: record(string2(), unknown()).optional()
   }).strict();
+  OmoFallbackModelObjectSchema = preprocess((value) => isRecord2(value) ? normalizeLegacyModelFields(value) : value, OmoLegacyFallbackModelObjectInputSchema);
   OmoFallbackModelsSchema = union([
     string2(),
     array(string2()),
@@ -22173,23 +22298,21 @@ var init_fallback_models = __esm(() => {
 });
 
 // packages/omo-config-core/src/schema/agent.ts
-var OmoAgentModelEntrySchema, OmoAgentDefSchema, OmoAgentsConfigSchema;
+function isRecord3(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var OmoAgentModelEntrySchema, OmoAgentDefInputSchema, OmoAgentDefSchema, OmoAgentsConfigSchema;
 var init_agent = __esm(() => {
   init_zod();
   init_fallback_models();
-  OmoAgentModelEntrySchema = union([
-    string2(),
-    object({
-      model: string2(),
-      variant: string2().optional(),
-      reasoningEffort: OmoReasoningEffortSchema.optional()
-    }).strict()
-  ]);
-  OmoAgentDefSchema = object({
+  init_model_ref();
+  OmoAgentModelEntrySchema = union([string2(), OmoFallbackModelObjectSchema]);
+  OmoAgentDefInputSchema = object({
     description: string2().optional(),
     prompt: string2().optional(),
     model: string2().optional(),
     models: array(OmoAgentModelEntrySchema).optional(),
+    reasoning: OmoReasoningSchema.optional(),
     variant: string2().optional(),
     reasoningEffort: OmoReasoningEffortSchema.optional(),
     tools: record(string2(), boolean2()).optional(),
@@ -22202,21 +22325,30 @@ var init_agent = __esm(() => {
     temperature: number2().min(0).max(2).optional(),
     disable: boolean2().optional()
   }).strict();
+  OmoAgentDefSchema = preprocess((value) => isRecord3(value) ? normalizeLegacyModelFields(value) : value, OmoAgentDefInputSchema);
   OmoAgentsConfigSchema = record(string2(), OmoAgentDefSchema);
 });
 
 // packages/omo-config-core/src/schema/category.ts
-var OmoCategoryConfigSchema, OmoCategoriesConfigSchema;
+function isRecord4(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var OmoCategoryConfigObjectSchema, OmoCategoryConfigSchema, OmoCategoriesConfigSchema;
 var init_category = __esm(() => {
   init_zod();
   init_fallback_models();
-  OmoCategoryConfigSchema = object({
+  init_model_ref();
+  OmoCategoryConfigObjectSchema = object({
     description: string2().optional(),
     model: string2().optional(),
-    fallback_models: OmoFallbackModelsSchema.optional(),
-    variant: string2().optional(),
+    models: array(union([string2(), OmoFallbackModelObjectSchema])).optional(),
+    reasoning: OmoReasoningSchema.optional(),
     temperature: number2().min(0).max(2).optional(),
     top_p: number2().min(0).max(1).optional(),
+    max_tokens: number2().int().positive().optional(),
+    provider_options: record(string2(), unknown()).optional(),
+    fallback_models: OmoFallbackModelsSchema.optional(),
+    variant: string2().optional(),
     maxTokens: number2().optional(),
     thinking: OmoThinkingConfigSchema.optional(),
     reasoningEffort: OmoReasoningEffortSchema.optional(),
@@ -22225,8 +22357,10 @@ var init_category = __esm(() => {
     prompt_append: string2().optional(),
     max_prompt_tokens: number2().int().positive().optional(),
     is_unstable_agent: boolean2().optional(),
-    disable: boolean2().optional()
+    disable: boolean2().optional(),
+    warn_unavailable: boolean2().optional()
   }).strict();
+  OmoCategoryConfigSchema = preprocess((value) => isRecord4(value) ? normalizeLegacyModelFields(value) : value, OmoCategoryConfigObjectSchema);
   OmoCategoriesConfigSchema = record(string2(), OmoCategoryConfigSchema);
 });
 
@@ -22263,22 +22397,29 @@ var init_codegraph = __esm(() => {
 });
 
 // packages/omo-config-core/src/schema/model-catalog.ts
-var OmoModelCatalogEntrySchema, OmoModelCatalogSchema, OmoModelCatalogEntryLayerSchema, OmoModelCatalogLayerSchema;
+function isRecord5(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var OmoModelCatalogEntryInputSchema, OmoModelCatalogEntrySchema, OmoModelCatalogSchema, OmoModelCatalogEntryLayerInputSchema, OmoModelCatalogEntryLayerSchema, OmoModelCatalogLayerSchema;
 var init_model_catalog = __esm(() => {
   init_zod();
   init_fallback_models();
-  OmoModelCatalogEntrySchema = object({
+  init_model_ref();
+  OmoModelCatalogEntryInputSchema = object({
     model: string2(),
+    reasoning: OmoReasoningSchema.optional(),
     variant: string2().optional(),
     reasoningEffort: OmoReasoningEffortSchema.optional()
   }).strict();
+  OmoModelCatalogEntrySchema = preprocess((value) => isRecord5(value) ? normalizeLegacyModelFields(value) : value, OmoModelCatalogEntryInputSchema);
   OmoModelCatalogSchema = record(string2(), OmoModelCatalogEntrySchema);
-  OmoModelCatalogEntryLayerSchema = OmoModelCatalogEntrySchema.partial();
+  OmoModelCatalogEntryLayerInputSchema = OmoModelCatalogEntryInputSchema.partial();
+  OmoModelCatalogEntryLayerSchema = preprocess((value) => isRecord5(value) ? normalizeLegacyModelFields(value) : value, OmoModelCatalogEntryLayerInputSchema);
   OmoModelCatalogLayerSchema = record(string2(), OmoModelCatalogEntryLayerSchema);
 });
 
 // packages/omo-config-core/src/schema/task.ts
-var OmoTaskWaitSchema, OmoTaskTeamSettingsSchema, OmoTaskSettingsSchema, OmoTaskWaitLayerSchema, OmoTaskTeamSettingsLayerSchema, OmoTaskSettingsLayerSchema;
+var OmoTaskWaitSchema, OmoTaskTeamSettingsSchema, OmoTaskWarningsSchema, OmoTaskSettingsSchema, OmoTaskWaitLayerSchema, OmoTaskTeamSettingsLayerSchema, OmoTaskWarningsLayerSchema, OmoTaskSettingsLayerSchema;
 var init_task = __esm(() => {
   init_zod();
   OmoTaskWaitSchema = object({
@@ -22291,6 +22432,9 @@ var init_task = __esm(() => {
     max_parallel_members: number2().int().min(1).max(8).default(4),
     max_wall_clock_minutes: number2().int().positive().default(120)
   }).strict();
+  OmoTaskWarningsSchema = object({
+    unavailable_categories: boolean2().default(true)
+  }).strict();
   OmoTaskSettingsSchema = object({
     default_execution_mode: _enum2(["in-process", "process"]).default("in-process"),
     default_concurrency: number2().int().positive().default(5),
@@ -22301,6 +22445,7 @@ var init_task = __esm(() => {
     ttl_ms: number2().int().positive().default(86400000),
     state_dir: string2().optional(),
     reattach_on_reconcile: boolean2().optional(),
+    warnings: OmoTaskWarningsSchema.default({ unavailable_categories: true }),
     wait: OmoTaskWaitSchema.default({ min_ms: 5000, default_ms: 60000, max_ms: 600000 }),
     team: OmoTaskTeamSettingsSchema.default({
       max_members: 8,
@@ -22318,6 +22463,9 @@ var init_task = __esm(() => {
     max_parallel_members: number2().int().min(1).max(8).optional(),
     max_wall_clock_minutes: number2().int().positive().optional()
   }).strict();
+  OmoTaskWarningsLayerSchema = object({
+    unavailable_categories: boolean2().optional()
+  }).strict();
   OmoTaskSettingsLayerSchema = object({
     default_execution_mode: _enum2(["in-process", "process"]).optional(),
     default_concurrency: number2().int().positive().optional(),
@@ -22328,6 +22476,7 @@ var init_task = __esm(() => {
     ttl_ms: number2().int().positive().optional(),
     state_dir: string2().optional(),
     reattach_on_reconcile: boolean2().optional(),
+    warnings: OmoTaskWarningsLayerSchema.optional(),
     wait: OmoTaskWaitLayerSchema.optional(),
     team: OmoTaskTeamSettingsLayerSchema.optional()
   }).strict();
@@ -22455,6 +22604,7 @@ var init_schema = __esm(() => {
   init_fallback_models();
   init_harness();
   init_model_catalog();
+  init_model_ref();
   init_task();
   init_team();
 });
@@ -22517,11 +22667,8 @@ var init_types = __esm(() => {
 });
 
 // packages/omo-config-core/src/loader/paths.ts
-import { dirname, isAbsolute, join as join3, posix, relative, resolve } from "node:path";
-function containsPath(parent, child) {
-  const pathToChild = relative(parent, child);
-  return pathToChild === "" || !pathToChild.startsWith("..") && !isAbsolute(pathToChild);
-}
+import { userInfo } from "node:os";
+import { dirname, join as join3, posix, resolve } from "node:path";
 function resolveHomeDir(env = process.env) {
   const homeDir = env.HOME ?? env.USERPROFILE ?? process.cwd();
   return homeDir.startsWith("/") ? posix.resolve(homeDir) : toPosixPath(resolve(homeDir));
@@ -22573,15 +22720,14 @@ function realpathOrSelf(path3, fileSystem) {
     return path3;
   }
 }
-function findProjectConfigPathsFarthestFirst(cwd, homeDir, fileSystem) {
+function findProjectConfigPathsFarthestFirst(cwd, homeDir, fileSystem, accountHomeDir = homeDir) {
   const startDir = resolve(cwd);
-  const resolvedHomeDir = resolve(homeDir);
-  const realHomeDir = realpathOrSelf(resolvedHomeDir, fileSystem);
-  const stopDir = containsPath(realHomeDir, realpathOrSelf(startDir, fileSystem)) ? realHomeDir : null;
+  const boundaryDirs = [...new Set([resolve(homeDir), resolve(accountHomeDir)])];
+  const realBoundaryDirs = new Set(boundaryDirs.map((path3) => realpathOrSelf(path3, fileSystem)));
   const nearestFirst = [];
   let currentDir = startDir;
   for (let depth = 0;depth < MAX_PROJECT_CONFIG_DIRECTORY_DEPTH; depth += 1) {
-    const isHomeDir = currentDir === resolvedHomeDir || stopDir !== null && realpathOrSelf(currentDir, fileSystem) === stopDir;
+    const isHomeDir = boundaryDirs.includes(currentDir) || realBoundaryDirs.has(realpathOrSelf(currentDir, fileSystem));
     const configPath = isHomeDir ? null : detectOmoJsonPath(currentDir, fileSystem);
     if (configPath !== null)
       nearestFirst.push(configPath);
@@ -22598,16 +22744,17 @@ function resolveOmoConfigPaths(options) {
   const fileSystem = options.fileSystem ?? DEFAULT_READ_FILE_SYSTEM;
   const env = options.env ?? process.env;
   const userPath = detectUserOmoJsonPath(env, fileSystem);
-  const projectPaths = findProjectConfigPathsFarthestFirst(options.cwd, resolveHomeDir(env), fileSystem);
+  const projectPaths = findProjectConfigPathsFarthestFirst(options.cwd, resolveHomeDir(env), fileSystem, ACCOUNT_HOME_DIR);
   return [
     { path: userPath, scope: "user" },
     ...projectPaths.map((path3) => ({ path: path3, scope: "project" }))
   ];
 }
-var MAX_PROJECT_CONFIG_DIRECTORY_DEPTH = 256;
+var MAX_PROJECT_CONFIG_DIRECTORY_DEPTH = 256, ACCOUNT_HOME_DIR;
 var init_paths = __esm(() => {
   init_posix_path();
   init_types();
+  ACCOUNT_HOME_DIR = userInfo().homedir;
 });
 
 // packages/omo-config-core/src/loader/resolution.ts
@@ -22865,79 +23012,58 @@ function findModelCatalogCycles(catalog) {
 }
 
 // packages/omo-config-core/src/models/model-reference-resolution.ts
-function catalogReference(model, variant, reasoningEffort, catalog, cycleNames) {
+function catalogReference(model, reasoning, catalog, cycleNames) {
   const entry = catalog?.[model];
   if (entry === undefined || cycleNames.has(model))
     return;
   return {
     model: entry.model,
-    ...variant === undefined && entry.variant !== undefined ? { variant: entry.variant } : variant !== undefined ? { variant } : {},
-    ...reasoningEffort === undefined && entry.reasoningEffort !== undefined ? { reasoningEffort: entry.reasoningEffort } : reasoningEffort !== undefined ? { reasoningEffort } : {}
+    ...reasoning === undefined && entry.reasoning !== undefined ? { reasoning: entry.reasoning } : reasoning !== undefined ? { reasoning } : {}
   };
 }
-function resolveAgentModelEntry(entry, catalog, cycleNames) {
+function resolveModelEntry(entry, catalog, cycleNames) {
   if (typeof entry === "string") {
-    const resolved2 = catalogReference(entry, undefined, undefined, catalog, cycleNames);
+    const resolved2 = catalogReference(entry, undefined, catalog, cycleNames);
     if (resolved2 === undefined)
       return entry;
-    return resolved2.variant === undefined && resolved2.reasoningEffort === undefined ? resolved2.model : resolved2;
+    return resolved2.reasoning === undefined ? resolved2.model : resolved2;
   }
-  const resolved = catalogReference(entry.model, entry.variant, entry.reasoningEffort, catalog, cycleNames);
+  const resolved = catalogReference(entry.model, entry.reasoning, catalog, cycleNames);
   if (resolved === undefined)
     return entry;
   return {
     ...entry,
     model: resolved.model,
-    ...entry.variant === undefined && resolved.variant !== undefined ? { variant: resolved.variant } : {},
-    ...entry.reasoningEffort === undefined && resolved.reasoningEffort !== undefined ? { reasoningEffort: resolved.reasoningEffort } : {}
-  };
-}
-function resolveFallbackModelEntry(entry, catalog, cycleNames) {
-  if (typeof entry === "string") {
-    const resolved2 = catalogReference(entry, undefined, undefined, catalog, cycleNames);
-    if (resolved2 === undefined)
-      return entry;
-    return resolved2.variant === undefined && resolved2.reasoningEffort === undefined ? resolved2.model : resolved2;
-  }
-  const resolved = catalogReference(entry.model, entry.variant, entry.reasoningEffort, catalog, cycleNames);
-  if (resolved === undefined)
-    return entry;
-  return {
-    ...entry,
-    model: resolved.model,
-    ...entry.variant === undefined && resolved.variant !== undefined ? { variant: resolved.variant } : {},
-    ...entry.reasoningEffort === undefined && resolved.reasoningEffort !== undefined ? { reasoningEffort: resolved.reasoningEffort } : {}
+    ...entry.reasoning === undefined && resolved.reasoning !== undefined ? { reasoning: resolved.reasoning } : {}
   };
 }
 function resolveFallbackModels(fallbackModels, catalog, cycleNames) {
   if (fallbackModels === undefined)
     return;
   if (typeof fallbackModels !== "string") {
-    return fallbackModels.map((entry) => resolveFallbackModelEntry(entry, catalog, cycleNames));
+    return fallbackModels.map((entry) => resolveModelEntry(entry, catalog, cycleNames));
   }
-  const resolved = catalogReference(fallbackModels, undefined, undefined, catalog, cycleNames);
-  if (resolved === undefined || resolved.variant === undefined && resolved.reasoningEffort === undefined) {
+  const resolved = catalogReference(fallbackModels, undefined, catalog, cycleNames);
+  if (resolved === undefined || resolved.reasoning === undefined)
     return resolved?.model ?? fallbackModels;
-  }
   return [resolved];
 }
 function resolveAgentDefinition(definition, catalog, cycleNames) {
-  const resolvedModel = definition.model === undefined ? undefined : catalogReference(definition.model, definition.variant, definition.reasoningEffort, catalog, cycleNames);
+  const resolvedModel = definition.model === undefined ? undefined : catalogReference(definition.model, definition.reasoning, catalog, cycleNames);
   return {
     ...definition,
     ...resolvedModel === undefined ? {} : { model: resolvedModel.model },
-    ...definition.variant === undefined && resolvedModel?.variant !== undefined ? { variant: resolvedModel.variant } : {},
-    ...definition.reasoningEffort === undefined && resolvedModel?.reasoningEffort !== undefined ? { reasoningEffort: resolvedModel.reasoningEffort } : {},
-    ...definition.models === undefined ? {} : { models: definition.models.map((entry) => resolveAgentModelEntry(entry, catalog, cycleNames)) }
+    ...definition.reasoning === undefined && resolvedModel?.reasoning !== undefined ? { reasoning: resolvedModel.reasoning } : {},
+    ...definition.models === undefined ? {} : { models: definition.models.map((entry) => resolveModelEntry(entry, catalog, cycleNames)) }
   };
 }
 function resolveCategoryDefinition(definition, catalog, cycleNames) {
-  const resolvedModel = definition.model === undefined ? undefined : catalogReference(definition.model, definition.variant, definition.reasoningEffort, catalog, cycleNames);
+  const resolvedModel = definition.model === undefined ? undefined : catalogReference(definition.model, definition.reasoning, catalog, cycleNames);
   return {
     ...definition,
     ...resolvedModel === undefined ? {} : { model: resolvedModel.model },
-    ...definition.variant === undefined && resolvedModel?.variant !== undefined ? { variant: resolvedModel.variant } : {},
-    ...definition.reasoningEffort === undefined && resolvedModel?.reasoningEffort !== undefined ? { reasoningEffort: resolvedModel.reasoningEffort } : {},
+    ...definition.reasoning === undefined && resolvedModel?.reasoning !== undefined ? { reasoning: resolvedModel.reasoning } : {},
+    ...definition.models === undefined ? {} : { models: definition.models.map((entry) => resolveModelEntry(entry, catalog, cycleNames)) },
     ...definition.fallback_models === undefined ? {} : { fallback_models: resolveFallbackModels(definition.fallback_models, catalog, cycleNames) }
   };
 }
@@ -23415,6 +23541,23 @@ function prepareTargetWrite(input) {
   const edits = [...collectMigrationEdits(merged.additions), { path: ["_migrations"], value: marker }];
   return { diagnostics: merged.diagnostics, document, edits };
 }
+function prepareTargetReplacement(input) {
+  const marker = markerValue(input.target, input.migrationId, input.targetPath);
+  const document = { ...input.document, _migrations: marker };
+  validateTarget(input.targetPath, document);
+  const edits = [];
+  for (const key of Object.keys(input.target)) {
+    if (key !== "_migrations" && !Object.prototype.hasOwnProperty.call(input.document, key)) {
+      edits.push({ path: [key], value: undefined });
+    }
+  }
+  for (const [key, value] of Object.entries(input.document)) {
+    if (key !== "_migrations")
+      edits.push({ path: [key], value });
+  }
+  edits.push({ path: ["_migrations"], value: marker });
+  return { diagnostics: [], document, edits };
+}
 function writePreparedTarget(input) {
   input.writeTarget({
     edits: input.prepared.edits,
@@ -23470,8 +23613,16 @@ function parseJournal(value) {
   if (!isPlainObject4(value["targetWrite"]) || !isPlainObject4(value["targetWrite"]["additions"])) {
     throw new Error("Migration journal target write is invalid");
   }
+  const targetWriteMode = value["targetWrite"]["mode"];
+  if (targetWriteMode !== undefined && targetWriteMode !== "replace-target") {
+    throw new Error("Migration journal target write mode is invalid");
+  }
   if (typeof value["targetWritten"] !== "boolean" || !Array.isArray(value["completedMoves"])) {
     throw new Error("Migration journal completion state is invalid");
+  }
+  const diagnostics = value["diagnostics"];
+  if (diagnostics !== undefined && (!Array.isArray(diagnostics) || !diagnostics.every((entry) => typeof entry === "string"))) {
+    throw new Error("Migration journal diagnostics are invalid");
   }
   if (!value["completedMoves"].every((path3) => typeof path3 === "string")) {
     throw new Error("Migration journal completed moves are invalid");
@@ -23488,9 +23639,13 @@ function parseJournal(value) {
   return {
     backupMoves,
     completedMoves: [...value["completedMoves"]],
+    diagnostics: diagnostics === undefined ? [] : [...diagnostics],
     migrationId: value["migrationId"],
     targetPath: value["targetPath"],
-    targetWrite: { additions: { ...value["targetWrite"]["additions"] } },
+    targetWrite: {
+      additions: { ...value["targetWrite"]["additions"] },
+      ...targetWriteMode === undefined ? {} : { mode: targetWriteMode }
+    },
     targetWritten: value["targetWritten"],
     version: 1
   };
@@ -23688,7 +23843,12 @@ function resumeMigrationJournal(input) {
   input.renewLock();
   const target = targetDocument(journal.targetPath, input.fileSystem);
   if (!hasMigrationMarker(target, journal.migrationId)) {
-    const prepared = prepareTargetWrite({
+    const prepared = journal.targetWrite.mode === "replace-target" ? prepareTargetReplacement({
+      document: journal.targetWrite.additions,
+      migrationId: journal.migrationId,
+      target,
+      targetPath: journal.targetPath
+    }) : prepareTargetWrite({
       additions: journal.targetWrite.additions,
       migrationId: journal.migrationId,
       target,
@@ -23798,11 +23958,17 @@ function executePlan(input) {
   assertSafeSourcePaths(plan.sources, protectedPaths);
   const existingSources = plan.sources.filter((source) => fileSystem.existsSync(source.path));
   const target = targetDocument(plan.targetPath, fileSystem);
-  if (!shouldRunMigration({ legacySourcesExist: existingSources.length > 0, migrationId: plan.id, target })) {
+  const replaceTarget = plan.mode === "replace-target";
+  if (!shouldRunMigration({
+    legacySourcesExist: replaceTarget ? fileSystem.existsSync(plan.targetPath) : existingSources.length > 0,
+    migrationId: plan.id,
+    target
+  })) {
     return { diagnostics: [], journalResumed, status: "skipped" };
   }
-  const transformed = transformResult(plan.transform(loadSources(existingSources, fileSystem)));
-  const prepared = prepareTargetWrite({ additions: transformed.document, migrationId: plan.id, target, targetPath: plan.targetPath });
+  const loaded = replaceTarget ? [{ path: plan.targetPath, value: target }] : loadSources(existingSources, fileSystem);
+  const transformed = transformResult(plan.transform(loaded));
+  const prepared = replaceTarget ? prepareTargetReplacement({ document: transformed.document, migrationId: plan.id, target, targetPath: plan.targetPath }) : prepareTargetWrite({ additions: transformed.document, migrationId: plan.id, target, targetPath: plan.targetPath });
   const diagnostics = [...transformed.diagnostics, ...prepared.diagnostics];
   const moves = backupMoves(existingSources, plan.id, fileSystem, protectedPaths);
   const preview = { backupMoves: moves, targetPath: plan.targetPath, transform: transformed.document };
@@ -23812,9 +23978,13 @@ function executePlan(input) {
   const journal = {
     backupMoves: moves,
     completedMoves: [],
+    diagnostics,
     migrationId: plan.id,
     targetPath: plan.targetPath,
-    targetWrite: { additions: transformed.document },
+    targetWrite: {
+      additions: transformed.document,
+      ...replaceTarget ? { mode: "replace-target" } : {}
+    },
     targetWritten: false,
     version: 1
   };
@@ -25718,7 +25888,7 @@ var init_agent_model_requirements = __esm(() => {
           model: "kimi-k3"
         },
         { providers: ["openai", "github-copilot", "opencode", "vercel"], model: "gpt-5.6-sol", variant: "medium" },
-        { providers: ["zai-coding-plan", "opencode", "bailian-coding-plan", "vercel"], model: "glm-5" },
+        { providers: ["zai-coding-plan", "opencode", "bailian-coding-plan", "vercel"], model: "glm-5.2" },
         { providers: ["opencode"], model: "big-pickle" }
       ],
       requiresAnyModel: true
@@ -25761,8 +25931,9 @@ var init_agent_model_requirements = __esm(() => {
     },
     librarian: {
       fallbackChain: [
-        { providers: ["openai"], model: "gpt-5.4-mini-fast" },
-        { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.5-plus" },
+        { providers: ["openai"], model: "gpt-5.6-luna-fast", variant: "low" },
+        { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
+        { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
         { providers: ["vercel"], model: "minimax-m2.7-highspeed" },
         { providers: ["opencode-go", "vercel"], model: "minimax-m3" },
         { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
@@ -25773,8 +25944,9 @@ var init_agent_model_requirements = __esm(() => {
     },
     explore: {
       fallbackChain: [
-        { providers: ["openai"], model: "gpt-5.4-mini-fast" },
-        { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.5-plus" },
+        { providers: ["openai"], model: "gpt-5.6-luna-fast", variant: "low" },
+        { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
+        { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
         { providers: ["vercel"], model: "minimax-m2.7-highspeed" },
         { providers: ["opencode-go", "vercel"], model: "minimax-m3" },
         { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
@@ -25848,7 +26020,7 @@ var init_agent_model_requirements = __esm(() => {
     },
     atlas: {
       fallbackChain: [
-        { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-sonnet-4-6" },
+        { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-sonnet-5" },
         { providers: ["opencode-go", "vercel"], model: "kimi-k3" },
         {
           providers: ["openai", "github-copilot", "opencode", "vercel"],
@@ -25862,7 +26034,7 @@ var init_agent_model_requirements = __esm(() => {
     },
     "sisyphus-junior": {
       fallbackChain: [
-        { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-sonnet-4-6" },
+        { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-sonnet-5" },
         { providers: ["opencode-go", "vercel"], model: "kimi-k3" },
         {
           providers: ["openai", "github-copilot", "opencode", "vercel"],
@@ -25885,109 +26057,69 @@ var init_category_model_requirements = __esm(() => {
     "visual-engineering": {
       fallbackChain: [
         {
-          providers: ["anthropic", "github-copilot", "opencode", "vercel"],
+          providers: ["anthropic", "anthropic-api", "github-copilot", "opencode", "vercel"],
           model: "claude-opus-5",
           variant: "max"
         },
         {
-          providers: ["apitopia", "opencode-go", "kimi-for-coding", "moonshotai", "opencode", "vercel"],
+          providers: ["kimi-for-coding", "moonshotai", "opencode-go", "opencode", "vercel"],
           model: "kimi-k3",
           variant: "max"
         },
         {
-          providers: ["anthropic", "github-copilot", "opencode", "vercel"],
-          model: "claude-fable-5",
-          variant: "low"
+          providers: ["zai-coding-plan", "opencode-go", "vercel"],
+          model: "glm-5.2",
+          variant: "max"
         },
         {
-          providers: ["google", "github-copilot", "opencode", "vercel"],
-          model: "gemini-3.1-pro",
-          variant: "high"
-        },
-        { providers: ["zai-coding-plan", "opencode", "bailian-coding-plan", "vercel"], model: "glm-5" },
-        { providers: ["opencode-go", "vercel"], model: "glm-5.2" }
+          providers: ["openai", "quotio-openai", "github-copilot", "opencode", "vercel"],
+          model: "gpt-5.6-sol",
+          variant: "medium"
+        }
       ]
     },
     ultrabrain: {
       fallbackChain: [
         {
-          providers: ["openai", "vercel"],
+          providers: ["openai", "quotio-openai", "vercel"],
           model: "gpt-5.6-sol",
-          variant: "xhigh"
+          variant: "max"
         },
         {
           providers: ["github-copilot"],
           model: "gpt-5.6-sol",
-          variant: "high"
+          variant: "max"
         },
         {
           providers: ["openai", "opencode", "vercel"],
           model: "gpt-5.6-sol",
-          variant: "xhigh"
-        },
-        {
-          providers: ["google", "github-copilot", "opencode", "vercel"],
-          model: "gemini-3.1-pro",
-          variant: "high"
-        },
-        {
-          providers: ["anthropic", "github-copilot", "opencode", "vercel"],
-          model: "claude-opus-5",
           variant: "max"
-        },
-        { providers: ["opencode-go", "vercel"], model: "glm-5.2" }
+        }
       ]
     },
     deep: {
       fallbackChain: [
         {
-          providers: ["openai", "vercel"],
-          model: "gpt-5.6-terra",
-          variant: "xhigh"
-        },
-        {
-          providers: ["github-copilot"],
-          model: "gpt-5.6-terra",
-          variant: "high"
-        },
-        {
-          providers: ["openai", "github-copilot", "vercel"],
-          model: "gpt-5.6-sol",
-          variant: "high"
-        },
-        {
-          providers: ["openai", "github-copilot", "opencode", "vercel"],
+          providers: ["openai", "quotio-openai", "github-copilot", "opencode", "vercel"],
           model: "gpt-5.6-sol",
           variant: "medium"
-        },
-        {
-          providers: ["anthropic", "github-copilot", "opencode", "vercel"],
-          model: "claude-opus-5",
-          variant: "max"
-        },
-        {
-          providers: ["google", "github-copilot", "opencode", "vercel"],
-          model: "gemini-3.1-pro",
-          variant: "high"
-        },
-        { providers: ["opencode-go", "vercel"], model: "kimi-k3" },
-        { providers: ["opencode-go", "vercel"], model: "glm-5.2" }
+        }
       ]
     },
     artistry: {
       fallbackChain: [
         {
-          providers: ["anthropic", "github-copilot", "opencode", "vercel"],
+          providers: ["anthropic", "anthropic-api", "github-copilot", "opencode", "vercel"],
           model: "claude-fable-5",
           variant: "xhigh"
         },
         {
-          providers: ["apitopia", "opencode-go", "kimi-for-coding", "moonshotai", "opencode", "vercel"],
+          providers: ["kimi-for-coding", "moonshotai", "opencode-go", "opencode", "vercel"],
           model: "kimi-k3",
           variant: "max"
         },
         {
-          providers: ["anthropic", "github-copilot", "opencode", "vercel"],
+          providers: ["anthropic", "anthropic-api", "github-copilot", "opencode", "vercel"],
           model: "claude-opus-5",
           variant: "xhigh"
         }
@@ -25995,88 +26127,88 @@ var init_category_model_requirements = __esm(() => {
     },
     quick: {
       fallbackChain: [
-        { providers: ["apitopia"], model: "kimi-for-coding-highspeed" },
-        { providers: ["quotio-openai"], model: "gpt-5.4-mini-fast" },
+        { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed" },
+        { providers: ["quotio-openai"], model: "gpt-5.6-luna-fast", variant: "low" },
+        { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "off" },
         {
-          providers: ["anthropic-api", "anthropic", "github-copilot", "vercel"],
-          model: "claude-haiku-4-5"
+          providers: ["qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan", "opencode-go", "vercel"],
+          model: "qwen3.6-flash",
+          variant: "low"
         },
+        { providers: ["opencode-go", "vercel"], model: "minimax-m3", variant: "max" },
+        { providers: ["opencode-go", "vercel"], model: "minimax-m2.7", variant: "max" },
+        { providers: ["xai"], model: "grok-4.20-0309-non-reasoning" },
         {
-          providers: ["google", "github-copilot", "opencode", "vercel"],
-          model: "gemini-3-flash"
-        },
-        { providers: ["opencode-go", "vercel"], model: "minimax-m3" },
-        { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
-        { providers: ["opencode-go", "vercel"], model: "minimax-m2.7" },
-        { providers: ["opencode", "vercel"], model: "gpt-5-nano" }
+          providers: ["anthropic", "anthropic-api", "github-copilot", "vercel"],
+          model: "claude-haiku-4-5",
+          variant: "off"
+        }
       ]
     },
     "unspecified-low": {
       fallbackChain: [
         {
-          providers: ["openai", "vercel"],
-          model: "gpt-5.6-luna",
-          variant: "xhigh"
-        },
-        {
-          providers: ["github-copilot"],
-          model: "gpt-5.6-luna",
+          providers: ["openai", "quotio-openai", "github-copilot", "opencode", "vercel"],
+          model: "gpt-5.6-terra",
           variant: "high"
         },
         {
-          providers: ["anthropic", "github-copilot", "opencode", "vercel"],
-          model: "claude-sonnet-4-6"
+          providers: ["anthropic", "anthropic-api", "github-copilot", "opencode", "vercel"],
+          model: "claude-sonnet-5",
+          variant: "low"
         },
         {
-          providers: ["openai", "opencode", "vercel"],
-          model: "gpt-5.6-sol",
-          variant: "medium"
+          providers: ["qwen-token-plan", "alibaba-token-plan", "qwen-token-plan-cn", "alibaba-token-plan-cn"],
+          model: "qwen3.8-max-preview",
+          variant: "max"
         },
-        { providers: ["opencode-go", "vercel"], model: "kimi-k3" },
         {
-          providers: ["google", "github-copilot", "opencode", "vercel"],
-          model: "gemini-3-flash"
+          providers: ["deepseek", "opencode-go", "vercel"],
+          model: "deepseek-v4-pro",
+          variant: "max"
         },
-        { providers: ["opencode-go", "vercel"], model: "minimax-m3" },
-        { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
-        { providers: ["opencode-go", "vercel"], model: "minimax-m2.7" }
+        {
+          providers: ["xiaomi", "opencode-go", "vercel"],
+          model: "mimo-v2.5-pro",
+          variant: "max"
+        }
       ]
     },
     "unspecified-high": {
       fallbackChain: [
         {
-          providers: ["apitopia", "opencode-go", "kimi-for-coding", "moonshotai", "opencode", "vercel"],
+          providers: ["kimi-for-coding", "moonshotai", "opencode-go", "opencode", "vercel"],
           model: "kimi-k3",
           variant: "max"
         },
         {
-          providers: ["anthropic", "github-copilot", "opencode", "vercel"],
+          providers: ["anthropic", "anthropic-api", "github-copilot", "opencode", "vercel"],
           model: "claude-opus-5",
-          variant: "high"
+          variant: "xhigh"
         },
         {
-          providers: ["openai", "github-copilot", "opencode", "vercel"],
+          providers: ["openai", "quotio-openai", "github-copilot", "opencode", "vercel"],
           model: "gpt-5.6-sol",
           variant: "high"
-        },
-        { providers: ["zai-coding-plan", "opencode", "bailian-coding-plan", "vercel"], model: "glm-5" },
-        { providers: ["opencode-go", "vercel"], model: "glm-5.2" }
+        }
       ]
     },
     writing: {
       fallbackChain: [
         {
-          providers: ["google", "github-copilot", "opencode", "vercel"],
-          model: "gemini-3-flash"
+          providers: ["kimi-for-coding", "moonshotai", "opencode-go", "opencode", "vercel"],
+          model: "kimi-k3",
+          variant: "low"
         },
-        { providers: ["opencode-go", "vercel"], model: "kimi-k3" },
         {
-          providers: ["anthropic", "github-copilot", "opencode", "vercel"],
-          model: "claude-sonnet-4-6"
+          providers: ["anthropic", "anthropic-api", "github-copilot", "opencode", "vercel"],
+          model: "claude-opus-5",
+          variant: "low"
         },
-        { providers: ["opencode-go", "vercel"], model: "minimax-m3" },
-        { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
-        { providers: ["opencode-go", "vercel"], model: "minimax-m2.7" }
+        {
+          providers: ["google", "github-copilot", "opencode", "vercel"],
+          model: "gemini-3.6-flash"
+        }
       ]
     }
   };
@@ -26298,17 +26430,29 @@ var init_model_capability_heuristics = __esm(() => {
 // packages/model-core/src/model-capability-guardrails.ts
 var init_model_capability_guardrails = () => {};
 
-// packages/model-core/src/model-settings-compatibility.ts
-function downgradeWithinLadder(value, allowed, ladder) {
+// packages/model-core/src/reasoning-level.ts
+function clampReasoningLevel(value, allowed) {
+  const ladder = REASONING_LEVELS2;
   const requestedIndex = ladder.indexOf(value);
   if (requestedIndex === -1)
     return;
   for (let index = requestedIndex;index >= 0; index -= 1) {
-    if (allowed.includes(ladder[index])) {
-      return ladder[index];
-    }
+    const candidate = REASONING_LEVELS2[index];
+    if (candidate !== undefined && allowed.includes(candidate))
+      return candidate;
   }
   return;
+}
+var REASONING_LEVELS2, REASONING_AUTO2 = "auto", REASONING_LEVEL_SET2, REASONING_LEVEL_OR_AUTO_SET2;
+var init_reasoning_level = __esm(() => {
+  REASONING_LEVELS2 = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+  REASONING_LEVEL_SET2 = new Set(REASONING_LEVELS2);
+  REASONING_LEVEL_OR_AUTO_SET2 = new Set([...REASONING_LEVELS2, REASONING_AUTO2]);
+});
+
+// packages/model-core/src/model-settings-compatibility.ts
+function downgradeWithinLadder(value, allowed) {
+  return clampReasoningLevel(value, allowed);
 }
 function normalizeCapabilitiesVariants(capabilities) {
   if (!capabilities?.variants || capabilities.variants.length === 0) {
@@ -26331,7 +26475,7 @@ function resolveField(normalized, familyCaps, ladder, familyKnown, metadataOverr
     if (metadataOverride.includes(normalized))
       return { value: normalized };
     return {
-      value: downgradeWithinLadder(normalized, metadataOverride, ladder),
+      value: downgradeWithinLadder(normalized, metadataOverride),
       reason: "unsupported-by-model-metadata"
     };
   }
@@ -26339,7 +26483,7 @@ function resolveField(normalized, familyCaps, ladder, familyKnown, metadataOverr
     if (familyCaps.includes(normalized))
       return { value: normalized };
     return {
-      value: downgradeWithinLadder(normalized, familyCaps, ladder),
+      value: downgradeWithinLadder(normalized, familyCaps),
       reason: "unsupported-by-model-family"
     };
   }
@@ -26357,7 +26501,7 @@ function resolveCompatibleModelSettings(input) {
   let variant = input.desired.variant;
   if (variant !== undefined) {
     const normalized = variant.toLowerCase();
-    const resolved = resolveField(normalized, family?.variants, VARIANT_LADDER, familyKnown, metadataVariants);
+    const resolved = resolveField(normalized, family?.variants, REASONING_LEVELS2, familyKnown, metadataVariants);
     if (resolved.value !== normalized && resolved.reason) {
       changes.push({ field: "variant", from: variant, to: resolved.value, reason: resolved.reason });
     }
@@ -26366,7 +26510,7 @@ function resolveCompatibleModelSettings(input) {
   let reasoningEffort = input.desired.reasoningEffort;
   if (reasoningEffort !== undefined) {
     const normalized = reasoningEffort.toLowerCase();
-    const resolved = resolveField(normalized, family?.reasoningEfforts, REASONING_LADDER, familyKnown, metadataReasoningEfforts, family?.reasoningEffortAliases);
+    const resolved = resolveField(normalized, family?.reasoningEfforts, REASONING_LEVELS2, familyKnown, metadataReasoningEfforts, family?.reasoningEffortAliases);
     if (resolved.value !== normalized && resolved.reason) {
       changes.push({ field: "reasoningEffort", from: reasoningEffort, to: resolved.value, reason: resolved.reason });
     }
@@ -26425,11 +26569,9 @@ function resolveCompatibleModelSettings(input) {
     changes
   };
 }
-var VARIANT_LADDER, REASONING_LADDER;
 var init_model_settings_compatibility = __esm(() => {
   init_model_capability_heuristics();
-  VARIANT_LADDER = ["low", "medium", "high", "xhigh", "max"];
-  REASONING_LADDER = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+  init_reasoning_level();
 });
 
 // packages/model-core/src/provider-model-id-transform.ts
@@ -26445,6 +26587,8 @@ function inferSubProvider(model) {
   if (model.startsWith("minimax-"))
     return "minimax";
   if (model.startsWith("kimi-"))
+    return "moonshotai";
+  if (model.startsWith("k3"))
     return "moonshotai";
   if (model.startsWith("glm-"))
     return "zai";
@@ -26479,6 +26623,12 @@ function transformModelForProviderUsingAnthropicBehavior(provider, model) {
   if (provider === "anthropic") {
     return model;
   }
+  if (provider === "kimi-coding" || provider === "kimi-for-coding") {
+    if (model === "kimi-k3")
+      return "k3";
+    if (model === "kimi-k3-256k")
+      return "k3-256k";
+  }
   return model;
 }
 function transformModelForProviderDisplay(provider, model) {
@@ -26489,22 +26639,6 @@ var init_provider_model_id_transform = __esm(() => {
   CLAUDE_VERSION_DOT = /claude-(\w+)-(\d+)-(\d+)/g;
   GEMINI_31_PRO_PREVIEW = /gemini-3\.1-pro(?!-)/g;
   GEMINI_3_FLASH_PREVIEW = /(?<!antigravity-)gemini-3-flash(?!-)/g;
-});
-
-// packages/model-core/src/known-variants.ts
-var KNOWN_VARIANTS;
-var init_known_variants = __esm(() => {
-  KNOWN_VARIANTS = new Set([
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-    "max",
-    "minimal",
-    "none",
-    "auto",
-    "thinking"
-  ]);
 });
 
 // packages/model-core/src/model-resolver.ts
@@ -26518,20 +26652,7 @@ function normalizeFallbackModels(models2) {
 var init_model_resolver = () => {};
 
 // packages/model-core/src/model-string-parser.ts
-var KNOWN_VARIANTS2;
-var init_model_string_parser = __esm(() => {
-  KNOWN_VARIANTS2 = new Set([
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-    "max",
-    "minimal",
-    "none",
-    "auto",
-    "thinking"
-  ]);
-});
+var init_model_string_parser = () => {};
 
 // packages/model-core/src/fallback-chain-from-models.ts
 var init_fallback_chain_from_models = () => {};
@@ -26675,8 +26796,8 @@ var init_supplemental_entries = __esm(() => {
         output: 128000
       }
     },
-    "gpt-5.4-mini-fast": {
-      id: "gpt-5.4-mini-fast",
+    "gpt-5.6-luna-fast": {
+      id: "gpt-5.6-luna-fast",
       family: "gpt-mini",
       reasoning: true,
       temperature: false,
@@ -26709,7 +26830,7 @@ var init_bundled_snapshot = __esm(() => {
 });
 
 // packages/model-core/src/model-capabilities/runtime-model-readers.ts
-function isRecord2(value) {
+function isRecord6(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function readNumber(value) {
@@ -26727,7 +26848,7 @@ function normalizeVariantKeys(value) {
   if (arrayVariants) {
     return arrayVariants.filter((v) => typeof v === "string").map((variant) => variant.toLowerCase());
   }
-  if (!isRecord2(value)) {
+  if (!isRecord6(value)) {
     return;
   }
   const variants = Object.keys(value).map((variant) => variant.toLowerCase());
@@ -26738,7 +26859,7 @@ function readModalityKeys(value) {
   if (stringArray) {
     return stringArray.filter((entry) => typeof entry === "string").map((entry) => entry.toLowerCase());
   }
-  if (!isRecord2(value)) {
+  if (!isRecord6(value)) {
     return;
   }
   const fromNested = Object.values(value).filter((v) => Array.isArray(v)).flat().filter((item) => typeof item === "string");
@@ -26749,7 +26870,7 @@ function readModalityKeys(value) {
   return enabled.length > 0 ? enabled : undefined;
 }
 function normalizeModalities(value) {
-  if (!isRecord2(value)) {
+  if (!isRecord6(value)) {
     return;
   }
   const input = readModalityKeys(value.input);
@@ -26763,7 +26884,7 @@ function normalizeModalities(value) {
   };
 }
 function readRuntimeModelCapabilities(runtimeModel) {
-  return isRecord2(runtimeModel?.capabilities) ? runtimeModel.capabilities : undefined;
+  return isRecord6(runtimeModel?.capabilities) ? runtimeModel.capabilities : undefined;
 }
 function readRuntimeModelBoolean(runtimeModel, keys) {
   const runtimeCapabilities = readRuntimeModelCapabilities(runtimeModel);
@@ -26780,7 +26901,7 @@ function readRuntimeModelBoolean(runtimeModel, keys) {
   return;
 }
 function readRuntimeModel(runtimeModel) {
-  return isRecord2(runtimeModel) ? runtimeModel : undefined;
+  return isRecord6(runtimeModel) ? runtimeModel : undefined;
 }
 function readRuntimeModelVariants(runtimeModel) {
   const rootVariants = normalizeVariantKeys(runtimeModel?.variants);
@@ -26828,8 +26949,8 @@ function readRuntimeModelToolCallSupport(runtimeModel) {
   return readRuntimeModelBoolean(runtimeModel, ["toolCall", "tool_call", "toolcall"]);
 }
 function readRuntimeModelLimitOutput(runtimeModel) {
-  const limit = isRecord2(runtimeModel?.limit) ? runtimeModel.limit : readRuntimeModelCapabilities(runtimeModel)?.limit;
-  if (!isRecord2(limit)) {
+  const limit = isRecord6(runtimeModel?.limit) ? runtimeModel.limit : readRuntimeModelCapabilities(runtimeModel)?.limit;
+  if (!isRecord6(limit)) {
     return;
   }
   const output = readNumber(limit.output);
@@ -26876,7 +26997,7 @@ function getModelCapabilities(input) {
   const maxOutputTokensSource = runtimeMaxOutputTokens !== undefined ? "runtime" : snapshotEntry?.limit?.output !== undefined ? snapshotSource : "none";
   const toolCallSource = runtimeToolCall !== undefined ? "runtime" : snapshotEntry?.toolCall !== undefined ? snapshotSource : "none";
   const modalitiesSource = runtimeModalities !== undefined ? "runtime" : snapshotEntry?.modalities !== undefined ? snapshotSource : "none";
-  const resolutionMode = snapshotSource !== "none" && canonicalization.source === "canonical" ? "snapshot-backed" : snapshotSource !== "none" ? "alias-backed" : familySource === "heuristic" || variantsSource === "heuristic" || reasoningEffortsSource === "heuristic" ? "heuristic-backed" : "unknown";
+  const resolutionMode = canonicalization.source === "canonical" ? snapshotSource !== "none" ? "snapshot-backed" : familySource === "heuristic" || variantsSource === "heuristic" || reasoningEffortsSource === "heuristic" ? "heuristic-backed" : "unknown" : "alias-backed";
   return {
     requestedModelID: canonicalization.requestedModelID,
     canonicalModelID: canonicalization.canonicalModelID,
@@ -26932,7 +27053,7 @@ var init_model_capabilities = __esm(() => {
 var init_context_limit_resolver = () => {};
 
 // packages/model-core/src/model-capabilities-snapshot.ts
-function isRecord3(value) {
+function isRecord7(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function readBoolean(value) {
@@ -26952,7 +27073,7 @@ function readStringArray2(value) {
   return result.length > 0 ? result : undefined;
 }
 function normalizeSnapshotEntry(rawModelID, rawModel) {
-  if (!isRecord3(rawModel)) {
+  if (!isRecord7(rawModel)) {
     return;
   }
   const id = readString(rawModel.id) ?? rawModelID;
@@ -26960,14 +27081,14 @@ function normalizeSnapshotEntry(rawModelID, rawModel) {
   const reasoning = readBoolean(rawModel.reasoning);
   const temperature = readBoolean(rawModel.temperature);
   const toolCall = readBoolean(rawModel.tool_call);
-  const rawModalities = isRecord3(rawModel.modalities) ? rawModel.modalities : undefined;
+  const rawModalities = isRecord7(rawModel.modalities) ? rawModel.modalities : undefined;
   const modalitiesInput = readStringArray2(rawModalities?.input);
   const modalitiesOutput = readStringArray2(rawModalities?.output);
   const modalities = modalitiesInput || modalitiesOutput ? {
     ...modalitiesInput ? { input: modalitiesInput } : {},
     ...modalitiesOutput ? { output: modalitiesOutput } : {}
   } : undefined;
-  const rawLimit = isRecord3(rawModel.limit) ? rawModel.limit : undefined;
+  const rawLimit = isRecord7(rawModel.limit) ? rawModel.limit : undefined;
   const limitContext = readNumber2(rawLimit?.context);
   const limitInput = readNumber2(rawLimit?.input);
   const limitOutput = readNumber2(rawLimit?.output);
@@ -27007,13 +27128,13 @@ function mergeSnapshotEntries(existing, incoming) {
 }
 function buildModelCapabilitiesSnapshotFromModelsDev(raw) {
   const models2 = {};
-  const providers = isRecord3(raw) ? raw : {};
+  const providers = isRecord7(raw) ? raw : {};
   for (const providerValue of Object.values(providers)) {
-    if (!isRecord3(providerValue)) {
+    if (!isRecord7(providerValue)) {
       continue;
     }
     const providerModels = providerValue.models;
-    if (!isRecord3(providerModels)) {
+    if (!isRecord7(providerModels)) {
       continue;
     }
     for (const [rawModelID, rawModel] of Object.entries(providerModels)) {
@@ -27056,9 +27177,9 @@ var init_src3 = __esm(() => {
   init_model_capability_heuristics();
   init_model_capability_guardrails();
   init_model_settings_compatibility();
+  init_reasoning_level();
   init_model_string_parser();
   init_fallback_chain_from_models();
-  init_known_variants();
   init_model_error_classifier();
   init_runtime_fallback_auto_retry_signal();
   init_runtime_fallback_error_classifier();
@@ -27283,7 +27404,7 @@ var init_anthropic_categories = __esm(() => {
   ANTHROPIC_CATEGORIES = [
     {
       name: "unspecified-high",
-      config: { model: "apitopia/kimi-k3", variant: "max" },
+      config: { model: "kimi-for-coding/k3", variant: "max" },
       description: "Tasks that don't fit other categories, high effort required",
       promptAppend: UNSPECIFIED_HIGH_CATEGORY_PROMPT_APPEND
     }
@@ -27441,7 +27562,7 @@ var init_kimi_categories = __esm(() => {
   KIMI_CATEGORIES = [
     {
       name: "writing",
-      config: { model: "kimi-for-coding/kimi-k3" },
+      config: { model: "kimi-for-coding/k3", variant: "low" },
       description: "Documentation, prose, technical writing",
       promptAppend: WRITING_CATEGORY_PROMPT_APPEND
     }
@@ -27544,7 +27665,7 @@ Approach:
 </Category_Context>
 
 <Caller_Warning>
-THIS CATEGORY USES A SMALLER/FASTER MODEL (gpt-5.4-mini).
+THIS CATEGORY USES A SMALLER/FASTER MODEL (gpt-5.6-luna-fast).
 
 The model executing this task is optimized for speed over depth. Your prompt MUST be:
 
@@ -27610,14 +27731,15 @@ var init_openai_categories = __esm(() => {
     },
     {
       name: "deep",
-      config: { model: "openai/gpt-5.6-terra", variant: "xhigh" },
+      config: { model: "openai/gpt-5.6-sol", variant: "medium" },
       description: "Goal-oriented autonomous problem-solving on hairy problems requiring deep research. ONE goal + ONE deliverable per call — multiple goals must fan out as parallel `deep` calls, never bundled into one.",
       promptAppend: DEEP_CATEGORY_PROMPT_APPEND,
-      resolvePromptAppend: resolveDeepCategoryPromptAppend
+      resolvePromptAppend: resolveDeepCategoryPromptAppend,
+      requiresModel: "gpt-5.6-sol"
     },
     {
       name: "quick",
-      config: { model: "apitopia/kimi-for-coding-highspeed" },
+      config: { model: "kimi-for-coding/kimi-for-coding-highspeed" },
       description: "Trivial tasks - single file changes, typo fixes, simple modifications",
       promptAppend: QUICK_CATEGORY_PROMPT_APPEND
     },
@@ -27634,7 +27756,7 @@ var init_openai_categories = __esm(() => {
 function buildCategoryRecord(selector) {
   return Object.fromEntries(BUILTIN_CATEGORIES.map((definition) => [definition.name, selector(definition)]));
 }
-var BUILTIN_CATEGORIES, DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS, CATEGORY_DESCRIPTIONS, CATEGORY_PROMPT_APPEND_RESOLVERS;
+var BUILTIN_CATEGORIES, DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS, CATEGORY_DESCRIPTIONS, CATEGORY_PROMPT_APPEND_RESOLVERS, BUILTIN_CATEGORY_REQUIRES_MODEL;
 var init_builtin_categories = __esm(() => {
   init_anthropic_categories();
   init_google_categories();
@@ -27650,6 +27772,7 @@ var init_builtin_categories = __esm(() => {
   CATEGORY_PROMPT_APPENDS = buildCategoryRecord((definition) => definition.promptAppend);
   CATEGORY_DESCRIPTIONS = buildCategoryRecord((definition) => definition.description);
   CATEGORY_PROMPT_APPEND_RESOLVERS = Object.fromEntries(BUILTIN_CATEGORIES.filter((definition) => definition.resolvePromptAppend !== undefined).map((definition) => [definition.name, definition.resolvePromptAppend]));
+  BUILTIN_CATEGORY_REQUIRES_MODEL = Object.fromEntries(BUILTIN_CATEGORIES.filter((definition) => definition.requiresModel !== undefined).map((definition) => [definition.name, definition.requiresModel]));
 });
 
 // packages/omo-opencode/src/tools/delegate-task/constants.ts
@@ -28093,50 +28216,6 @@ var init_write_file_atomically = __esm(() => {
   init_tolerant_fsync();
 });
 
-// packages/omo-opencode/src/shared/model-requirements.ts
-var init_model_requirements2 = __esm(() => {
-  init_src3();
-});
-
-// packages/omo-opencode/src/shared/agent-variant.ts
-var init_agent_variant = __esm(() => {
-  init_agent_display_names();
-  init_model_requirements2();
-});
-
-// packages/omo-opencode/src/shared/session-cursor.ts
-var sessionCursors;
-var init_session_cursor = __esm(() => {
-  sessionCursors = new Map;
-});
-
-// packages/omo-opencode/src/shared/shell-env.ts
-function detectShellType() {
-  if (process.env.SHELL) {
-    const shell = process.env.SHELL;
-    if (shell.includes("csh") || shell.includes("tcsh")) {
-      return "csh";
-    }
-    return "unix";
-  }
-  if (process.platform === "win32" && (process.env.BASH_VERSION || process.env.MSYSTEM || process.env.WSL_DISTRO_NAME)) {
-    return "unix";
-  }
-  if (process.env.PSModulePath) {
-    return "powershell";
-  }
-  return process.platform === "win32" ? "cmd" : "unix";
-}
-var init_shell_env = () => {};
-
-// packages/omo-opencode/src/shared/system-directive.ts
-var init_system_directive = () => {};
-
-// packages/omo-opencode/src/shared/agent-tool-restrictions.ts
-var init_agent_tool_restrictions = __esm(() => {
-  init_agent_display_names();
-});
-
 // packages/omo-opencode/src/shared/json-file-cache-store.ts
 import { existsSync as existsSync12, mkdirSync as mkdirSync5, readFileSync as readFileSync4, writeFileSync as writeFileSync4 } from "node:fs";
 import { join as join16 } from "node:path";
@@ -28411,41 +28490,11 @@ var init_connected_providers_cache = __esm(() => {
   } = defaultConnectedProvidersCacheStore);
 });
 
-// packages/omo-opencode/src/shared/model-resolver.ts
-var init_model_resolver2 = __esm(() => {
-  init_src3();
-  init_connected_providers_cache();
-});
-
-// packages/omo-opencode/src/shared/model-normalization.ts
-var init_model_normalization = () => {};
-
-// packages/omo-opencode/src/shared/model-resolution-pipeline.ts
-var init_model_resolution_pipeline = __esm(() => {
-  init_connected_providers_cache();
-});
-
-// packages/omo-opencode/src/shared/model-availability.ts
-import { existsSync as existsSync13, readFileSync as readFileSync5 } from "fs";
-import { join as join17 } from "path";
-function isModelCacheAvailable() {
-  if (hasProviderModelsCache()) {
-    return true;
-  }
-  const cacheFile = join17(getOpenCodeCacheDir(), "models.json");
-  return existsSync13(cacheFile);
-}
-var init_model_availability = __esm(() => {
-  init_logger2();
-  init_data_path();
-  init_connected_providers_cache();
-});
-
 // packages/omo-opencode/src/generated/model-capabilities.generated.json
 var model_capabilities_generated_default;
 var init_model_capabilities_generated = __esm(() => {
   model_capabilities_generated_default = {
-    generatedAt: "2026-07-25T14:04:01.805Z",
+    generatedAt: "2026-07-29T03:28:21.339Z",
     sourceUrl: "https://models.dev/api.json",
     models: {
       "glm-5": {
@@ -28880,6 +28929,8 @@ var init_model_capabilities_generated = __esm(() => {
           input: [
             "text",
             "image",
+            "video",
+            "audio",
             "pdf"
           ],
           output: [
@@ -28887,8 +28938,8 @@ var init_model_capabilities_generated = __esm(() => {
           ]
         },
         limit: {
-          context: 1e6,
-          output: 64000
+          context: 1048576,
+          output: 65536
         }
       },
       "google/gemini-2.5-flash-lite": {
@@ -29530,25 +29581,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 262000
         }
       },
-      "accounts/fireworks/routers/glm-5p1-fast": {
-        id: "accounts/fireworks/routers/glm-5p1-fast",
-        family: "glm",
-        reasoning: true,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 202800,
-          output: 131072
-        }
-      },
       "accounts/fireworks/routers/kimi-k2p6-turbo": {
         id: "accounts/fireworks/routers/kimi-k2p6-turbo",
         family: "kimi-thinking",
@@ -29587,6 +29619,26 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 262000,
           output: 262000
+        }
+      },
+      "accounts/fireworks/routers/kimi-k3-fast": {
+        id: "accounts/fireworks/routers/kimi-k3-fast",
+        family: "kimi-k3",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1048576,
+          output: 131072
         }
       },
       "accounts/fireworks/models/qwen3p7-plus": {
@@ -29707,25 +29759,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 512000
         }
       },
-      "accounts/fireworks/models/glm-5p1": {
-        id: "accounts/fireworks/models/glm-5p1",
-        family: "glm",
-        reasoning: true,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 202800,
-          output: 131072
-        }
-      },
       "accounts/fireworks/models/deepseek-v4-pro": {
         id: "accounts/fireworks/models/deepseek-v4-pro",
         family: "deepseek-thinking",
@@ -29800,6 +29833,26 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 1048575,
+          output: 131072
+        }
+      },
+      "accounts/fireworks/models/kimi-k3": {
+        id: "accounts/fireworks/models/kimi-k3",
+        family: "kimi-k3",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1048576,
           output: 131072
         }
       },
@@ -30950,6 +31003,27 @@ var init_model_capabilities_generated = __esm(() => {
           output: 128000
         }
       },
+      "anthropic/claude-opus-5": {
+        id: "anthropic/claude-opus-5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
       "z-ai/glm-5": {
         id: "z-ai/glm-5",
         family: "glm",
@@ -31154,8 +31228,8 @@ var init_model_capabilities_generated = __esm(() => {
           output: 128000
         }
       },
-      "openai/gpt-5.4-mini": {
-        id: "openai/gpt-5.4-mini",
+      "openai/gpt-5.6-luna-fast": {
+        id: "openai/gpt-5.6-luna-fast",
         family: "gpt-mini",
         reasoning: true,
         temperature: false,
@@ -31383,15 +31457,14 @@ var init_model_capabilities_generated = __esm(() => {
         modalities: {
           input: [
             "text",
-            "image",
-            "pdf"
+            "image"
           ],
           output: [
             "text"
           ]
         },
         limit: {
-          context: 1e6,
+          context: 200000,
           output: 128000
         }
       },
@@ -31511,15 +31584,14 @@ var init_model_capabilities_generated = __esm(() => {
         modalities: {
           input: [
             "text",
-            "image",
-            "pdf"
+            "image"
           ],
           output: [
             "text"
           ]
         },
         limit: {
-          context: 1e6,
+          context: 200000,
           output: 128000
         }
       },
@@ -33775,7 +33847,7 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 400000,
-          output: 1e5,
+          output: 128000,
           input: 272000
         }
       },
@@ -33869,8 +33941,8 @@ var init_model_capabilities_generated = __esm(() => {
         toolCall: false,
         modalities: {
           input: [
-            "pdf",
             "image",
+            "pdf",
             "text"
           ],
           output: [
@@ -33879,8 +33951,7 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 128000,
-          output: 16384,
-          input: 111616
+          output: 16384
         }
       },
       "openai/gpt-5.3-codex-spark": {
@@ -34919,7 +34990,7 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 524288,
-          output: 524288
+          output: 262144
         }
       },
       "zai-org/glm-4.7": {
@@ -34940,6 +35011,27 @@ var init_model_capabilities_generated = __esm(() => {
           context: 202752,
           output: 131072,
           input: 200000
+        }
+      },
+      "moonshotai/kimi-k3": {
+        id: "moonshotai/kimi-k3",
+        family: "kimi-k3",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "video"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1048576,
+          output: 131072
         }
       },
       "microsoft/phi-4-multimodal-instruct": {
@@ -35037,6 +35129,46 @@ var init_model_capabilities_generated = __esm(() => {
           output: 8192
         }
       },
+      "nvidia/cosmos-reason2-8b": {
+        id: "nvidia/cosmos-reason2-8b",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "video"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 131072,
+          output: 16384
+        }
+      },
+      "nvidia/nemotron-nano-12b-v2-vl": {
+        id: "nvidia/nemotron-nano-12b-v2-vl",
+        family: "nemotron",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 131072,
+          output: 131072
+        }
+      },
       "nvidia/bevformer": {
         id: "nvidia/bevformer",
         reasoning: false,
@@ -35075,6 +35207,25 @@ var init_model_capabilities_generated = __esm(() => {
           input: 256000
         }
       },
+      "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
+        id: "nvidia/Llama-3.3-Nemotron-Super-49B-v1.5",
+        family: "nemotron",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 131072,
+          output: 131072
+        }
+      },
       "nvidia/cosmos-transfer2_5-2b": {
         id: "nvidia/cosmos-transfer2_5-2b",
         reasoning: false,
@@ -35093,6 +35244,25 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 0,
           output: 4096
+        }
+      },
+      "nvidia/llama-3.1-nemotron-nano-8b-v1": {
+        id: "nvidia/llama-3.1-nemotron-nano-8b-v1",
+        family: "nemotron",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 131072,
+          output: 16384
         }
       },
       "nvidia/active-speaker-detection": {
@@ -35131,8 +35301,8 @@ var init_model_capabilities_generated = __esm(() => {
           output: 4096
         }
       },
-      "nvidia/llama-3_1-nemotron-safety-guard-8b-v3": {
-        id: "nvidia/llama-3_1-nemotron-safety-guard-8b-v3",
+      "nvidia/llama-3.1-nemotron-safety-guard-8b-v3": {
+        id: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
         family: "nemotron",
         reasoning: false,
         temperature: false,
@@ -35148,6 +35318,45 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 128000,
           output: 4096
+        }
+      },
+      "nvidia/llama-3.3-nemotron-super-49b-v1": {
+        id: "nvidia/Llama-3.3-Nemotron-Super-49B-v1",
+        family: "nemotron",
+        reasoning: false,
+        temperature: true,
+        toolCall: false,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 128000,
+          output: 16384,
+          input: 128000
+        }
+      },
+      "nvidia/llama-3.1-nemotron-70b-instruct": {
+        id: "nvidia/llama-3.1-nemotron-70b-instruct",
+        family: "nemotron",
+        reasoning: false,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 128000,
+          output: 8192
         }
       },
       "nvidia/nemotron-3-super-120b-a12b": {
@@ -35207,6 +35416,25 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 0,
           output: 4096
+        }
+      },
+      "nvidia/llama-3.1-nemotron-ultra-253b-v1": {
+        id: "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        family: "nemotron",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 128000,
+          output: 16384
         }
       },
       "nvidia/llama-3_2-nemoretriever-300m-embed-v1": {
@@ -35284,6 +35512,26 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 128000,
           output: 4096
+        }
+      },
+      "nvidia/llama-3.1-nemotron-nano-vl-8b-v1": {
+        id: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+        family: "nemotron",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 32768,
+          output: 16384
         }
       },
       "nvidia/synthetic-video-detector": {
@@ -35380,6 +35628,24 @@ var init_model_capabilities_generated = __esm(() => {
           context: 128000,
           output: 16384,
           input: 128000
+        }
+      },
+      "nvidia/riva-translate-4b-instruct-v1.1": {
+        id: "nvidia/riva-translate-4b-instruct-v1.1",
+        reasoning: false,
+        temperature: false,
+        toolCall: false,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 128000,
+          output: 4096
         }
       },
       "nvidia/nemotron-content-safety-reasoning-4b": {
@@ -35515,24 +35781,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 4096
         }
       },
-      "nvidia/riva-translate-4b-instruct-v1_1": {
-        id: "nvidia/riva-translate-4b-instruct-v1_1",
-        reasoning: false,
-        temperature: false,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 4096
-        }
-      },
       "google/google-paligemma": {
         id: "google/google-paligemma",
         reasoning: false,
@@ -35552,6 +35800,26 @@ var init_model_capabilities_generated = __esm(() => {
           output: 8192
         }
       },
+      "google/gemma-3-4b-it": {
+        id: "google/gemma-3-4b-it",
+        family: "gemma",
+        reasoning: false,
+        temperature: true,
+        toolCall: false,
+        modalities: {
+          input: [
+            "text",
+            "image"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 131072,
+          output: 16384
+        }
+      },
       "google/gemma-2-2b-it": {
         id: "google/gemma-2-2b-it",
         reasoning: false,
@@ -35568,6 +35836,26 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 128000,
           output: 4096
+        }
+      },
+      "google/gemma-3-12b-it": {
+        id: "google/gemma-3-12b-it",
+        family: "gemma",
+        reasoning: false,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 131072,
+          output: 16384
         }
       },
       "google/gemma-3n-e4b-it": {
@@ -35750,8 +36038,8 @@ var init_model_capabilities_generated = __esm(() => {
           input: 256000
         }
       },
-      "abacusai/dracarys-llama-3_1-70b-instruct": {
-        id: "abacusai/dracarys-llama-3_1-70b-instruct",
+      "abacusai/dracarys-llama-3.1-70b-instruct": {
+        id: "abacusai/dracarys-llama-3.1-70b-instruct",
         reasoning: false,
         temperature: true,
         toolCall: true,
@@ -35768,8 +36056,8 @@ var init_model_capabilities_generated = __esm(() => {
           output: 8192
         }
       },
-      "upstage/solar-10_7b-instruct": {
-        id: "upstage/solar-10_7b-instruct",
+      "upstage/solar-10.7b-instruct": {
+        id: "upstage/solar-10.7b-instruct",
         reasoning: false,
         temperature: true,
         toolCall: true,
@@ -35863,6 +36151,26 @@ var init_model_capabilities_generated = __esm(() => {
           output: 0
         }
       },
+      "mistralai/mistral-medium-3.5-128b": {
+        id: "mistralai/Mistral-Medium-3.5-128B",
+        family: "mistral-medium",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "image",
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 262144,
+          output: 131072
+        }
+      },
       "mistralai/mistral-nemotron": {
         id: "mistralai/mistral-nemotron",
         family: "nemotron",
@@ -35944,6 +36252,27 @@ var init_model_capabilities_generated = __esm(() => {
           input: 262144
         }
       },
+      "mistralai/ministral-14b-instruct-2512": {
+        id: "mistralai/ministral-14b-instruct-2512",
+        family: "ministral",
+        reasoning: false,
+        temperature: true,
+        toolCall: false,
+        modalities: {
+          input: [
+            "text",
+            "image"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 262144,
+          output: 32768,
+          input: 262144
+        }
+      },
       "mistralai/mixtral-8x22b-instruct": {
         id: "mistralai/mixtral-8x22b-instruct",
         reasoning: false,
@@ -35963,24 +36292,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 65536
         },
         family: "mistral"
-      },
-      "mistralai/mistral-7b-instruct-v03": {
-        id: "mistralai/mistral-7b-instruct-v03",
-        reasoning: false,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 65536,
-          output: 65536
-        }
       },
       "mistralai/magistral-small-2506": {
         id: "mistralai/Magistral-Small-2506",
@@ -36018,6 +36329,24 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 32768,
           output: 16384
+        }
+      },
+      "mistralai/mistral-7b-instruct-v0.3": {
+        id: "mistralai/Mistral-7B-Instruct-v0.3",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 32768,
+          output: 32768
         }
       },
       "bytedance/seed-oss-36b-instruct": {
@@ -36248,6 +36577,25 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 128000,
           output: 8192
+        }
+      },
+      "poolside/laguna-xs-2.1": {
+        id: "poolside/laguna-xs-2.1",
+        family: "laguna",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 262144,
+          output: 32768
         }
       },
       "stepfun-ai/step-3.5-flash": {
@@ -36751,15 +37099,14 @@ var init_model_capabilities_generated = __esm(() => {
         modalities: {
           input: [
             "text",
-            "image",
-            "pdf"
+            "image"
           ],
           output: [
             "text"
           ]
         },
         limit: {
-          context: 1050000,
+          context: 372000,
           input: 922000,
           output: 128000
         }
@@ -36796,8 +37143,7 @@ var init_model_capabilities_generated = __esm(() => {
         modalities: {
           input: [
             "text",
-            "image",
-            "pdf"
+            "image"
           ],
           output: [
             "text"
@@ -36892,8 +37238,8 @@ var init_model_capabilities_generated = __esm(() => {
           output: 163840
         }
       },
-      "gpt-5.4-mini": {
-        id: "gpt-5.4-mini",
+      "gpt-5.6-luna-fast": {
+        id: "gpt-5.6-luna-fast",
         family: "gpt-mini",
         reasoning: true,
         temperature: false,
@@ -36908,7 +37254,7 @@ var init_model_capabilities_generated = __esm(() => {
           ]
         },
         limit: {
-          context: 400000,
+          context: 272000,
           input: 272000,
           output: 128000
         }
@@ -37032,15 +37378,14 @@ var init_model_capabilities_generated = __esm(() => {
         modalities: {
           input: [
             "text",
-            "image",
-            "pdf"
+            "image"
           ],
           output: [
             "text"
           ]
         },
         limit: {
-          context: 1050000,
+          context: 372000,
           input: 922000,
           output: 128000
         }
@@ -37205,18 +37550,15 @@ var init_model_capabilities_generated = __esm(() => {
         modalities: {
           input: [
             "text",
-            "image",
-            "video",
-            "audio",
-            "pdf"
+            "image"
           ],
           output: [
             "text"
           ]
         },
         limit: {
-          context: 1048576,
-          output: 65536,
+          context: 1e6,
+          output: 128000,
           input: 128000
         }
       },
@@ -37507,13 +37849,12 @@ var init_model_capabilities_generated = __esm(() => {
       "gemma-4-26b-a4b-it": {
         id: "gemma-4-26b-a4b-it",
         family: "gemma",
-        reasoning: true,
+        reasoning: false,
         temperature: true,
         toolCall: true,
         modalities: {
           input: [
-            "text",
-            "image"
+            "text"
           ],
           output: [
             "text"
@@ -37521,7 +37862,7 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 256000,
-          output: 16384
+          output: 25600
         }
       },
       "gemini-embedding-001": {
@@ -40211,8 +40552,8 @@ var init_model_capabilities_generated = __esm(() => {
           input: 128000,
           output: 128000
         },
-        family: "deepseek",
-        temperature: true
+        temperature: true,
+        family: "deepseek"
       },
       "mirothinker-1-7-deepresearch-mini": {
         id: "mirothinker-1-7-deepresearch-mini",
@@ -43120,26 +43461,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 16384
         }
       },
-      "nvidia/llama-3.3-nemotron-super-49b-v1": {
-        id: "nvidia/Llama-3.3-Nemotron-Super-49B-v1",
-        family: "nemotron",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          input: 128000,
-          output: 16384
-        }
-      },
       "nvidia/llama-3_3-nemotron-super-49b-v1_5": {
         id: "nvidia/Llama-3_3-Nemotron-Super-49B-v1_5",
         family: "nemotron",
@@ -44165,7 +44486,7 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 131072,
           input: 41000,
-          output: 8192
+          output: 16384
         },
         temperature: true,
         family: "qwen"
@@ -44920,26 +45241,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 131072
         },
         temperature: true
-      },
-      "mistralai/ministral-14b-instruct-2512": {
-        id: "mistralai/ministral-14b-instruct-2512",
-        family: "ministral",
-        reasoning: false,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text",
-            "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 262144,
-          input: 262144,
-          output: 32768
-        }
       },
       "mistralai/mixtral-8x22b-instruct-v0.1": {
         id: "mistralai/mixtral-8x22b-instruct-v0.1",
@@ -47707,8 +48008,7 @@ var init_model_capabilities_generated = __esm(() => {
           context: 128000,
           input: 128000,
           output: 16384
-        },
-        temperature: false
+        }
       },
       "openai/o3-pro-2025-06-10": {
         id: "openai/o3-pro-2025-06-10",
@@ -47792,7 +48092,7 @@ var init_model_capabilities_generated = __esm(() => {
       },
       "openai/gpt-4o-mini-search-preview": {
         id: "openai/gpt-4o-mini-search-preview",
-        family: "o-mini",
+        family: "gpt-mini",
         reasoning: false,
         toolCall: false,
         modalities: {
@@ -47808,7 +48108,7 @@ var init_model_capabilities_generated = __esm(() => {
           input: 111616,
           output: 16384
         },
-        temperature: false
+        temperature: true
       },
       "baidu/ernie-4.5-vl-28b-a3b": {
         id: "baidu/ernie-4.5-vl-28b-a3b",
@@ -47928,7 +48228,7 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 262144,
           input: 262144,
-          output: 80000
+          output: 262144
         },
         temperature: true,
         family: "trinity"
@@ -48313,7 +48613,7 @@ var init_model_capabilities_generated = __esm(() => {
           ]
         },
         limit: {
-          context: 131072,
+          context: 65536,
           output: 65536
         }
       },
@@ -48857,9 +49157,28 @@ var init_model_capabilities_generated = __esm(() => {
           output: 32768
         }
       },
+      "abliterated-model-large": {
+        id: "abliterated-model-large",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          input: 1e6,
+          output: 999990
+        }
+      },
       "abliterated-model": {
         id: "abliterated-model",
-        reasoning: false,
+        reasoning: true,
         temperature: true,
         toolCall: true,
         modalities: {
@@ -49443,6 +49762,26 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 256000,
           output: 8192
+        }
+      },
+      "gpt-4o-mini-transcribe": {
+        id: "gpt-4o-mini-transcribe",
+        family: "gpt",
+        reasoning: false,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "audio"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 16000,
+          output: 16000
         }
       },
       "qwen3-235b-a22b-thinking-2507": {
@@ -51087,6 +51426,26 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 131072,
           output: 32768
+        }
+      },
+      "gpt-4o-transcribe": {
+        id: "gpt-4o-transcribe",
+        family: "gpt",
+        reasoning: false,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "audio"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 16000,
+          output: 16000
         }
       },
       "grok-4-20-non-reasoning": {
@@ -53738,8 +54097,8 @@ var init_model_capabilities_generated = __esm(() => {
           output: 30000
         }
       },
-      "gpt-5.4-mini-2026-03-17": {
-        id: "gpt-5.4-mini-2026-03-17",
+      "gpt-5.6-luna-fast-2026-03-17": {
+        id: "gpt-5.6-luna-fast-2026-03-17",
         family: "gpt-mini",
         reasoning: true,
         temperature: false,
@@ -54462,9 +54821,9 @@ var init_model_capabilities_generated = __esm(() => {
       "o1-mini": {
         id: "o1-mini",
         family: "o-mini",
-        reasoning: true,
+        reasoning: false,
         temperature: false,
-        toolCall: true,
+        toolCall: false,
         modalities: {
           input: [
             "text"
@@ -55912,6 +56271,25 @@ var init_model_capabilities_generated = __esm(() => {
           output: 4096
         }
       },
+      "gemini-embedding": {
+        id: "gemini-embedding",
+        family: "gemini",
+        reasoning: false,
+        temperature: false,
+        toolCall: false,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 2048,
+          output: 1
+        }
+      },
       "anthropic--claude-4-sonnet": {
         id: "anthropic--claude-4-sonnet",
         family: "claude-sonnet",
@@ -56748,24 +57126,6 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 8192,
           output: 4096
-        }
-      },
-      "mistralai/mistral-7b-instruct-v0.3": {
-        id: "mistralai/Mistral-7B-Instruct-v0.3",
-        reasoning: true,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 32768,
-          output: 32768
         }
       },
       "pioneer/auto": {
@@ -57892,27 +58252,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 262144
         }
       },
-      "moonshotai/kimi-k3": {
-        id: "moonshotai/kimi-k3",
-        family: "kimi-k3",
-        reasoning: true,
-        temperature: false,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text",
-            "image",
-            "video"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 1048576,
-          output: 131072
-        }
-      },
       "moonshotai/kimi-k3-free": {
         id: "moonshotai/kimi-k3-free",
         family: "kimi-k3",
@@ -57991,7 +58330,7 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 128000,
-          output: 16384
+          output: 32000
         },
         family: "gpt-codex"
       },
@@ -58229,26 +58568,6 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 128000,
           output: 4096
-        }
-      },
-      "mistralai/mistral-medium-3.5-128b": {
-        id: "mistralai/Mistral-Medium-3.5-128B",
-        family: "mistral-medium",
-        reasoning: true,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "image",
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 262144,
-          output: 131072
         }
       },
       "mistralai/voxtral-small-24b-2507": {
@@ -59317,45 +59636,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 8192
         }
       },
-      "llama-3.2-11b-vision-instruct": {
-        id: "llama-3.2-11b-vision-instruct",
-        family: "llama",
-        reasoning: false,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text",
-            "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 8192
-        }
-      },
-      "phi-3-medium-128k-instruct": {
-        id: "phi-3-medium-128k-instruct",
-        family: "phi",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 4096
-        }
-      },
       "cohere-command-a": {
         id: "cohere-command-a",
         family: "command-a",
@@ -59373,44 +59653,6 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 131072,
           output: 8192
-        }
-      },
-      "meta-llama-3.1-70b-instruct": {
-        id: "meta-llama-3.1-70b-instruct",
-        family: "llama",
-        reasoning: false,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 32768
-        }
-      },
-      "meta-llama-3.1-405b-instruct": {
-        id: "meta-llama-3.1-405b-instruct",
-        family: "llama",
-        reasoning: false,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 32768
         }
       },
       "cohere-embed-v3-multilingual": {
@@ -59489,63 +59731,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 4096
         }
       },
-      "meta-llama-3-8b-instruct": {
-        id: "meta-llama-3-8b-instruct",
-        family: "llama",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 8192,
-          output: 2048
-        }
-      },
-      "gpt-3.5-turbo-0301": {
-        id: "gpt-3.5-turbo-0301",
-        family: "gpt",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 4096,
-          output: 4096
-        }
-      },
-      "cohere-command-r-plus-08-2024": {
-        id: "cohere-command-r-plus-08-2024",
-        family: "command-r",
-        reasoning: false,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 4000
-        }
-      },
       "phi-4-mini": {
         id: "phi-4-mini",
         family: "phi",
@@ -59565,45 +59750,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 4096
         }
       },
-      "meta-llama-3.1-8b-instruct": {
-        id: "meta-llama-3.1-8b-instruct",
-        family: "llama",
-        reasoning: false,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 32768
-        }
-      },
-      "llama-3.2-90b-vision-instruct": {
-        id: "llama-3.2-90b-vision-instruct",
-        family: "llama",
-        reasoning: false,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text",
-            "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 8192
-        }
-      },
       "phi-4-reasoning-plus": {
         id: "phi-4-reasoning-plus",
         family: "phi",
@@ -59620,63 +59766,6 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 32000,
-          output: 4096
-        }
-      },
-      "phi-3-small-8k-instruct": {
-        id: "phi-3-small-8k-instruct",
-        family: "phi",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 8192,
-          output: 2048
-        }
-      },
-      "phi-3-small-128k-instruct": {
-        id: "phi-3-small-128k-instruct",
-        family: "phi",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 4096
-        }
-      },
-      "phi-3-mini-128k-instruct": {
-        id: "phi-3-mini-128k-instruct",
-        family: "phi",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
           output: 4096
         }
       },
@@ -59700,44 +59789,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 32768
         }
       },
-      "meta-llama-3-70b-instruct": {
-        id: "meta-llama-3-70b-instruct",
-        family: "llama",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 8192,
-          output: 2048
-        }
-      },
-      "gpt-4-32k": {
-        id: "gpt-4-32k",
-        family: "gpt",
-        reasoning: false,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 32768,
-          output: 32768
-        }
-      },
       "cohere-embed-v-4-0": {
         id: "cohere-embed-v-4-0",
         family: "cohere-embed",
@@ -59756,26 +59807,6 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 128000,
           output: 1536
-        }
-      },
-      "gpt-5.2-chat": {
-        id: "gpt-5.2-chat",
-        family: "gpt-codex",
-        reasoning: true,
-        temperature: false,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text",
-            "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 16384
         }
       },
       "phi-4-mini-reasoning": {
@@ -59807,86 +59838,6 @@ var init_model_capabilities_generated = __esm(() => {
           input: [
             "text",
             "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 4096
-        }
-      },
-      "deepseek-r1-0528": {
-        id: "deepseek-r1-0528",
-        family: "deepseek-thinking",
-        reasoning: true,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 164000,
-          output: 164000
-        }
-      },
-      "phi-3-mini-4k-instruct": {
-        id: "phi-3-mini-4k-instruct",
-        family: "phi",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 4096,
-          output: 1024
-        }
-      },
-      "gpt-5.1-chat": {
-        id: "gpt-5.1-chat",
-        family: "gpt-codex",
-        reasoning: true,
-        temperature: false,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text",
-            "image",
-            "audio"
-          ],
-          output: [
-            "text",
-            "image",
-            "audio"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 16384
-        }
-      },
-      "phi-3.5-moe-instruct": {
-        id: "phi-3.5-moe-instruct",
-        family: "phi",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
           ],
           output: [
             "text"
@@ -59944,26 +59895,6 @@ var init_model_capabilities_generated = __esm(() => {
         toolCall: true,
         modalities: {
           input: [
-            "text",
-            "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 4096
-        }
-      },
-      "gpt-3.5-turbo-0613": {
-        id: "gpt-3.5-turbo-0613",
-        family: "gpt",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
             "text"
           ],
           output: [
@@ -59971,8 +59902,8 @@ var init_model_capabilities_generated = __esm(() => {
           ]
         },
         limit: {
-          context: 16384,
-          output: 16384
+          context: 430000,
+          output: 43000
         }
       },
       "ministral-3b": {
@@ -59992,25 +59923,6 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 128000,
           output: 8192
-        }
-      },
-      "cohere-command-r-08-2024": {
-        id: "cohere-command-r-08-2024",
-        family: "command-r",
-        reasoning: false,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 4000
         }
       },
       "model-router": {
@@ -60089,44 +60001,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 16384
         }
       },
-      "phi-3-medium-4k-instruct": {
-        id: "phi-3-medium-4k-instruct",
-        family: "phi",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 4096,
-          output: 1024
-        }
-      },
-      "phi-3.5-mini-instruct": {
-        id: "phi-3.5-mini-instruct",
-        family: "phi",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 4096
-        }
-      },
       "text-embedding-ada-002": {
         id: "text-embedding-ada-002",
         family: "text-embedding",
@@ -60167,26 +60041,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 4096
         }
       },
-      "gpt-5-chat": {
-        id: "gpt-5-chat",
-        family: "gpt-codex",
-        reasoning: true,
-        temperature: false,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text",
-            "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 16384
-        }
-      },
       "codex-mini": {
         id: "codex-mini",
         family: "gpt-codex-mini",
@@ -60204,25 +60058,6 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 200000,
           output: 1e5
-        }
-      },
-      "deepseek-v3.1": {
-        id: "deepseek-v3.1",
-        family: "deepseek",
-        reasoning: true,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 32000
         }
       },
       "glm5.2-fast": {
@@ -61004,6 +60839,27 @@ var init_model_capabilities_generated = __esm(() => {
           output: 128000
         }
       },
+      "duo-chat-opus-5": {
+        id: "duo-chat-opus-5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
       "ling-1t": {
         id: "Ling-1T",
         family: "ling",
@@ -61076,25 +60932,6 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 256000,
           output: 65536
-        }
-      },
-      "nvidia-nemotron-cascade-2-30b-a3b": {
-        id: "nvidia-nemotron-cascade-2-30b-a3b",
-        family: "nemotron",
-        reasoning: true,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 256000,
-          output: 32768
         }
       },
       "openai-gpt-54-pro": {
@@ -63107,8 +62944,8 @@ var init_model_capabilities_generated = __esm(() => {
           output: 64000
         }
       },
-      "openai-gpt-5.4-mini": {
-        id: "openai-gpt-5.4-mini",
+      "openai-gpt-5.6-luna-fast": {
+        id: "openai-gpt-5.6-luna-fast",
         family: "gpt-mini",
         reasoning: true,
         temperature: false,
@@ -63904,26 +63741,6 @@ var init_model_capabilities_generated = __esm(() => {
           input: 0
         }
       },
-      "gpt-5.3-chat": {
-        id: "gpt-5.3-chat",
-        family: "gpt-codex",
-        reasoning: true,
-        temperature: false,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text",
-            "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 128000,
-          output: 16384
-        }
-      },
       "gpt-image-1": {
         id: "gpt-image-1",
         family: "gpt-image",
@@ -63943,6 +63760,27 @@ var init_model_capabilities_generated = __esm(() => {
           context: 0,
           output: 0,
           input: 0
+        }
+      },
+      "thinkingmachines/inkling-nvfp4": {
+        id: "thinkingmachines/Inkling-NVFP4",
+        family: "ling",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "audio"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1048576,
+          output: 262144
         }
       },
       "mistralai/mistral-small-3.2-24b-instruct-2506": {
@@ -66332,25 +66170,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 8192
         }
       },
-      "poolside/laguna-xs-2.1": {
-        id: "poolside/laguna-xs-2.1",
-        family: "laguna",
-        reasoning: true,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 262144,
-          output: 32768
-        }
-      },
       "poolside/laguna-s-2.1": {
         id: "poolside/laguna-s-2.1",
         family: "laguna-s",
@@ -66738,6 +66557,26 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 262144,
+          output: 65536
+        }
+      },
+      "hf:moonshotai/kimi-k3": {
+        id: "hf:moonshotai/Kimi-K3",
+        family: "kimi-k3",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 524288,
           output: 65536
         }
       },
@@ -69543,8 +69382,7 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 128000,
-          output: 16384,
-          input: 111616
+          output: 16384
         }
       },
       "openai/gpt-5-image": {
@@ -69783,25 +69621,6 @@ var init_model_capabilities_generated = __esm(() => {
         },
         family: "command-r"
       },
-      "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
-        id: "nvidia/Llama-3.3-Nemotron-Super-49B-v1.5",
-        family: "nemotron",
-        reasoning: true,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 131072,
-          output: 131072
-        }
-      },
       "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
         id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         family: "nemotron",
@@ -69924,26 +69743,6 @@ var init_model_capabilities_generated = __esm(() => {
         },
         family: "lyria"
       },
-      "google/gemma-3-4b-it": {
-        id: "google/gemma-3-4b-it",
-        reasoning: false,
-        temperature: true,
-        toolCall: false,
-        modalities: {
-          input: [
-            "text",
-            "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 131072,
-          output: 16384
-        },
-        family: "gemma"
-      },
       "google/gemini-2.5-pro-preview": {
         id: "google/gemini-2.5-pro-preview",
         reasoning: true,
@@ -70050,26 +69849,6 @@ var init_model_capabilities_generated = __esm(() => {
           output: 65535
         },
         family: "gemini-pro"
-      },
-      "google/gemma-3-12b-it": {
-        id: "google/gemma-3-12b-it",
-        reasoning: false,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text",
-            "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 131072,
-          output: 16384
-        },
-        family: "gemma"
       },
       "google/gemini-2.5-flash-image": {
         id: "google/gemini-2.5-flash-image",
@@ -71178,7 +70957,7 @@ var init_model_capabilities_generated = __esm(() => {
       "~moonshotai/kimi-latest": {
         id: "~moonshotai/kimi-latest",
         reasoning: true,
-        temperature: false,
+        temperature: true,
         toolCall: true,
         modalities: {
           input: [
@@ -71191,7 +70970,7 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 1048576,
-          output: 262144
+          output: 1048576
         },
         family: "kimi"
       },
@@ -73043,6 +72822,44 @@ var init_model_capabilities_generated = __esm(() => {
           output: 16384
         }
       },
+      "qwen3.6-max": {
+        id: "qwen3.6-max",
+        family: "qwen",
+        reasoning: false,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 256000,
+          output: 64000
+        }
+      },
+      "qwen3-coder-480b-a35b-instruct-int4-mixed-ar": {
+        id: "qwen3-coder-480b-a35b-instruct-int4-mixed-ar",
+        family: "qwen",
+        reasoning: false,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 106000,
+          output: 10600
+        }
+      },
       "qwen-mt-plus": {
         id: "qwen-mt-plus",
         family: "qwen",
@@ -74228,26 +74045,6 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 4096,
           output: 4096
-        }
-      },
-      "nvidia/nemotron-nano-12b-v2-vl": {
-        id: "nvidia/nemotron-nano-12b-v2-vl",
-        family: "nemotron",
-        reasoning: true,
-        temperature: true,
-        toolCall: true,
-        modalities: {
-          input: [
-            "text",
-            "image"
-          ],
-          output: [
-            "text"
-          ]
-        },
-        limit: {
-          context: 131072,
-          output: 131072
         }
       },
       "google/imagen-4.0-ultra-generate-001": {
@@ -77171,11 +76968,11 @@ var init_model_capabilities_generated = __esm(() => {
           output: 128000
         }
       },
-      "anthropic/claude-opus-5": {
-        id: "anthropic/claude-opus-5",
-        family: "claude-opus",
+      "moonshotai/kimi-k3-fast": {
+        id: "moonshotai/kimi-k3-fast",
+        family: "kimi-k3",
         reasoning: true,
-        temperature: true,
+        temperature: false,
         toolCall: true,
         modalities: {
           input: [
@@ -77189,7 +76986,7 @@ var init_model_capabilities_generated = __esm(() => {
         },
         limit: {
           context: 1e6,
-          output: 128000
+          output: 131072
         }
       },
       "openai/whisper-1": {
@@ -77743,6 +77540,25 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 32768,
           output: 16384
+        }
+      },
+      "deepseek-r1-0528": {
+        id: "deepseek-r1-0528",
+        family: "deepseek-thinking",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 164000,
+          output: 164000
         }
       },
       "moonshot-kimi-k2-instruct": {
@@ -78660,6 +78476,27 @@ var init_model_capabilities_generated = __esm(() => {
         limit: {
           context: 262144,
           output: 32768
+        }
+      },
+      "qwen/qwen3.7-flash": {
+        id: "qwen/qwen3.7-flash",
+        family: "qwen",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "video"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 65536
         }
       },
       "~x-ai/grok-latest": {
@@ -80825,6 +80662,24 @@ var init_model_capabilities_generated = __esm(() => {
           output: 4096
         }
       },
+      "deepseek-v3.1": {
+        id: "deepseek-v3.1",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 128000,
+          output: 32000
+        }
+      },
       "doubao-1.5-vision-pro": {
         id: "doubao-1.5-vision-pro",
         reasoning: false,
@@ -81735,15 +81590,14 @@ var init_model_capabilities_generated = __esm(() => {
         modalities: {
           input: [
             "text",
-            "image",
-            "pdf"
+            "image"
           ],
           output: [
             "text"
           ]
         },
         limit: {
-          context: 1050000,
+          context: 372000,
           input: 922000,
           output: 128000
         }
@@ -82808,6 +82662,81 @@ var init_model_capabilities2 = __esm(() => {
   init_src3();
   init_connected_providers_cache();
   init_model_capabilities_generated();
+});
+
+// packages/omo-opencode/src/shared/model-requirements.ts
+var init_model_requirements2 = __esm(() => {
+  init_src3();
+});
+
+// packages/omo-opencode/src/shared/agent-variant.ts
+var init_agent_variant = __esm(() => {
+  init_agent_display_names();
+  init_model_capabilities2();
+  init_model_requirements2();
+});
+
+// packages/omo-opencode/src/shared/session-cursor.ts
+var sessionCursors;
+var init_session_cursor = __esm(() => {
+  sessionCursors = new Map;
+});
+
+// packages/omo-opencode/src/shared/shell-env.ts
+function detectShellType() {
+  if (process.env.SHELL) {
+    const shell = process.env.SHELL;
+    if (shell.includes("csh") || shell.includes("tcsh")) {
+      return "csh";
+    }
+    return "unix";
+  }
+  if (process.platform === "win32" && (process.env.BASH_VERSION || process.env.MSYSTEM || process.env.WSL_DISTRO_NAME)) {
+    return "unix";
+  }
+  if (process.env.PSModulePath) {
+    return "powershell";
+  }
+  return process.platform === "win32" ? "cmd" : "unix";
+}
+var init_shell_env = () => {};
+
+// packages/omo-opencode/src/shared/system-directive.ts
+var init_system_directive = () => {};
+
+// packages/omo-opencode/src/shared/agent-tool-restrictions.ts
+var init_agent_tool_restrictions = __esm(() => {
+  init_agent_display_names();
+});
+
+// packages/omo-opencode/src/shared/model-resolver.ts
+var init_model_resolver2 = __esm(() => {
+  init_src3();
+  init_connected_providers_cache();
+});
+
+// packages/omo-opencode/src/shared/model-normalization.ts
+var init_model_normalization = () => {};
+
+// packages/omo-opencode/src/shared/model-resolution-pipeline.ts
+var init_model_resolution_pipeline = __esm(() => {
+  init_connected_providers_cache();
+});
+
+// packages/omo-opencode/src/shared/model-availability.ts
+import { existsSync as existsSync13, readFileSync as readFileSync5 } from "fs";
+import { join as join17 } from "path";
+function isModelCacheAvailable() {
+  if (hasProviderModelsCache()) {
+    return true;
+  }
+  const cacheFile = join17(getOpenCodeCacheDir(), "models.json");
+  return existsSync13(cacheFile);
+}
+var init_model_availability = __esm(() => {
+  init_logger2();
+  init_data_path();
+  init_connected_providers_cache();
 });
 
 // packages/omo-opencode/src/shared/model-capabilities-cache.ts
@@ -86646,12 +86575,12 @@ function applyOpenAiOnlyModelCatalog(config3) {
 var OPENAI_ONLY_AGENT_OVERRIDES, OPENAI_ONLY_CATEGORY_OVERRIDES;
 var init_openai_only_model_catalog = __esm(() => {
   OPENAI_ONLY_AGENT_OVERRIDES = {
-    explore: { model: "openai/gpt-5.4-mini-fast" },
-    librarian: { model: "openai/gpt-5.4-mini-fast" }
+    explore: { model: "openai/gpt-5.6-luna-fast", variant: "low" },
+    librarian: { model: "openai/gpt-5.6-luna-fast", variant: "low" }
   };
   OPENAI_ONLY_CATEGORY_OVERRIDES = {
     artistry: { model: "openai/gpt-5.6-sol", variant: "xhigh" },
-    quick: { model: "openai/gpt-5.4-mini" },
+    quick: { model: "openai/gpt-5.6-luna-fast" },
     "visual-engineering": { model: "openai/gpt-5.6-sol", variant: "high" },
     writing: { model: "openai/gpt-5.6-sol", variant: "medium" }
   };
@@ -86849,13 +86778,13 @@ function generateModelConfig(config3) {
     if (role === "explore") {
       let agentConfig;
       if (avail.native.openai) {
-        agentConfig = { model: "openai/gpt-5.4-mini-fast" };
+        agentConfig = { model: "openai/gpt-5.6-luna-fast", variant: "low" };
       } else if (avail.native.claude) {
         agentConfig = { model: "anthropic/claude-haiku-4-5" };
       } else if (avail.opencodeZen) {
         agentConfig = { model: "opencode/gpt-5-nano" };
       } else if (avail.opencodeGo) {
-        agentConfig = { model: "opencode-go/qwen3.5-plus" };
+        agentConfig = { model: "opencode-go/qwen3.7-plus" };
       } else if (avail.copilot) {
         agentConfig = { model: "github-copilot/gpt-5-mini" };
       } else {
@@ -86995,8 +86924,8 @@ function profileDirectories(root, options) {
 }
 function isWithin(parent, child, options) {
   const pathOperations = hostPathOperations(options);
-  const relative2 = pathOperations.relative(parent, child);
-  return relative2 === "" || !relative2.startsWith("..") && !pathOperations.isAbsolute(relative2);
+  const relative = pathOperations.relative(parent, child);
+  return relative === "" || !relative.startsWith("..") && !pathOperations.isAbsolute(relative);
 }
 function projectDirectories(options) {
   const directories = [];
@@ -87462,15 +87391,192 @@ var init_transform_opencode = __esm(() => {
   init_record_values();
 });
 
+// packages/omo-opencode/src/config-migration/reasoning-unification.ts
+function normalizeStringModel(value) {
+  return normalizeLegacyModelEntry({ model: value }).model;
+}
+function normalizeModelRef(value) {
+  if (typeof value === "string")
+    return normalizeStringModel(value);
+  return isPlainRecord3(value) ? normalizeLegacyModelEntry(value) : value;
+}
+function normalizedList(value) {
+  if (value === undefined)
+    return [];
+  const entries = Array.isArray(value) ? value : [value];
+  return entries.map(normalizeModelRef);
+}
+function hasModelSettings(record2, opencode) {
+  return [
+    "reasoning",
+    "variant",
+    "reasoningEffort",
+    "thinking",
+    ...opencode ? [] : ["provider_options", "providerOptions", "textVerbosity"]
+  ].some((key) => record2[key] !== undefined);
+}
+function primaryModelRef(record2, opencode) {
+  const model = record2["model"];
+  if (typeof model !== "string")
+    return;
+  if (!hasModelSettings(record2, opencode))
+    return normalizeStringModel(model);
+  const settings = { model };
+  for (const key of [
+    "reasoning",
+    "variant",
+    "reasoningEffort",
+    "thinking",
+    ...opencode ? [] : ["provider_options", "providerOptions", "textVerbosity"]
+  ]) {
+    if (record2[key] !== undefined)
+      settings[key] = record2[key];
+  }
+  return normalizeLegacyModelEntry(settings);
+}
+function conflictDiagnostic(record2, path6) {
+  const present = ["reasoning", "reasoningEffort", "variant"].filter((key) => record2[key] !== undefined);
+  if (present.length < 2)
+    return;
+  const [keptKey, ...droppedKeys] = present;
+  const keptValue = record2[keptKey];
+  const dropped = droppedKeys.map((key) => [key, record2[key]]);
+  const droppedText = dropped.map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(" ");
+  return `conflict: ${path6.join(".")} dropped ${droppedText} kept ${keptKey}=${JSON.stringify(keptValue)}`;
+}
+function normalizeDefinition(value, kind, path6, diagnostics, opencode = false) {
+  if (!isPlainRecord3(value))
+    return value;
+  const conflict = conflictDiagnostic(value, path6);
+  if (conflict !== undefined)
+    diagnostics.push(conflict);
+  const normalizationInput = opencode ? copyRecord(value) : value;
+  if (opencode) {
+    delete normalizationInput["maxTokens"];
+    delete normalizationInput["providerOptions"];
+    delete normalizationInput["textVerbosity"];
+  }
+  const normalized = normalizeLegacyModelFields(normalizationInput);
+  if (opencode) {
+    for (const key of ["maxTokens", "providerOptions", "textVerbosity"]) {
+      if (value[key] !== undefined)
+        normalized[key] = value[key];
+    }
+  }
+  if (typeof normalized["model"] === "string")
+    normalized["model"] = normalizeStringModel(normalized["model"]);
+  if (Array.isArray(normalized["models"]))
+    normalized["models"] = normalizedList(normalized["models"]);
+  const fallbackModels = value["fallback_models"];
+  const shouldCombine = fallbackModels !== undefined || kind === "agent" && value["model"] !== undefined && value["models"] !== undefined;
+  if (!shouldCombine)
+    return normalized;
+  const primary = primaryModelRef(value, opencode);
+  const existing = kind === "agent" ? normalizedList(value["models"]) : [];
+  const fallbacks = normalizedList(fallbackModels);
+  normalized["models"] = [...primary === undefined ? [] : [primary], ...existing, ...fallbacks];
+  delete normalized["model"];
+  delete normalized["fallback_models"];
+  for (const key of [
+    "reasoning",
+    "variant",
+    "reasoningEffort",
+    "provider_options",
+    "providerOptions",
+    "thinking",
+    "textVerbosity"
+  ])
+    delete normalized[key];
+  return normalized;
+}
+function normalizeDefinitions(value, kind, path6, diagnostics) {
+  if (!isPlainRecord3(value))
+    return value;
+  const result = {};
+  for (const [name, definition] of Object.entries(value)) {
+    result[name] = normalizeDefinition(definition, kind, [...path6, name], diagnostics);
+  }
+  return result;
+}
+function normalizeOpenCodeDefinitions(value, kind, path6, diagnostics) {
+  if (!isPlainRecord3(value))
+    return value;
+  const result = {};
+  for (const [name, definition] of Object.entries(value)) {
+    result[name] = normalizeDefinition(definition, kind, [...path6, name], diagnostics, true);
+  }
+  return result;
+}
+function normalizeCatalog(value) {
+  if (!isPlainRecord3(value))
+    return value;
+  const result = {};
+  for (const [name, entry] of Object.entries(value))
+    result[name] = normalizeModelRef(entry);
+  return result;
+}
+function normalizeTypedBlock(value, path6, diagnostics, recurseProfiles) {
+  if (!isPlainRecord3(value))
+    return value;
+  const result = copyRecord(value);
+  if (result["categories"] !== undefined) {
+    result["categories"] = normalizeDefinitions(result["categories"], "category", [...path6, "categories"], diagnostics);
+  }
+  if (result["agents"] !== undefined) {
+    result["agents"] = normalizeDefinitions(result["agents"], "agent", [...path6, "agents"], diagnostics);
+  }
+  if (result["models"] !== undefined)
+    result["models"] = normalizeCatalog(result["models"]);
+  for (const harness2 of ["[senpi]", "[codex]"]) {
+    if (result[harness2] !== undefined)
+      result[harness2] = normalizeTypedBlock(result[harness2], [...path6, harness2], diagnostics, false);
+  }
+  if (result["[opencode]"] !== undefined) {
+    result["[opencode]"] = normalizeOpenCodeBlock(result["[opencode]"], [...path6, "[opencode]"], diagnostics);
+  }
+  if (recurseProfiles && isPlainRecord3(result["profiles"])) {
+    const profiles = {};
+    for (const [name, profile] of Object.entries(result["profiles"])) {
+      profiles[name] = normalizeTypedBlock(profile, [...path6, "profiles", name], diagnostics, false);
+    }
+    result["profiles"] = profiles;
+  }
+  return result;
+}
+function normalizeOpenCodeBlock(value, path6, diagnostics) {
+  if (!isPlainRecord3(value))
+    return value;
+  const result = copyRecord(value);
+  if (result["categories"] !== undefined) {
+    result["categories"] = normalizeOpenCodeDefinitions(result["categories"], "category", [...path6, "categories"], diagnostics);
+  }
+  if (result["agents"] !== undefined) {
+    result["agents"] = normalizeOpenCodeDefinitions(result["agents"], "agent", [...path6, "agents"], diagnostics);
+  }
+  return result;
+}
+function transformReasoningUnification(document) {
+  const diagnostics = [];
+  return {
+    diagnostics,
+    document: isPlainRecord3(document) ? normalizeTypedBlock(document, [], diagnostics, true) : {}
+  };
+}
+var REASONING_UNIFICATION_MIGRATION_ID = "2026-08-reasoning-unification";
+var init_reasoning_unification = __esm(() => {
+  init_src();
+  init_record_values();
+});
+
 // packages/omo-opencode/src/config-migration/migration-plans.ts
 function backupTimestamp(value) {
   return value ?? new Date().toISOString().replace(/[:.]/g, "-");
 }
 function safeRelativePath(path6, homeDir, options) {
   const pathOperations = hostPathOperations(options);
-  const relative2 = pathOperations.relative(homeDir, path6);
-  if (relative2 !== "" && !relative2.startsWith("..") && !pathOperations.isAbsolute(relative2))
-    return relative2;
+  const relative = pathOperations.relative(homeDir, path6);
+  if (relative !== "" && !relative.startsWith("..") && !pathOperations.isAbsolute(relative))
+    return relative;
   return `external-${encodeURIComponent(path6)}`;
 }
 function descriptors(sources, options, timestamp) {
@@ -87517,6 +87623,26 @@ function mergeOpenCodeInputs(inputs, options) {
   }
   return [...byTarget.values()];
 }
+function reasoningPlan(targetPath) {
+  const inspect = (sources) => transformReasoningUnification(sources[0]?.value);
+  return {
+    id: REASONING_UNIFICATION_MIGRATION_ID,
+    inspect,
+    mode: "replace-target",
+    sources: [],
+    targetPath,
+    transform: inspect
+  };
+}
+function existingOmoConfigPath(directory, options) {
+  const fileSystem = discoveryFileSystem(options);
+  for (const fileName of ["omo.jsonc", "omo.json"]) {
+    const path6 = options.pathOperations.join(directory, fileName);
+    if (fileSystem.existsSync(path6))
+      return canonicalPath(path6, options);
+  }
+  return;
+}
 function createLegacyConfigMigrationPlans(options) {
   const timestamp = backupTimestamp(options.backupTimestamp);
   const [openCodeGroup, configJsoncGroup] = discoverLegacyConfigGroups(options);
@@ -87545,9 +87671,7 @@ function createLegacyConfigMigrationPlans(options) {
     ...projectInputs
   ];
   const plans = mergeOpenCodeInputs(openCodeInputs, options).map((input) => openCodePlan(input, options, timestamp));
-  if (configJsoncGroup.id !== CONFIG_JSONC_MIGRATION_ID || configJsoncGroup.sources.length === 0)
-    return plans;
-  return [
+  const legacyPlans = configJsoncGroup.id !== CONFIG_JSONC_MIGRATION_ID || configJsoncGroup.sources.length === 0 ? plans : [
     ...plans,
     {
       id: CONFIG_JSONC_MIGRATION_ID,
@@ -87557,6 +87681,19 @@ function createLegacyConfigMigrationPlans(options) {
       transform: (loaded) => transformConfigJsoncSources({ discovered: configJsoncGroup.sources, sources: loaded })
     }
   ];
+  const reasoningTargets = new Map;
+  const addReasoningTarget = (targetPath) => {
+    if (targetPath === undefined)
+      return;
+    reasoningTargets.set(pathKey(targetPath, options), targetPath);
+  };
+  addReasoningTarget(existingOmoConfigPath(options.pathOperations.join(options.homeDir, ".omo"), options));
+  for (const projectRoot of projectDirectories(options)) {
+    addReasoningTarget(existingOmoConfigPath(options.pathOperations.join(projectRoot, ".omo"), options));
+  }
+  for (const plan of legacyPlans)
+    addReasoningTarget(plan.targetPath);
+  return [...legacyPlans, ...[...reasoningTargets.values()].map(reasoningPlan)];
 }
 var init_migration_plans = __esm(() => {
   init_discovery2();
@@ -87564,6 +87701,7 @@ var init_migration_plans = __esm(() => {
   init_record_values();
   init_transform_config_jsonc();
   init_transform_opencode();
+  init_reasoning_unification();
 });
 
 // packages/omo-opencode/src/config-migration/migration-executor.ts
@@ -87576,6 +87714,7 @@ var init_config_migration = __esm(() => {
   init_migration_executor();
   init_transform_config_jsonc();
   init_transform_opencode();
+  init_reasoning_unification();
 });
 
 // packages/omo-opencode/src/startup-migration.ts
@@ -88297,7 +88436,7 @@ function shouldRetainLine(line, cutoffMs) {
 function parseDiagnosticLine(line) {
   try {
     const parsed = JSON.parse(line);
-    if (!isRecord5(parsed)) {
+    if (!isRecord9(parsed)) {
       return null;
     }
     return parsed;
@@ -88308,7 +88447,7 @@ function parseDiagnosticLine(line) {
     throw error51;
   }
 }
-function isRecord5(value) {
+function isRecord9(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function trimToMaxBytes(lines) {
@@ -91418,7 +91557,7 @@ var init_context_lines_node = __esm(() => {
 });
 
 // node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/relative-path.node.mjs
-import { isAbsolute as isAbsolute8, relative as relative5, sep as sep8 } from "path";
+import { isAbsolute as isAbsolute7, relative as relative4, sep as sep8 } from "path";
 function createRelativePathModifier(basePath = process.cwd()) {
   const isWindows = sep8 === "\\";
   const toUnix = (p) => isWindows ? p.replace(/\\/g, "/") : p;
@@ -91426,8 +91565,8 @@ function createRelativePathModifier(basePath = process.cwd()) {
   return async (frames) => {
     for (const frame of frames)
       if (!(!frame.filename || frame.filename.startsWith("node:") || frame.filename.startsWith("data:"))) {
-        if (isAbsolute8(frame.filename))
-          frame.filename = toUnix(relative5(normalizedBase, toUnix(frame.filename)));
+        if (isAbsolute7(frame.filename))
+          frame.filename = toUnix(relative4(normalizedBase, toUnix(frame.filename)));
       }
     return frames;
   };
@@ -93943,7 +94082,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "4.19.3",
+    version: "4.19.4",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -95425,7 +95564,7 @@ function formatConfigSummary(config3) {
   lines.push("");
   const claudeDetail = config3.hasClaude ? config3.isMax20 ? "max20" : "standard" : undefined;
   lines.push(formatProvider("Claude", config3.hasClaude, claudeDetail));
-  lines.push(formatProvider("OpenAI/ChatGPT", config3.hasOpenAI, "GPT-5.4 for Oracle"));
+  lines.push(formatProvider("OpenAI/ChatGPT", config3.hasOpenAI, "GPT-5.6 Sol for Oracle"));
   lines.push(formatProvider("Gemini", config3.hasGemini));
   lines.push(formatProvider("GitHub Copilot", config3.hasCopilot, "fallback"));
   lines.push(formatProvider("OpenCode Zen", config3.hasOpencodeZen, "opencode/ models"));
@@ -95682,7 +95821,7 @@ import { homedir as homedir5 } from "node:os";
 
 // packages/omo-codex/src/install/codex-cache-bins.ts
 import { chmod, lstat as lstat4, mkdir, readFile as readFile3, readdir as readdir2, readlink as readlink3, rm as rm3, stat as stat2, symlink, writeFile } from "node:fs/promises";
-import { basename as basename4, isAbsolute as isAbsolute3, join as join26, relative as relative2, resolve as resolve6, sep } from "node:path";
+import { basename as basename4, isAbsolute as isAbsolute2, join as join26, relative, resolve as resolve6, sep } from "node:path";
 
 // packages/omo-codex/src/install/codex-cache-command-shim.ts
 var COMMAND_SHIM_MARKER = ":: generated by oh-my-openagent Codex installer";
@@ -95727,7 +95866,7 @@ function windowsCommandShim(targetPath) {
 
 // packages/omo-codex/src/install/codex-cache-dangling-bins.ts
 import { lstat as lstat2, readFile, readdir, readlink, rm, stat } from "node:fs/promises";
-import { dirname as dirname9, isAbsolute as isAbsolute2, join as join23, resolve as resolve5 } from "node:path";
+import { dirname as dirname9, isAbsolute, join as join23, resolve as resolve5 } from "node:path";
 
 // packages/omo-codex/src/install/codex-cache-fs.ts
 import { lstat } from "node:fs/promises";
@@ -95774,7 +95913,7 @@ async function removeDanglingManagedSymlink(linkPath) {
     if (!linkStat.isSymbolicLink())
       return;
     const linkTarget = await readlink(linkPath);
-    const target = isAbsolute2(linkTarget) ? linkTarget : resolve5(dirname9(linkPath), linkTarget);
+    const target = isAbsolute(linkTarget) ? linkTarget : resolve5(dirname9(linkPath), linkTarget);
     if (!await isFileSystemEntry(target) && isManagedComponentBinTarget(target))
       await rm(linkPath, { force: true });
   } catch (error51) {
@@ -96123,8 +96262,8 @@ function resolvePackageBinTarget(packageRoot, target) {
     throw new Error("Package bin target must stay inside package root");
   const root = resolve6(packageRoot);
   const resolvedTarget = resolve6(root, target);
-  const relativeTarget = relative2(root, resolvedTarget);
-  if (relativeTarget === "" || relativeTarget !== ".." && !relativeTarget.startsWith(`..${sep}`) && !isAbsolute3(relativeTarget)) {
+  const relativeTarget = relative(root, resolvedTarget);
+  if (relativeTarget === "" || relativeTarget !== ".." && !relativeTarget.startsWith(`..${sep}`) && !isAbsolute2(relativeTarget)) {
     return resolvedTarget;
   }
   throw new Error("Package bin target must stay inside package root");
@@ -96268,11 +96407,11 @@ async function isDirectory(path6) {
 // packages/omo-codex/src/install/codex-cache-local-dependencies.ts
 import { realpathSync as realpathSync6 } from "node:fs";
 import { readFile as readFile5, readdir as readdir3, writeFile as writeFile2 } from "node:fs/promises";
-import { dirname as dirname11, isAbsolute as isAbsolute5, join as join29, relative as relative4, resolve as resolve9, sep as sep2 } from "node:path";
+import { dirname as dirname11, isAbsolute as isAbsolute4, join as join29, relative as relative3, resolve as resolve9, sep as sep2 } from "node:path";
 
 // packages/omo-codex/src/install/codex-cache-paths.ts
 import { existsSync as existsSync24, readdirSync as readdirSync6 } from "node:fs";
-import { isAbsolute as isAbsolute4, join as join28, relative as relative3, resolve as resolve8 } from "node:path";
+import { isAbsolute as isAbsolute3, join as join28, relative as relative2, resolve as resolve8 } from "node:path";
 var DEFAULT_CODEX_MARKETPLACE_NAME = "sisyphuslabs";
 var DEFAULT_CODEX_PLUGIN_NAME = "omo";
 function resolveDefaultCodexHome(homeDir) {
@@ -96310,8 +96449,8 @@ function resolveCachedRuntimePath(pluginRoot, sourceRoot, runtimePath) {
   return resolve8(sourceRoot, runtimePath);
 }
 function isPathInside(candidatePath, rootPath) {
-  const pathFromRoot = relative3(rootPath, candidatePath);
-  return pathFromRoot === "" || !pathFromRoot.startsWith("..") && !isAbsolute4(pathFromRoot);
+  const pathFromRoot = relative2(rootPath, candidatePath);
+  return pathFromRoot === "" || !pathFromRoot.startsWith("..") && !isAbsolute3(pathFromRoot);
 }
 function compareVersionNames(left, right) {
   const leftParts = left.split(".").map((part) => Number.parseInt(part, 10));
@@ -96338,7 +96477,7 @@ async function rewriteCachedPackageLocalFileDependencies(pluginRoot, sourceRoot)
     if (!isPlainRecord4(parsed))
       continue;
     const packageDir = dirname11(packageJsonPath);
-    const sourcePackageDir = join29(sourceRoot, relative4(pluginRoot, packageDir));
+    const sourcePackageDir = join29(sourceRoot, relative3(pluginRoot, packageDir));
     let changed = false;
     for (const field of ["dependencies", "optionalDependencies", "peerDependencies"]) {
       const dependencies = parsed[field];
@@ -96348,7 +96487,7 @@ async function rewriteCachedPackageLocalFileDependencies(pluginRoot, sourceRoot)
         if (typeof specifier !== "string" || !specifier.startsWith("file:"))
           continue;
         const filePath = specifier.slice("file:".length);
-        if (filePath.length === 0 || isAbsolute5(filePath))
+        if (filePath.length === 0 || isAbsolute4(filePath))
           continue;
         const targetPath = resolve9(packageDir, filePath);
         if (isPathInside(targetPath, pluginRoot))
@@ -96395,9 +96534,9 @@ function rewritePackageLockFileDependency(input) {
   if (!packages)
     return;
   const lockRoot = canonicalizeExistingPath(input.pluginRoot);
-  const packageKey = toPackageLockPath(relative4(input.pluginRoot, input.packageDir));
-  const oldTargetKey = toPackageLockPath(relative4(input.pluginRoot, input.targetPath));
-  const newTargetKey = toPackageLockPath(relative4(lockRoot, input.sourceTargetPath));
+  const packageKey = toPackageLockPath(relative3(input.pluginRoot, input.packageDir));
+  const oldTargetKey = toPackageLockPath(relative3(input.pluginRoot, input.targetPath));
+  const newTargetKey = toPackageLockPath(relative3(lockRoot, input.sourceTargetPath));
   const newSpecifier = `file:${input.sourceTargetPath}`;
   const packageEntry = packages[packageKey];
   if (isPlainRecord4(packageEntry)) {
@@ -96766,10 +96905,10 @@ async function restoreBackupDirectory(backupPath, targetPath, renameDirectory) {
   await renameDirectory(backupPath, targetPath);
 }
 function shouldCopyPluginPath(path6, root) {
-  const relative5 = path6 === root ? "" : path6.slice(root.length + sep5.length);
-  if (relative5 === "")
+  const relative4 = path6 === root ? "" : path6.slice(root.length + sep5.length);
+  if (relative4 === "")
     return true;
-  const parts = relative5.split(sep5);
+  const parts = relative4.split(sep5);
   if (parts.some((part) => part === ".git" || part === "node_modules"))
     return false;
   return !isNestedComponentMcpManifest(parts);
@@ -97563,7 +97702,7 @@ function tomlKeySegment(value) {
 
 // packages/omo-codex/src/install/codex-config-atomic-write.ts
 import { lstat as lstat6, readlink as readlink4, realpath, rename as rename3, unlink, writeFile as writeFile5 } from "node:fs/promises";
-import { basename as basename6, dirname as dirname13, isAbsolute as isAbsolute6, join as join36, resolve as resolve10 } from "node:path";
+import { basename as basename6, dirname as dirname13, isAbsolute as isAbsolute5, join as join36, resolve as resolve10 } from "node:path";
 var RENAME_RETRY_DELAYS_MS = [10, 25, 50];
 var RETRIABLE_RENAME_CODES = new Set(["EPERM", "EBUSY"]);
 async function writeFileAtomic(targetPath, data) {
@@ -97597,7 +97736,7 @@ async function resolveSymlinkTarget(targetPath) {
     if (!(error51 instanceof Error))
       throw error51;
     const linkValue = await readlink4(targetPath);
-    return isAbsolute6(linkValue) ? linkValue : resolve10(dirname13(targetPath), linkValue);
+    return isAbsolute5(linkValue) ? linkValue : resolve10(dirname13(targetPath), linkValue);
   }
 }
 async function renameWithRetry(fromPath, toPath) {
@@ -97988,6 +98127,24 @@ function stripUnquotedInlineComment3(line) {
 
 // packages/omo-codex/src/install/codex-config-reasoning.ts
 var MANAGED_KEYS = ["model", "model_context_window", "model_reasoning_effort", "plan_mode_reasoning_effort"];
+var CODEX_REASONING_BY_UNIFIED_LEVEL = {
+  off: "none",
+  none: "none",
+  minimal: "minimal",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: "xhigh",
+  max: "max"
+};
+function applyReasoningOverride(catalog, reasoning) {
+  if (reasoning === undefined)
+    return catalog;
+  const wireEffort = CODEX_REASONING_BY_UNIFIED_LEVEL[reasoning.trim().toLowerCase()];
+  if (wireEffort === undefined)
+    return catalog;
+  return { ...catalog, current: { ...catalog.current, modelReasoningEffort: wireEffort } };
+}
 function ensureCodexReasoningConfig(config3, catalog) {
   const current = readRootReasoningSettings(config3);
   if (Object.keys(current).length > 0 && !matchesProfile(current, catalog.current) && !catalog.managedProfiles.some((profile) => matchesProfile(current, profile))) {
@@ -98164,7 +98321,7 @@ function isRootSetting2(line, key) {
 
 // packages/omo-codex/src/install/codex-multi-agent-v2-config.ts
 import { readFileSync as readFileSync11 } from "node:fs";
-import { dirname as dirname14, isAbsolute as isAbsolute7, join as join38 } from "node:path";
+import { dirname as dirname14, isAbsolute as isAbsolute6, join as join38 } from "node:path";
 var CODEX_AGENTS_HEADER = "agents";
 var CODEX_MULTI_AGENT_V2_HEADER = "features.multi_agent_v2";
 var CODEX_MULTI_AGENT_V2_THREAD_LIMIT_KEY = `${CODEX_MULTI_AGENT_V2_HEADER}.max_concurrent_threads_per_session`;
@@ -98202,7 +98359,7 @@ function resolveCodexMultiAgentVersion(config3, configPath) {
 function resolveCatalogPath(configuredPath, configPath) {
   if (configuredPath === null)
     return join38(dirname14(configPath), "models_cache.json");
-  return isAbsolute7(configuredPath) ? configuredPath : join38(dirname14(configPath), configuredPath);
+  return isAbsolute6(configuredPath) ? configuredPath : join38(dirname14(configPath), configuredPath);
 }
 function readCatalogMultiAgentVersion(model, cachePath) {
   let raw;
@@ -98217,10 +98374,10 @@ function readCatalogMultiAgentVersion(model, cachePath) {
   } catch {
     return null;
   }
-  if (!isRecord4(cache) || !Array.isArray(cache.models))
+  if (!isRecord8(cache) || !Array.isArray(cache.models))
     return null;
   for (const entry of cache.models) {
-    if (!isRecord4(entry))
+    if (!isRecord8(entry))
       continue;
     if (entry.slug !== model && entry.id !== model)
       continue;
@@ -98245,7 +98402,7 @@ function readRootModelCatalogPath(config3) {
   const single = config3.match(/^\s*model_catalog_json\s*=\s*'([^']+)'/m);
   return single?.[1] ?? null;
 }
-function isRecord4(value) {
+function isRecord8(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function removeFeatureFlagSetting(config3, featureName) {
@@ -98328,7 +98485,7 @@ async function updateCodexConfig(input) {
   config3 = ensureFeatureEnabled(config3, "plugin_hooks");
   config3 = ensureFeatureEnabled(config3, "multi_agent");
   config3 = removeUnsupportedCodexMultiAgentModeConfig(config3);
-  config3 = ensureCodexReasoningConfig(config3, await readCodexModelCatalog(input.repoRoot));
+  config3 = ensureCodexReasoningConfig(config3, applyReasoningOverride(await readCodexModelCatalog(input.repoRoot), input.reasoning));
   config3 = ensureCodexMultiAgentV2Config(config3, {
     multiAgentVersion: resolveCodexMultiAgentVersion(config3, input.configPath)
   });
@@ -98518,7 +98675,7 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
     "explorer",
     [
       {
-        previous: { model: "gpt-5.4-mini", effort: "low" },
+        previous: { model: "gpt-5.6-luna-fast", effort: "low" },
         current: { model: "gpt-5.6-terra", effort: "medium" }
       },
       {
@@ -98531,7 +98688,7 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
     "librarian",
     [
       {
-        previous: { model: "gpt-5.4-mini", effort: "low" },
+        previous: { model: "gpt-5.6-luna-fast", effort: "low" },
         current: { model: "gpt-5.6-terra", effort: "medium" }
       },
       {
@@ -99054,10 +99211,10 @@ function localSourcePath(source) {
 function validateLocalSourcePath(path6) {
   if (!path6.startsWith("./"))
     throw new Error("local plugin source path must start with ./");
-  const relative5 = path6.slice(2);
-  if (relative5.length === 0)
+  const relative4 = path6.slice(2);
+  if (relative4.length === 0)
     throw new Error("local plugin source path must not be empty");
-  for (const part of relative5.split(/[\\/]/)) {
+  for (const part of relative4.split(/[\\/]/)) {
     if (part === "" || part === "." || part === "..") {
       throw new Error("local plugin source path must stay within the marketplace root");
     }
@@ -99107,10 +99264,10 @@ async function writeSnapshotPlugin(marketplaceRoot, plugin) {
   return { name: plugin.name, path: targetPath };
 }
 function shouldCopyMarketplaceSourcePath(path6, root) {
-  const relative5 = path6 === root ? "" : path6.slice(root.length + sep6.length);
-  if (relative5 === "")
+  const relative4 = path6 === root ? "" : path6.slice(root.length + sep6.length);
+  if (relative4 === "")
     return true;
-  const parts = relative5.split(sep6);
+  const parts = relative4.split(sep6);
   return !parts.some((part) => part === ".git" || part === "node_modules");
 }
 
@@ -100074,7 +100231,8 @@ async function runCodexInstaller(options = {}) {
     gitBashEnabled: platform === "win32" && gitBashResolution.found,
     trustedHookStates,
     agentConfigs: [...agentConfigs.values()].sort((left, right) => left.name.localeCompare(right.name)),
-    autonomousPermissions: options.autonomousPermissions !== false
+    autonomousPermissions: options.autonomousPermissions !== false,
+    ...options.reasoning === undefined ? {} : { reasoning: options.reasoning }
   });
   await seedAndMigrateOmoSot({ env: env3, log: log4, repoRoot, runCommand });
   const projectCleanup = await repairProjectLocalCodexArtifactsBestEffort({
@@ -100277,7 +100435,7 @@ function defaultRunCommand2(command, args) {
 // packages/omo-codex/src/install/codex-cleanup.ts
 import { lstat as lstat13, readFile as readFile22, readdir as readdir11, rm as rm11, rmdir } from "node:fs/promises";
 import { homedir as homedir7 } from "node:os";
-import { isAbsolute as isAbsolute10, join as join56, relative as relative7, resolve as resolve15 } from "node:path";
+import { isAbsolute as isAbsolute9, join as join56, relative as relative6, resolve as resolve15 } from "node:path";
 
 // packages/omo-codex/src/install/codex-cleanup-config.ts
 import { lstat as lstat12, mkdir as mkdir8, readFile as readFile21, writeFile as writeFile12 } from "node:fs/promises";
@@ -100397,9 +100555,9 @@ function nodeErrorCode5(error51) {
 }
 
 // packages/omo-codex/src/install/codex-cleanup-safety.ts
-import { dirname as dirname19, isAbsolute as isAbsolute9, join as join55, relative as relative6, resolve as resolve14 } from "node:path";
+import { dirname as dirname19, isAbsolute as isAbsolute8, join as join55, relative as relative5, resolve as resolve14 } from "node:path";
 function validateManagedCleanupTarget(input) {
-  if (!isAbsolute9(input.path))
+  if (!isAbsolute8(input.path))
     return skipped(input.path, "outside managed Codex cleanup scope");
   const codexHome = resolve14(input.codexHome);
   if (dirname19(codexHome) === codexHome)
@@ -100423,11 +100581,11 @@ function validateManagedCleanupTarget(input) {
   return skipped(input.path, "outside managed Codex cleanup scope");
 }
 function isWithinDirectory(parent, child) {
-  const relativePath = relative6(parent, child);
-  return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute9(relativePath);
+  const relativePath = relative5(parent, child);
+  return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute8(relativePath);
 }
 function isManagedBootstrapDriftPath(codexHome, target) {
-  const relativePath = relative6(codexHome, target);
+  const relativePath = relative5(codexHome, target);
   const segments = relativePath.split(/[\\/]/);
   if (segments[0] !== "plugins")
     return false;
@@ -100611,10 +100769,10 @@ async function removeManifestListedAgentLinks(codexHome, paths2) {
   return { removed: removed2, skipped: skipped2 };
 }
 function isSafeManagedAgentPath(agentsDir, path6) {
-  if (!isAbsolute10(path6))
+  if (!isAbsolute9(path6))
     return false;
-  const relativePath = relative7(agentsDir, path6);
-  if (relativePath === "" || relativePath.startsWith("..") || isAbsolute10(relativePath))
+  const relativePath = relative6(agentsDir, path6);
+  if (relativePath === "" || relativePath.startsWith("..") || isAbsolute9(relativePath))
     return false;
   const fileName = relativePath.split(/[\\/]/).pop();
   if (fileName === undefined)
@@ -100678,12 +100836,16 @@ var REQUIRED_PLUGIN_ARTIFACTS = [
   join57("runtime", "lsp-daemon", "dist", ".omo-runtime-manifest.json"),
   join57("scripts", "install.mjs")
 ];
+var LEGACY_BUILTIN_SHADOW_PACKAGES = [
+  join57("packages", "pi-goal"),
+  join57("packages", "pi-webfetch")
+];
 async function runSenpiInstaller(options = {}) {
   const context = resolveInstallContext(options);
   await ensurePluginArtifacts(context);
   const settings = await readSettings(context.settingsPath);
   const before = JSON.stringify(settings);
-  const packages = dedupePackages(readPackages(settings));
+  const packages = removeLegacyBuiltinShadows(dedupePackages(readPackages(settings)), context.repoRoot, context.agentDir);
   if (!packages.includes(context.pluginPath))
     packages.push(context.pluginPath);
   settings.packages = packages;
@@ -100766,6 +100928,10 @@ function readPackages(settings) {
 }
 function dedupePackages(packages) {
   return [...new Set(packages)];
+}
+function removeLegacyBuiltinShadows(packages, repoRoot, agentDir) {
+  const shadowPaths = new Set(LEGACY_BUILTIN_SHADOW_PACKAGES.map((path6) => resolve16(repoRoot, path6)));
+  return packages.filter((entry) => !shadowPaths.has(resolve16(agentDir, entry)));
 }
 async function writeSettingsAtomically(settingsPath, settings) {
   await mkdir9(dirname20(settingsPath), { recursive: true });
@@ -101306,7 +101472,7 @@ async function runCliInstaller(args, version3) {
   }
   printBox(formatConfigSummary(config3), isUpdate ? "Updated Configuration" : "Installation Complete");
   if (config3.hasOpenCode && !config3.hasClaude) {
-    printInfo("Note: Sisyphus agent performs best with Claude Opus 4.5+. " + "Other models work but may have reduced orchestration quality.");
+    printInfo("Note: Sisyphus agent performs best with Claude Opus 5. " + "Other models work but may have reduced orchestration quality.");
   }
   if (config3.hasOpenCode && !hasAnyConfiguredProvider(config3)) {
     printWarning(getNoModelProvidersWarning());
@@ -102786,8 +102952,8 @@ async function promptInstallConfig(detected, platform, codexAutonomousOverride) 
     message: "Do you have a Claude Pro/Max subscription?",
     options: [
       { value: "no", label: "No", hint: `Will use ${ULTIMATE_FALLBACK} as fallback` },
-      { value: "yes", label: "Yes (standard)", hint: "Claude Opus 4.5 for orchestration" },
-      { value: "max20", label: "Yes (max20 mode)", hint: "Full power with Claude Sonnet 4.6 for Librarian" }
+      { value: "yes", label: "Yes (standard)", hint: "Claude Opus 5 for orchestration" },
+      { value: "max20", label: "Yes (max20 mode)", hint: "Higher Claude usage limits for orchestration" }
     ],
     initialValue: initial.claude
   });
@@ -102797,7 +102963,7 @@ async function promptInstallConfig(detected, platform, codexAutonomousOverride) 
     message: "Do you have an OpenAI/ChatGPT Plus subscription?",
     options: [
       { value: "no", label: "No", hint: "Oracle will use fallback models" },
-      { value: "yes", label: "Yes", hint: "GPT-5.4 for Oracle (high-IQ debugging)" }
+      { value: "yes", label: "Yes", hint: "GPT-5.6 Sol for Oracle (high-IQ debugging)" }
     ],
     initialValue: initial.openai
   });
@@ -102827,7 +102993,7 @@ async function promptInstallConfig(detected, platform, codexAutonomousOverride) 
     message: "Do you have access to OpenCode Zen (opencode/ models)?",
     options: [
       { value: "no", label: "No", hint: "Will use other configured providers" },
-      { value: "yes", label: "Yes", hint: "opencode/claude-opus-4-7, opencode/gpt-5.5, etc." }
+      { value: "yes", label: "Yes", hint: "opencode/claude-opus-5, opencode/gpt-5.6-sol, etc." }
     ],
     initialValue: initial.opencodeZen
   });
@@ -102847,7 +103013,7 @@ async function promptInstallConfig(detected, platform, codexAutonomousOverride) 
     message: "Do you have a Kimi For Coding subscription?",
     options: [
       { value: "no", label: "No", hint: "Will use other configured providers" },
-      { value: "yes", label: "Yes", hint: "Kimi K2.5 for Sisyphus/Prometheus fallback" }
+      { value: "yes", label: "Yes", hint: "Kimi K3 for Sisyphus/Prometheus fallback" }
     ],
     initialValue: initial.kimiForCoding
   });
@@ -103015,7 +103181,7 @@ async function runTuiInstaller(args, version3) {
     await installAstGrepForOpenCode({ log: R2.warn });
   }
   if (config3.hasOpenCode && !config3.hasClaude) {
-    R2.info(`${import_picocolors4.default.bold("Note:")} Sisyphus agent performs best with Claude Opus 4.5+.
+    R2.info(`${import_picocolors4.default.bold("Note:")} Sisyphus agent performs best with Claude Opus 5.
 ` + `Other models work but may have reduced orchestration quality.`);
   }
   if (config3.hasOpenCode && !hasAnyConfiguredProvider(config3)) {
@@ -103904,7 +104070,7 @@ async function processEvents(ctx, stream, state) {
   }
 }
 // packages/omo-opencode/src/config/validate.ts
-import { relative as relative8 } from "node:path";
+import { relative as relative7 } from "node:path";
 
 // packages/omo-opencode/src/shared/disabled-providers.ts
 init_config_errors();
@@ -104258,12 +104424,15 @@ var OverridableAgentNameSchema = exports_external.enum([
   "atlas"
 ]);
 // packages/omo-opencode/src/config/schema/agent-overrides.ts
+init_src();
 init_zod();
 
 // packages/omo-opencode/src/config/schema/fallback-models.ts
+init_src();
 init_zod();
 var FallbackModelObjectSchema = exports_external.object({
   model: exports_external.string(),
+  reasoning: OmoReasoningSchema.optional(),
   variant: exports_external.string().optional(),
   reasoningEffort: exports_external.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]).optional(),
   temperature: exports_external.number().min(0).max(2).optional(),
@@ -104304,6 +104473,7 @@ var AgentPermissionSchema = exports_external.object({
 var AgentOverrideConfigSchema = exports_external.object({
   model: exports_external.string().optional(),
   fallback_models: FallbackModelsSchema.optional(),
+  reasoning: OmoReasoningSchema.optional(),
   variant: exports_external.string().optional(),
   category: exports_external.string().optional(),
   skills: exports_external.array(exports_external.string()).optional(),
@@ -104328,10 +104498,12 @@ var AgentOverrideConfigSchema = exports_external.object({
   providerOptions: exports_external.record(exports_external.string(), exports_external.unknown()).optional(),
   ultrawork: exports_external.object({
     model: exports_external.string().optional(),
+    reasoning: OmoReasoningSchema.optional(),
     variant: exports_external.string().optional()
   }).optional(),
   compaction: exports_external.object({
     model: exports_external.string().optional(),
+    reasoning: OmoReasoningSchema.optional(),
     variant: exports_external.string().optional()
   }).optional()
 });
@@ -104392,14 +104564,19 @@ var BrowserAutomationConfigSchema = exports_external.object({
   playwright_mcp_args: exports_external.array(exports_external.string()).optional()
 });
 // packages/omo-opencode/src/config/schema/categories.ts
+init_src();
 init_zod();
 var CategoryConfigSchema = exports_external.object({
   description: exports_external.string().optional(),
   model: exports_external.string().optional(),
+  models: exports_external.array(exports_external.union([exports_external.string(), FallbackModelObjectSchema])).optional(),
   fallback_models: FallbackModelsSchema.optional(),
+  reasoning: OmoReasoningSchema.optional(),
   variant: exports_external.string().optional(),
   temperature: exports_external.number().min(0).max(2).optional(),
   top_p: exports_external.number().min(0).max(1).optional(),
+  max_tokens: exports_external.number().int().positive().optional(),
+  provider_options: exports_external.record(exports_external.string(), exports_external.unknown()).optional(),
   maxTokens: exports_external.number().optional(),
   thinking: exports_external.object({
     type: exports_external.enum(["enabled", "disabled"]),
@@ -104411,7 +104588,8 @@ var CategoryConfigSchema = exports_external.object({
   prompt_append: exports_external.string().optional(),
   max_prompt_tokens: exports_external.number().int().positive().optional(),
   is_unstable_agent: exports_external.boolean().optional(),
-  disable: exports_external.boolean().optional()
+  disable: exports_external.boolean().optional(),
+  warn_unavailable: exports_external.boolean().optional()
 });
 var BuiltinCategoryNameSchema = exports_external.enum([
   "visual-engineering",
@@ -104865,7 +105043,7 @@ var OhMyOpenCodeConfigSchema = exports_external.object({
 });
 // packages/omo-opencode/src/config/validate.ts
 function shortPath(configPath) {
-  const candidate = relative8(process.cwd(), configPath);
+  const candidate = relative7(process.cwd(), configPath);
   return candidate.length > 0 ? candidate : configPath;
 }
 function formatIssuePath(path6) {
@@ -105619,12 +105797,12 @@ function readCurrentTopLevelTask(planPath) {
 }
 // packages/boulder-state/src/storage/path.ts
 import { existsSync as existsSync34 } from "node:fs";
-import { isAbsolute as isAbsolute11, join as join61, relative as relative9, resolve as resolve17 } from "node:path";
+import { isAbsolute as isAbsolute10, join as join61, relative as relative8, resolve as resolve17 } from "node:path";
 function getBoulderFilePath(directory) {
   return join61(directory, BOULDER_DIR, BOULDER_FILE);
 }
 function resolveTrackedPath(baseDirectory, trackedPath) {
-  return isAbsolute11(trackedPath) ? resolve17(trackedPath) : resolve17(baseDirectory, trackedPath);
+  return isAbsolute10(trackedPath) ? resolve17(trackedPath) : resolve17(baseDirectory, trackedPath);
 }
 function resolveBoulderPlanPath(directory, state) {
   const absolutePlanPath = resolveTrackedPath(directory, state.active_plan);
@@ -105633,8 +105811,8 @@ function resolveBoulderPlanPath(directory, state) {
     return absolutePlanPath;
   }
   const absoluteDirectory = resolve17(directory);
-  const relativePlanPath = relative9(absoluteDirectory, absolutePlanPath);
-  if (relativePlanPath.length === 0 || relativePlanPath.startsWith("..") || isAbsolute11(relativePlanPath)) {
+  const relativePlanPath = relative8(absoluteDirectory, absolutePlanPath);
+  if (relativePlanPath.length === 0 || relativePlanPath.startsWith("..") || isAbsolute10(relativePlanPath)) {
     return absolutePlanPath;
   }
   const absoluteWorktreePath = resolveTrackedPath(directory, worktreePath);
@@ -108137,30 +108315,104 @@ async function checkConfig() {
   };
 }
 
+// packages/omo-opencode/src/cli/doctor/checks/deprecated-reasoning-keys.ts
+init_main();
+import { existsSync as existsSync51, readFileSync as readFileSync33 } from "node:fs";
+import { join as join75 } from "node:path";
+var CANONICAL_REPLACEMENT = new Map([
+  ["variant", "reasoning"],
+  ["reasoningEffort", "reasoning"],
+  ["thinking", "reasoning"],
+  ["textVerbosity", "provider_options.textVerbosity"],
+  ["fallback_models", "models"]
+]);
+var TUNING_CONTAINERS = new Set(["agents", "categories", "models"]);
+function isRecord10(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function isHarnessBlock(key) {
+  return key.startsWith("[") && key.endsWith("]");
+}
+function collectIssues(configPath, value, prefix) {
+  if (!isRecord10(value))
+    return [];
+  const issues = [];
+  for (const [key, child] of Object.entries(value)) {
+    const path12 = prefix.length > 0 ? `${prefix}.${key}` : key;
+    const replacement = CANONICAL_REPLACEMENT.get(key);
+    if (replacement !== undefined) {
+      issues.push({
+        title: "Deprecated reasoning config key",
+        description: `${configPath}: ${path12}`,
+        fix: `Replace ${key} with ${replacement}, or run: oh-my-openagent config migrate`,
+        severity: "warning",
+        affects: [path12]
+      });
+      continue;
+    }
+    if (!isRecord10(child))
+      continue;
+    if (prefix.length === 0 && key === "profiles") {
+      for (const profile2 of Object.values(child)) {
+        issues.push(...collectIssues(configPath, profile2, ""));
+      }
+      continue;
+    }
+    if (TUNING_CONTAINERS.has(key) || isHarnessBlock(key) || prefix.length > 0) {
+      issues.push(...collectIssues(configPath, child, path12));
+    }
+  }
+  return issues;
+}
+function userConfigPaths() {
+  const home = process.env.HOME ?? process.env.USERPROFILE;
+  if (home === undefined || home.length === 0)
+    return [];
+  return [join75(home, ".omo", "omo.jsonc"), join75(home, ".omo", "omo.json")];
+}
+async function checkDeprecatedReasoningKeys() {
+  const issues = [];
+  const scanned = [];
+  for (const configPath of userConfigPaths()) {
+    if (!existsSync51(configPath))
+      continue;
+    scanned.push(configPath);
+    const parsed = parse2(readFileSync33(configPath, "utf-8"));
+    issues.push(...collectIssues(configPath, parsed, ""));
+  }
+  return {
+    name: CHECK_NAMES[CHECK_IDS.CONFIG],
+    status: issues.length > 0 ? "warn" : "pass",
+    message: issues.length > 0 ? `${issues.length} deprecated reasoning key(s) found` : "No deprecated reasoning keys found",
+    ...scanned.length > 0 ? { details: scanned.map((path12) => `Scanned: ${path12}`) } : {},
+    issues
+  };
+}
+
 // packages/omo-opencode/src/cli/doctor/checks/dependencies.ts
 init_src2();
-import { existsSync as existsSync51 } from "node:fs";
+import { existsSync as existsSync52 } from "node:fs";
 import { createRequire as createRequire4 } from "node:module";
 import { homedir as homedir16 } from "node:os";
-import { dirname as dirname27, join as join76 } from "node:path";
+import { dirname as dirname27, join as join77 } from "node:path";
 
 // packages/omo-opencode/src/hooks/comment-checker/downloader.ts
-import { join as join75 } from "path";
+import { join as join76 } from "path";
 import { homedir as homedir15, tmpdir as tmpdir4 } from "os";
 init_binary_downloader();
 init_logger2();
 init_plugin_identity();
 var DEBUG = process.env.COMMENT_CHECKER_DEBUG === "1";
-var DEBUG_FILE = join75(tmpdir4(), "comment-checker-debug.log");
+var DEBUG_FILE = join76(tmpdir4(), "comment-checker-debug.log");
 function getCacheDir2() {
   if (process.platform === "win32") {
     const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
-    const base2 = localAppData || join75(homedir15(), "AppData", "Local");
-    return join75(base2, CACHE_DIR_NAME, "bin");
+    const base2 = localAppData || join76(homedir15(), "AppData", "Local");
+    return join76(base2, CACHE_DIR_NAME, "bin");
   }
   const xdgCache = process.env.XDG_CACHE_HOME;
-  const base = xdgCache || join75(homedir15(), ".cache");
-  return join75(base, CACHE_DIR_NAME, "bin");
+  const base = xdgCache || join76(homedir15(), ".cache");
+  return join76(base, CACHE_DIR_NAME, "bin");
 }
 function getBinaryName() {
   return process.platform === "win32" ? "comment-checker.exe" : "comment-checker";
@@ -108210,7 +108462,7 @@ async function getBinaryVersion(binary) {
   }
 }
 async function checkAstGrepCli() {
-  const runtimeDir = astGrepRuntimeDir(join76(homedir16(), ".omo"));
+  const runtimeDir = astGrepRuntimeDir(join77(homedir16(), ".omo"));
   const sgPath = findSgBinarySync({ runtimeDir });
   if (sgPath === null) {
     return {
@@ -108240,11 +108492,11 @@ function findCommentCheckerPackageBinary(baseDirOverride, resolvePackageJsonPath
   const platformKey = `${process.platform}-${process.arch === "x64" ? "x64" : process.arch}`;
   try {
     const packageDir = baseDirOverride ?? dirname27(resolvePackageJsonPath());
-    const vendorPath = join76(packageDir, "vendor", platformKey, binaryName);
-    if (existsSync51(vendorPath))
+    const vendorPath = join77(packageDir, "vendor", platformKey, binaryName);
+    if (existsSync52(vendorPath))
       return vendorPath;
-    const binPath = join76(packageDir, "bin", binaryName);
-    if (existsSync51(binPath))
+    const binPath = join77(packageDir, "bin", binaryName);
+    if (existsSync52(binPath))
       return binPath;
   } catch (error51) {
     if (!(error51 instanceof Error) && !isModuleResolutionFailure(error51))
@@ -108390,7 +108642,7 @@ async function getGhCliInfo(dependencies = {}) {
 // packages/omo-opencode/src/mcp/lsp.ts
 init_zod();
 init_opencode_config_dir();
-import { existsSync as existsSync52, readFileSync as readFileSync33 } from "node:fs";
+import { existsSync as existsSync53, readFileSync as readFileSync34 } from "node:fs";
 import { delimiter as delimiter3, dirname as dirname28, resolve as resolve19 } from "node:path";
 import { fileURLToPath as fileURLToPath7 } from "node:url";
 
@@ -108534,7 +108786,7 @@ function findBootstrapRoot(candidates, pathExists) {
 }
 function readDaemonPackageVersion(root) {
   try {
-    const packageJson = JSON.parse(readFileSync33(resolve19(root, PACKAGE_REL, "package.json"), "utf-8"));
+    const packageJson = JSON.parse(readFileSync34(resolve19(root, PACKAGE_REL, "package.json"), "utf-8"));
     return DaemonPackageSchema.parse(packageJson).version;
   } catch (error51) {
     if (!(error51 instanceof Error))
@@ -108556,7 +108808,7 @@ function createBootstrapCandidate(root, pathExists, resolveExecutable) {
   };
 }
 function resolveLspCommand(options = {}) {
-  const pathExists = options.exists ?? existsSync52;
+  const pathExists = options.exists ?? existsSync53;
   const resolveExecutable = options.resolveExecutable ?? resolveRuntimeExecutable;
   const moduleDirectory = getModuleDirectory(options.moduleUrl ?? import.meta.url);
   const candidates = moduleDirectory ? createAncestorCliCandidates({
@@ -108615,24 +108867,24 @@ function getInstalledLspServers(options = {}) {
 
 // packages/omo-opencode/src/cli/doctor/checks/tools-mcp.ts
 init_shared();
-import { existsSync as existsSync53, readFileSync as readFileSync34 } from "node:fs";
+import { existsSync as existsSync54, readFileSync as readFileSync35 } from "node:fs";
 import { homedir as homedir17 } from "node:os";
-import { join as join77 } from "node:path";
+import { join as join78 } from "node:path";
 var BUILTIN_MCP_SERVERS = ["websearch", "context7", "grep_app", "lsp"];
 function getMcpConfigPaths() {
   return [
-    join77(homedir17(), ".claude", ".mcp.json"),
-    join77(process.cwd(), ".mcp.json"),
-    join77(process.cwd(), ".claude", ".mcp.json")
+    join78(homedir17(), ".claude", ".mcp.json"),
+    join78(process.cwd(), ".mcp.json"),
+    join78(process.cwd(), ".claude", ".mcp.json")
   ];
 }
 function loadUserMcpConfig() {
   const servers = {};
   for (const configPath of getMcpConfigPaths()) {
-    if (!existsSync53(configPath))
+    if (!existsSync54(configPath))
       continue;
     try {
-      const content = readFileSync34(configPath, "utf-8");
+      const content = readFileSync35(configPath, "utf-8");
       const config4 = parseJsonc(content);
       if (config4.mcpServers) {
         Object.assign(servers, config4.mcpServers);
@@ -108767,17 +109019,17 @@ async function checkTools() {
 
 // packages/omo-opencode/src/cli/doctor/checks/telemetry.ts
 init_src5();
-import { existsSync as existsSync54, readFileSync as readFileSync35 } from "node:fs";
+import { existsSync as existsSync55, readFileSync as readFileSync36 } from "node:fs";
 function isTelemetryState(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readLastActiveDay(stateFilePath) {
-  if (!existsSync54(stateFilePath)) {
+  if (!existsSync55(stateFilePath)) {
     return "never";
   }
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync35(stateFilePath, "utf-8"));
+    parsed = JSON.parse(readFileSync36(stateFilePath, "utf-8"));
   } catch (error51) {
     if (error51 instanceof Error) {
       return "unreadable";
@@ -108902,10 +109154,10 @@ async function pathExists(dir) {
 
 // packages/omo-opencode/src/cli/doctor/checks/codex.ts
 init_src2();
-import { existsSync as existsSync55 } from "node:fs";
+import { existsSync as existsSync56 } from "node:fs";
 import { lstat as lstat14, readdir as readdir12, readFile as readFile24 } from "node:fs/promises";
 import { homedir as homedir19 } from "node:os";
-import { basename as basename11, join as join78, resolve as resolve20 } from "node:path";
+import { basename as basename11, join as join79, resolve as resolve20 } from "node:path";
 // packages/omo-opencode/package.json
 var package_default3 = {
   name: "@oh-my-opencode/omo-opencode",
@@ -108970,13 +109222,13 @@ var CODEX_BIN_NAMES = [
   "omo-git-bash-hook"
 ];
 async function gatherCodexSummary(deps = {}) {
-  const codexHome = resolve20(deps.codexHome ?? process.env.CODEX_HOME ?? join78(homedir19(), ".codex"));
+  const codexHome = resolve20(deps.codexHome ?? process.env.CODEX_HOME ?? join79(homedir19(), ".codex"));
   const binDir = resolveCodexInstallerBinDir({ binDir: deps.binDir, codexHome, env: process.env });
   const detection = await (deps.detectCodexInstallation ?? detectCodexInstallation)();
   const pluginRoot = await resolveInstalledPluginRoot(codexHome);
-  const manifest2 = pluginRoot === null ? null : await readJson(join78(pluginRoot, ".codex-plugin", "plugin.json"));
-  const installSnapshot = pluginRoot === null ? null : await readJson(join78(pluginRoot, "lazycodex-install.json"));
-  const configPath = join78(codexHome, "config.toml");
+  const manifest2 = pluginRoot === null ? null : await readJson(join79(pluginRoot, ".codex-plugin", "plugin.json"));
+  const installSnapshot = pluginRoot === null ? null : await readJson(join79(pluginRoot, "lazycodex-install.json"));
+  const configPath = join79(codexHome, "config.toml");
   const pluginVersion = stringField(manifest2, "version");
   return {
     codexPath: detection.found && "path" in detection ? detection.path : null,
@@ -109033,7 +109285,7 @@ function buildCodexIssues(summary) {
   if (summary.pluginRoot === null) {
     issues.push({
       title: "OMO Codex plugin is not installed",
-      description: `Expected cached plugin at ${join78("plugins", "cache", MARKETPLACE_NAME, PLUGIN_NAME2, DEFAULT_PLUGIN_VERSION)} under CODEX_HOME.`,
+      description: `Expected cached plugin at ${join79("plugins", "cache", MARKETPLACE_NAME, PLUGIN_NAME2, DEFAULT_PLUGIN_VERSION)} under CODEX_HOME.`,
       fix: "Run: npx lazycodex-ai install",
       severity: "error",
       affects: ["plugin loading"]
@@ -109098,15 +109350,15 @@ function buildCodexIssues(summary) {
   return issues;
 }
 async function resolveInstalledPluginRoot(codexHome) {
-  const pluginRoot = join78(codexHome, "plugins", "cache", MARKETPLACE_NAME, PLUGIN_NAME2);
-  if (!existsSync55(pluginRoot))
+  const pluginRoot = join79(codexHome, "plugins", "cache", MARKETPLACE_NAME, PLUGIN_NAME2);
+  if (!existsSync56(pluginRoot))
     return null;
   const versions2 = await readdir12(pluginRoot, { withFileTypes: true });
   const candidates = versions2.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort(compareVersionsDescending);
-  return candidates.length === 0 ? null : join78(pluginRoot, candidates[0] ?? DEFAULT_PLUGIN_VERSION);
+  return candidates.length === 0 ? null : join79(pluginRoot, candidates[0] ?? DEFAULT_PLUGIN_VERSION);
 }
 async function readCodexConfigSummary(configPath) {
-  if (!existsSync55(configPath)) {
+  if (!existsSync56(configPath)) {
     return {
       exists: false,
       marketplaceConfigured: false,
@@ -109131,14 +109383,14 @@ async function readCodexConfigSummary(configPath) {
 async function readLinkedBins(binDir) {
   const linked = [];
   for (const name of CODEX_BIN_NAMES) {
-    if (await pathExists2(join78(binDir, process.platform === "win32" ? `${name}.cmd` : name)))
+    if (await pathExists2(join79(binDir, process.platform === "win32" ? `${name}.cmd` : name)))
       linked.push(name);
   }
   return linked;
 }
 async function readLinkedAgents(codexHome) {
-  const agentsDir = join78(codexHome, "agents");
-  if (!existsSync55(agentsDir))
+  const agentsDir = join79(codexHome, "agents");
+  if (!existsSync56(agentsDir))
     return [];
   const entries = await readdir12(agentsDir, { withFileTypes: true });
   return entries.filter((entry) => entry.isFile() || entry.isSymbolicLink()).map((entry) => basename11(entry.name, ".toml")).sort();
@@ -109253,7 +109505,7 @@ async function pathExists2(path14) {
 init_src2();
 import { readdir as readdir13, readFile as readFile25, stat as stat6 } from "node:fs/promises";
 import { homedir as homedir20 } from "node:os";
-import { dirname as dirname29, isAbsolute as isAbsolute12, join as join79, relative as relative10, resolve as resolve21, sep as sep9 } from "node:path";
+import { dirname as dirname29, isAbsolute as isAbsolute11, join as join80, relative as relative9, resolve as resolve21, sep as sep9 } from "node:path";
 var CODEX_COMPONENTS_CHECK_ID = "codex-components";
 var CODEX_COMPONENTS_CHECK_NAME = "codex-components";
 var PLUGIN_DATA_DIR_NAME = "omo-sisyphuslabs";
@@ -109263,7 +109515,7 @@ async function checkCodexComponents(deps = {}) {
   const env3 = deps.env ?? process.env;
   const platform = deps.platform ?? process.platform;
   const arch = deps.arch ?? process.arch;
-  const codexHome = resolve21(deps.codexHome ?? env3["CODEX_HOME"] ?? join79(homedir20(), ".codex"));
+  const codexHome = resolve21(deps.codexHome ?? env3["CODEX_HOME"] ?? join80(homedir20(), ".codex"));
   const summary = await gatherCodexSummary({ ...deps, codexHome });
   if (summary.pluginRoot === null) {
     return {
@@ -109288,7 +109540,7 @@ async function checkCodexComponents(deps = {}) {
     });
   }
   const runtimeSgDir = runtimeSgDirectory(codexHome, platform, arch);
-  const runtimeSgPath = join79(runtimeSgDir, sgBinaryName(platform));
+  const runtimeSgPath = join80(runtimeSgDir, sgBinaryName(platform));
   const sg = findSgBinarySync({
     arch,
     env: env3,
@@ -109325,12 +109577,12 @@ async function auditBundleTargets(pluginRoot) {
   let referencedCount = 0;
   for (const manifestPath of await findManifestPaths(pluginRoot, ".mcp.json")) {
     const manifest2 = await readJson2(manifestPath);
-    if (manifest2 === null || !isRecord6(manifest2["mcpServers"]))
+    if (manifest2 === null || !isRecord11(manifest2["mcpServers"]))
       continue;
     const manifestRoot = dirname29(manifestPath);
     const isRootManifest = resolve21(manifestRoot) === resolve21(pluginRoot);
     for (const server2 of Object.values(manifest2["mcpServers"])) {
-      if (!isRecord6(server2) || !Array.isArray(server2["args"]))
+      if (!isRecord11(server2) || !Array.isArray(server2["args"]))
         continue;
       for (const arg of server2["args"]) {
         if (typeof arg !== "string" || !isPluginRuntimePathArg(arg))
@@ -109400,7 +109652,7 @@ async function findManifestPaths(root, manifestName) {
   for (const entry of entries) {
     if (entry.name === "node_modules" || entry.name === ".git")
       continue;
-    const entryPath = join79(root, entry.name);
+    const entryPath = join80(root, entry.name);
     if (entry.isDirectory()) {
       paths3.push(...await findManifestPaths(entryPath, manifestName));
       continue;
@@ -109416,7 +109668,7 @@ function collectHookCommands(value, commands2) {
       collectHookCommands(item, commands2);
     return;
   }
-  if (!isRecord6(value))
+  if (!isRecord11(value))
     return;
   if (value["type"] === "command") {
     if (typeof value["command"] === "string")
@@ -109441,21 +109693,21 @@ function extractPluginRootPaths(command) {
 }
 function isPluginRuntimePathArg(arg) {
   const normalized = normalizePathSeparators(arg);
-  return normalized.endsWith(".js") && normalized.includes("/dist/") && (normalized.startsWith("./") || normalized.startsWith("../") || normalized.startsWith("components/") || normalized.startsWith("/") || isAbsolute12(arg));
+  return normalized.endsWith(".js") && normalized.includes("/dist/") && (normalized.startsWith("./") || normalized.startsWith("../") || normalized.startsWith("components/") || normalized.startsWith("/") || isAbsolute11(arg));
 }
 function runtimeSgDirectory(codexHome, platform, arch) {
-  return join79(codexHome, "runtime", "ast-grep", runtimeSlug(platform, arch));
+  return join80(codexHome, "runtime", "ast-grep", runtimeSlug(platform, arch));
 }
 function describeSgSource(sgPath, env3, runtimeSgDir, platform) {
   const override = env3[SG_PATH_ENV_KEY]?.trim();
   if (override !== undefined && override.length > 0 && sgPath === override)
     return `env override ${SG_PATH_ENV_KEY}`;
-  if (sgPath === join79(runtimeSgDir, sgBinaryName(platform)))
+  if (sgPath === join80(runtimeSgDir, sgBinaryName(platform)))
     return "runtime dir";
   return "PATH";
 }
 async function readBootstrapStateSummary(codexHome) {
-  const statePath = join79(codexHome, "plugins", "data", PLUGIN_DATA_DIR_NAME, "bootstrap", "state.json");
+  const statePath = join80(codexHome, "plugins", "data", PLUGIN_DATA_DIR_NAME, "bootstrap", "state.json");
   const raw = await readJson2(statePath);
   if (raw === null)
     return null;
@@ -109471,7 +109723,7 @@ function parseDegradedEntries(value) {
     return [];
   const entries = [];
   for (const item of value) {
-    if (!isRecord6(item))
+    if (!isRecord11(item))
       continue;
     if (typeof item["component"] !== "string" || typeof item["reason"] !== "string")
       continue;
@@ -109505,7 +109757,7 @@ function degradedDetailLines(entries) {
 async function readJson2(path14) {
   try {
     const parsed = JSON.parse(await readFile25(path14, "utf8"));
-    return isRecord6(parsed) ? parsed : null;
+    return isRecord11(parsed) ? parsed : null;
   } catch (error51) {
     if (error51 instanceof Error)
       return null;
@@ -109521,33 +109773,33 @@ async function fileSize(path14) {
   }
 }
 function normalizeRelative(root, target) {
-  return normalizePathSeparators(relative10(root, target));
+  return normalizePathSeparators(relative9(root, target));
 }
 function normalizePathSeparators(path14) {
   return path14.split("\\").join("/");
 }
-function isRecord6(value) {
+function isRecord11(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // packages/omo-opencode/src/cli/doctor/checks/codex-runtime-wrapper.ts
-import { existsSync as existsSync56 } from "node:fs";
+import { existsSync as existsSync57 } from "node:fs";
 import { readFile as readFile26 } from "node:fs/promises";
 import { homedir as homedir21 } from "node:os";
-import { join as join80, resolve as resolve22 } from "node:path";
+import { join as join81, resolve as resolve22 } from "node:path";
 var RUNTIME_WRAPPER_MARKER2 = "OMO_GENERATED_RUNTIME_WRAPPER";
 var CHECK_NAME = "codex-runtime-wrapper";
 var REINSTALL_COMMAND = "npx --yes lazycodex-ai@latest install --no-tui";
 async function checkCodexRuntimeWrapper(deps = {}) {
-  const codexHome = resolve22(deps.codexHome ?? process.env.CODEX_HOME ?? join80(homedir21(), ".codex"));
+  const codexHome = resolve22(deps.codexHome ?? process.env.CODEX_HOME ?? join81(homedir21(), ".codex"));
   const binDir = resolveCodexInstallerBinDir({ binDir: deps.binDir, codexHome, env: process.env });
   const platform = deps.platform ?? process.platform;
-  const wrapperPath = join80(binDir, platform === "win32" ? "omo.cmd" : "omo");
+  const wrapperPath = join81(binDir, platform === "win32" ? "omo.cmd" : "omo");
   const wrapper = await readRuntimeWrapper(wrapperPath);
   const issues = [];
   if (wrapper?.includes(RUNTIME_WRAPPER_MARKER2) === true) {
     const targetPath = parseRuntimeTargetPath(wrapper);
-    if (targetPath !== null && !existsSync56(targetPath)) {
+    if (targetPath !== null && !existsSync57(targetPath)) {
       issues.push({
         title: "omo runtime wrapper target is missing",
         description: `Generated omo runtime wrapper at ${wrapperPath} points to missing target ${targetPath}.`,
@@ -109599,6 +109851,11 @@ function getAllCheckDefinitions() {
       id: CHECK_IDS.TUI_PLUGIN,
       name: CHECK_NAMES[CHECK_IDS.TUI_PLUGIN],
       check: checkTuiPluginConfig
+    },
+    {
+      id: "deprecated-reasoning-keys",
+      name: "Deprecated Reasoning Keys",
+      check: checkDeprecatedReasoningKeys
     },
     {
       id: CHECK_IDS.TOOLS,
@@ -110046,23 +110303,23 @@ Doctor failed unexpectedly: ${message}`];
 import { createHash as createHash5 } from "node:crypto";
 import {
   chmodSync as chmodSync4,
-  existsSync as existsSync59,
+  existsSync as existsSync60,
   mkdirSync as mkdirSync14,
   readdirSync as readdirSync11,
-  readFileSync as readFileSync37,
+  readFileSync as readFileSync38,
   renameSync as renameSync7,
   unlinkSync as unlinkSync9,
   writeFileSync as writeFileSync11
 } from "node:fs";
-import { basename as basename12, dirname as dirname30, join as join83 } from "node:path";
+import { basename as basename12, dirname as dirname30, join as join84 } from "node:path";
 
 // packages/mcp-client-core/src/config-dir.ts
-import { existsSync as existsSync57, realpathSync as realpathSync8 } from "node:fs";
+import { existsSync as existsSync58, realpathSync as realpathSync8 } from "node:fs";
 import { homedir as homedir22 } from "node:os";
-import { join as join81, resolve as resolve23 } from "node:path";
+import { join as join82, resolve as resolve23 } from "node:path";
 function resolveConfigPath2(pathValue) {
   const resolvedPath = resolve23(pathValue);
-  if (!existsSync57(resolvedPath))
+  if (!existsSync58(resolvedPath))
     return resolvedPath;
   try {
     return realpathSync8(resolvedPath);
@@ -110077,13 +110334,13 @@ function getOpenCodeCliConfigDir(env3 = process.env) {
   if (customConfigDir) {
     return resolveConfigPath2(customConfigDir);
   }
-  const xdgConfigDir = env3["XDG_CONFIG_HOME"]?.trim() || join81(homedir22(), ".config");
-  return resolveConfigPath2(join81(xdgConfigDir, "opencode"));
+  const xdgConfigDir = env3["XDG_CONFIG_HOME"]?.trim() || join82(homedir22(), ".config");
+  return resolveConfigPath2(join82(xdgConfigDir, "opencode"));
 }
 
 // packages/mcp-client-core/src/mcp-oauth/storage-index.ts
-import { chmodSync as chmodSync3, existsSync as existsSync58, readFileSync as readFileSync36, renameSync as renameSync6, writeFileSync as writeFileSync10 } from "node:fs";
-import { join as join82 } from "node:path";
+import { chmodSync as chmodSync3, existsSync as existsSync59, readFileSync as readFileSync37, renameSync as renameSync6, writeFileSync as writeFileSync10 } from "node:fs";
+import { join as join83 } from "node:path";
 var INDEX_FILE_NAME = "index.json";
 function isTokenIndex(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value))
@@ -110091,14 +110348,14 @@ function isTokenIndex(value) {
   return Object.values(value).every((entry) => typeof entry === "string");
 }
 function getIndexPath(storageDir) {
-  return join82(storageDir, INDEX_FILE_NAME);
+  return join83(storageDir, INDEX_FILE_NAME);
 }
 function readTokenIndex(storageDir) {
   const indexPath = getIndexPath(storageDir);
-  if (!existsSync58(indexPath))
+  if (!existsSync59(indexPath))
     return {};
   try {
-    const parsed = JSON.parse(readFileSync36(indexPath, "utf-8"));
+    const parsed = JSON.parse(readFileSync37(indexPath, "utf-8"));
     return isTokenIndex(parsed) ? parsed : {};
   } catch (readError) {
     if (!(readError instanceof Error))
@@ -110135,16 +110392,16 @@ function deleteTokenIndexEntry(storageDir, hash2) {
 var STORAGE_DIR_NAME = "mcp-oauth";
 var LEGACY_STORAGE_FILE_NAME = "mcp-oauth.json";
 function getMcpOauthStorageDir() {
-  return join83(getOpenCodeCliConfigDir(), STORAGE_DIR_NAME);
+  return join84(getOpenCodeCliConfigDir(), STORAGE_DIR_NAME);
 }
 function getMcpOauthServerHash(serverHost, resource) {
   return createHash5("sha256").update(buildKey(serverHost, resource)).digest("hex").slice(0, 32);
 }
 function getMcpOauthStoragePath(serverHost, resource) {
-  return join83(getMcpOauthStorageDir(), `${getMcpOauthServerHash(serverHost, resource)}.json`);
+  return join84(getMcpOauthStorageDir(), `${getMcpOauthServerHash(serverHost, resource)}.json`);
 }
 function getLegacyStoragePath() {
-  return join83(getOpenCodeCliConfigDir(), LEGACY_STORAGE_FILE_NAME);
+  return join84(getOpenCodeCliConfigDir(), LEGACY_STORAGE_FILE_NAME);
 }
 function normalizeHost2(serverHost) {
   let host = serverHost.trim();
@@ -110205,10 +110462,10 @@ function isOAuthTokenData(value) {
   return clientSecret === undefined || typeof clientSecret === "string";
 }
 function readTokenFile(filePath) {
-  if (!existsSync59(filePath))
+  if (!existsSync60(filePath))
     return null;
   try {
-    const parsed = JSON.parse(readFileSync37(filePath, "utf-8"));
+    const parsed = JSON.parse(readFileSync38(filePath, "utf-8"));
     return isOAuthTokenData(parsed) ? parsed : null;
   } catch (readError) {
     if (!(readError instanceof Error))
@@ -110218,10 +110475,10 @@ function readTokenFile(filePath) {
 }
 function readLegacyStore() {
   const filePath = getLegacyStoragePath();
-  if (!existsSync59(filePath))
+  if (!existsSync60(filePath))
     return null;
   try {
-    const parsed = JSON.parse(readFileSync37(filePath, "utf-8"));
+    const parsed = JSON.parse(readFileSync38(filePath, "utf-8"));
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
       return null;
     const result = {};
@@ -110239,7 +110496,7 @@ function readLegacyStore() {
 function writeTokenFile(filePath, token) {
   try {
     const dir = dirname30(filePath);
-    if (!existsSync59(dir)) {
+    if (!existsSync60(dir)) {
       mkdirSync14(dir, { recursive: true });
     }
     const tempPath = `${filePath}.tmp.${Date.now()}`;
@@ -110263,7 +110520,7 @@ function saveToken(serverHost, resource, token) {
 }
 function deleteToken(serverHost, resource) {
   const filePath = getMcpOauthStoragePath(serverHost, resource);
-  if (!existsSync59(filePath))
+  if (!existsSync60(filePath))
     return deleteLegacyToken(serverHost, resource);
   try {
     unlinkSync9(filePath);
@@ -110285,7 +110542,7 @@ function deleteLegacyToken(serverHost, resource) {
   if (Object.keys(store2).length === 0) {
     try {
       const filePath = getLegacyStoragePath();
-      if (existsSync59(filePath))
+      if (existsSync60(filePath))
         unlinkSync9(filePath);
       return true;
     } catch (deleteError) {
@@ -110323,7 +110580,7 @@ function listTokensByHost(serverHost) {
   for (const [hash2, indexedKey] of Object.entries(index)) {
     if (!indexedKey.startsWith(prefix))
       continue;
-    const indexedToken = readTokenFile(join83(getMcpOauthStorageDir(), `${hash2}.json`));
+    const indexedToken = readTokenFile(join84(getMcpOauthStorageDir(), `${hash2}.json`));
     if (indexedToken)
       result[indexedKey] = indexedToken;
   }
@@ -110332,13 +110589,13 @@ function listTokensByHost(serverHost) {
 function listAllTokens() {
   const result = { ...readLegacyStore() ?? {} };
   const dir = getMcpOauthStorageDir();
-  if (!existsSync59(dir))
+  if (!existsSync60(dir))
     return result;
   const index = readTokenIndex(dir);
   for (const entry of readdirSync11(dir, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".json") || entry.name === "index.json")
       continue;
-    const token = readTokenFile(join83(dir, entry.name));
+    const token = readTokenFile(join84(dir, entry.name));
     const hash2 = basename12(entry.name, ".json");
     if (token)
       result[index[hash2] ?? hash2] = token;
@@ -110904,7 +111161,7 @@ function createMcpOAuthCommand() {
 }
 
 // packages/omo-opencode/src/cli/boulder/boulder.ts
-import { existsSync as existsSync60 } from "node:fs";
+import { existsSync as existsSync61 } from "node:fs";
 
 // packages/omo-opencode/src/cli/boulder/formatter.ts
 var import_picocolors22 = __toESM(require_picocolors(), 1);
@@ -111041,10 +111298,10 @@ async function boulder(options) {
   const boulderFilePath = getBoulderFilePath(directory);
   const state2 = readBoulderState(directory);
   if (!state2) {
-    const message = existsSync60(boulderFilePath) ? formatReadErrorMessage(options.json) : formatNoBoulderMessage(options.json);
+    const message = existsSync61(boulderFilePath) ? formatReadErrorMessage(options.json) : formatNoBoulderMessage(options.json);
     process.stderr.write(`${message}
 `);
-    return existsSync60(boulderFilePath) ? 2 : 1;
+    return existsSync61(boulderFilePath) ? 2 : 1;
   }
   const works = getBoulderWorks(state2);
   const filteredWorks = options.workId ? works.filter((work) => work.work_id === options.workId) : works;
@@ -111062,7 +111319,7 @@ async function boulder(options) {
 }
 // packages/omo-opencode/src/cli/codex-ulw-loop.ts
 import { spawn as spawn5 } from "node:child_process";
-import { existsSync as existsSync61, readFileSync as readFileSync38, realpathSync as realpathSync9 } from "node:fs";
+import { existsSync as existsSync62, readFileSync as readFileSync39, realpathSync as realpathSync9 } from "node:fs";
 import { homedir as homedir23 } from "node:os";
 var ULW_LOOP_DELEGATION_SENTINEL = "OMO_ULW_LOOP_DELEGATED";
 function resolveCodexUlwLoopCommand(input = {}) {
@@ -111104,15 +111361,15 @@ async function codexUlwLoop(args) {
 }
 function resolveLocalUlwLoopBin(env3, homeDir) {
   const candidates = resolveCodexComponentBinCandidates({ executableName: "omo-ulw-loop", env: env3, homeDir });
-  return candidates.find((candidate) => existsSync61(candidate)) ?? null;
+  return candidates.find((candidate) => existsSync62(candidate)) ?? null;
 }
 function resolveLegacyLocalOmoBin(env3, homeDir, currentExecutablePaths) {
   const candidates = resolveCodexComponentBinCandidates({ executableName: "omo", env: env3, homeDir });
-  return candidates.find((candidate) => existsSync61(candidate) && !isCurrentExecutable(candidate, currentExecutablePaths) && !isGeneratedRuntimeWrapper(candidate)) ?? null;
+  return candidates.find((candidate) => existsSync62(candidate) && !isCurrentExecutable(candidate, currentExecutablePaths) && !isGeneratedRuntimeWrapper(candidate)) ?? null;
 }
 function isGeneratedRuntimeWrapper(candidate) {
   try {
-    return readFileSync38(candidate, "utf8").includes(RUNTIME_WRAPPER_MARKER);
+    return readFileSync39(candidate, "utf8").includes(RUNTIME_WRAPPER_MARKER);
   } catch (error51) {
     if (error51 instanceof Error)
       return false;
@@ -111293,12 +111550,12 @@ Examples:
 
 Model Providers (Priority: Native > Copilot > OpenCode Zen > Z.ai > Kimi > Bailian > MiniMax > Vercel):
   Claude        Native anthropic/ models (Opus, Sonnet, Haiku)
-  OpenAI        Native openai/ models (GPT-5.4 for Oracle)
+  OpenAI        Native openai/ models (GPT-5.6 Sol for Oracle)
   Gemini        Native google/ models (Gemini 3.1 Pro, Flash)
   Copilot       github-copilot/ models (fallback)
-  OpenCode Zen  opencode/ models (opencode/claude-opus-4-7, etc.)
-  Z.ai          zai-coding-plan/glm-5 (visual-engineering fallback)
-  Kimi          kimi-for-coding/k2p5 (Sisyphus/Prometheus fallback)
+  OpenCode Zen  opencode/ models (opencode/claude-opus-5, etc.)
+  Z.ai          zai-coding-plan/glm-5.2 (visual-engineering fallback)
+  Kimi          kimi-for-coding/kimi-k3 (Sisyphus/Prometheus fallback)
   Bailian       bailian-coding-plan/ models (Qwen, GLM, Kimi fallback)
   MiniMax       minimax-coding-plan/MiniMax-M3 (utility fallback)
   MiniMax CN    minimax-cn-coding-plan/MiniMax-M3 (utility fallback)
@@ -111320,7 +111577,7 @@ Examples:
   $ bunx oh-my-opencode run --on-complete "notify-send Done" "Fix the bug"
   $ bunx oh-my-opencode run --session-id ses_abc123 "Continue the work"
   $ bunx oh-my-opencode run --model anthropic/claude-sonnet-4 "Fix the bug"
-  $ bunx oh-my-opencode run --agent Sisyphus --model openai/gpt-5.5 "Implement feature X"
+  $ bunx oh-my-opencode run --agent Sisyphus --model openai/gpt-5.6-sol "Implement feature X"
 
 Agent resolution order:
   1) --agent flag
