@@ -1,5 +1,5 @@
 <div align="center">
-  <img src=".github/assets/lazycodex-logo.png" alt="LazyCodex" width="280">
+  <img src=".github/assets/omo-icon-light.svg" alt="LazyCodex" width="280">
 
   <h1>LazyCodex</h1>
 
