@@ -13,7 +13,7 @@ const STEERING_KIND_HELP = [
     "  revise_criterion: --goal-id, --criterion-id, one of --scenario/--expected-evidence/--user-model, --evidence, --rationale",
     "  annotate_ledger: --evidence, --rationale",
     "  mark_blocked_superseded: --goal-id, optional --replacements, --evidence, --rationale",
-    "Example: omo ulw-loop steer --kind annotate_ledger --evidence \"observed behavior\" --rationale \"why this changes the plan\" --json",
+    "Example: omo-agent-toolkit ulw-loop steer --kind annotate_ledger --evidence \"observed behavior\" --rationale \"why this changes the plan\" --json",
 ].join("\n");
 function isKind(value) { return value !== undefined && ULW_LOOP_STEERING_MUTATION_KINDS.some((kind) => kind === value); }
 function isSource(value) { return value !== undefined && SOURCES.some((source) => source === value); }

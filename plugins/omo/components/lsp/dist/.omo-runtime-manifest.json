@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "4.19.4",
-  "inputDigest": "sha256:a327f51e89b7da87ac4e114b07551b3345e45ad919c6ca2ebed067aaa954b004",
+  "version": "5.0.0-beta.57",
+  "inputDigest": "sha256:8b0c4163f8b9b9f7c1771b5ef315fe35f3bdceb1aff7a627cfb7be8cf83984a0",
   "outputs": [
     {
       "path": "cli.d.ts",
@@ -9,7 +9,7 @@
     },
     {
       "path": "cli.js",
-      "sha256": "f46b15e830f85d0d6f46e0b36c726de2fd56adc43b1cd4660430db86352a8f37"
+      "sha256": "54d3621c04697495054be69fd6328d7b9044034801b295868b23bd92d344a816"
     },
     {
       "path": "codex-hook-cli.d.ts",
@@ -33,7 +33,7 @@
     },
     {
       "path": "daemon-cli-path.js",
-      "sha256": "5c34353638e95d4a98664c8d23516475e850983e81900aa40e03752946162830"
+      "sha256": "96812ddde5100fc408c6109949f07df3df817282dae48428f01a4c3967b4795a"
     },
     {
       "path": "lsp-session-state.d.ts",

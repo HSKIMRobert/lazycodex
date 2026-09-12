@@ -6,14 +6,6 @@
 		"context7": {
 			"url": "https://mcp.context7.com/mcp"
 		},
-		"codegraph": {
-			"command": "node",
-			"args": [
-				"components/codegraph/dist/serve.js"
-			],
-			"cwd": ".",
-			"required": false
-		},
 		"git_bash": {
 			"command": "node",
 			"args": [

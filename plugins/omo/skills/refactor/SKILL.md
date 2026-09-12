@@ -1,6 +1,6 @@
 ---
 name: refactor
-description: "Intelligent refactor command. Triggers: refactor, refactoring, cleanup, restructure, extract, simplify, modernize."
+description: "Guides a refactor, cleanup, or restructure with the right decomposition. Use when the user asks to refactor, simplify, extract, or modernize code."
 ---
 
 ## Codex Harness Tool Compatibility
@@ -12,16 +12,18 @@ This skill may include examples copied from the OpenCode harness. In Codex, do n
 | `call_omo_agent(subagent_type="explore", ...)` | `multi_agent_v1.spawn_agent({"message":"TASK: act as an explorer. ...","agent_type":"explorer","fork_context":false})` |
 | `call_omo_agent(subagent_type="librarian", ...)` | `multi_agent_v1.spawn_agent({"message":"TASK: act as a librarian. ...","agent_type":"librarian","fork_context":false})` |
 | `task(subagent_type="plan", ...)` | `multi_agent_v1.spawn_agent({"message":"TASK: act as a planning agent. ...","agent_type":"plan","fork_context":false})` |
-| `task(subagent_type="oracle", ...)` for final verification | `multi_agent_v1.spawn_agent({"message":"TASK: act as a rigorous reviewer. ...","agent_type":"lazycodex-gate-reviewer","fork_context":false})` |
+| `task(subagent_type="oracle", ...)` for final verification | By default, record a self-review in the notepad: re-read the diff, run diagnostics, and capture evidence for every acceptance criterion. Only when the user demanded strict, rigorous, or high-accuracy review, use `multi_agent_v1.spawn_agent({"message":"TASK: act as a rigorous reviewer. ...","agent_type":"lazycodex-gate-reviewer","fork_context":false})`; include `fork_context: false`. |
 | `task(category="...", ...)` for implementation or QA | `multi_agent_v1.spawn_agent({"message":"TASK: act as an implementation or QA worker. ...","fork_context":false})` |
 | `background_output(task_id="...")` | `multi_agent_v1.wait_agent(...)` for mailbox signals |
 | `team_*(...)` | Use Codex native subagents via `multi_agent_v1.spawn_agent` and `multi_agent_v1.wait_agent`; use `multi_agent_v1.send_input` and `multi_agent_v1.close_agent` only when exposed in the active tools list |
 
 Role-specific behavior must be described in a self-contained `message`. Use `fork_context: false` to start the child with only the initial prompt (no parent history); use `fork_context: true` only when full parent history is truly required. Include any required conversation context, files, diffs, constraints, and requested skill names directly in the spawned agent's `message`. OMO installs these selectable agent roles into `~/.codex/agents/`: `explorer`, `librarian`, `plan`, `momus`, `metis`, `lazycodex-code-reviewer`, `lazycodex-qa-executor`, and `lazycodex-gate-reviewer` - pass the matching name as `agent_type` so the child gets that role's model and instructions. If the spawn tool exposes no `agent_type` parameter, omit it and describe the role inside `message`. If a code block below conflicts with this section, this section wins.
 
-Codex exposes ONE of two subagent tool surfaces per session; check your own tool list and route accordingly. If `multi_agent_v1.*` tools exist, use the table above as written. If instead a flat `spawn_agent` with a required `task_name` exists (`multi_agent_v2`), rewrite every `multi_agent_v1.*` example: `multi_agent_v1.spawn_agent({...,"fork_context":false})` becomes `spawn_agent({"task_name":"<lowercase_digits_underscores>","message":...,"agent_type":...,"fork_turns":"none"})` (`"all"` only when full parent history is truly required); `send_input` becomes `send_message`; do not call `close_agent`/`resume_agent` (finished agents end on their own; `followup_task` re-tasks one, `interrupt_agent` stops one); `wait_agent` takes only `timeout_ms` and returns on any child mailbox activity. On the v2 surface `agent_type` may be ABSENT from the spawn schema (verified 2026-07-11: only `fork_turns`/`message`/`task_name`) — when absent, omit it and describe the role inside `message`; installed role TOMLs cannot be selected on that surface. If a code block below conflicts with this section, this section wins.
+Codex exposes ONE of two subagent tool surfaces per session; check your own tool list and route accordingly. If `multi_agent_v1.*` tools exist, use the table above as written. If instead a flat `spawn_agent` with a required `task_name` exists (`multi_agent_v2`), rewrite every `multi_agent_v1.*` example: `multi_agent_v1.spawn_agent({...,"fork_context":false})` becomes `spawn_agent({"task_name":"<lowercase_digits_underscores>","message":...,"agent_type":...,"fork_turns":"none"})` (`"all"` only when full parent history is truly required); `send_input` becomes `send_message`; do not call `close_agent`/`resume_agent` (finished agents end on their own; `followup_task` re-tasks one, `interrupt_agent` stops one); `wait_agent` takes only `timeout_ms` and returns on any child mailbox activity. On the v2 surface `agent_type` may be ABSENT from the spawn schema (verified 2026-07-11: only `fork_turns`/`message`/`task_name`) — when absent, omit it and describe the role inside `message`; installed role TOMLs cannot be selected on that surface. If a code block below conflicts with this section, this section wins. `fork_context` is rejected on `multi_agent_v2` (`fork_context is not supported in MultiAgentV2; use fork_turns instead`).
 
 When translating `load_skills=[...]`, include the requested skill names in the spawned agent's `message`. If a code block below conflicts with this section, this section wins.
+
+Omit optional keys you do not set. Never send `items: []`, `message: ""`, `model: ""`, `reasoning_effort: ""`, or `service_tier: ""` — Codex rejects them (`Items can't be empty`, `reasoning_effort must not be empty`).
 
 For work likely to exceed one wait cycle, require the child to send `WORKING: <task> - <current phase>` before long passes and `BLOCKED: <reason>` only when progress stops. A `multi_agent_v1.wait_agent` timeout only means no new mailbox update arrived; back off between waits (double the timeout up to ~5 minutes) instead of spinning short cycles. Treat a running child as alive. Fallback only when the child is completed without the deliverable, ack-only after followup, explicitly `BLOCKED:`, or no longer running.
 
@@ -706,7 +708,7 @@ Record the chosen path in the TodoWrite list.
 
 Rationale for this composition:
 - **4 workers = team mode's parallel cap.** 5+ just queues.
-- **No verifier team member.** Verification needs \`deep\` reasoning (or \`unspecified-high\` fallback). In-team category routing downcasts to sisyphus-junior, which is weaker than required — the verifier runs OUTSIDE the team as a \`task(category="deep")\`.
+- **No verifier team member.** Verification needs \`deep\` reasoning (or \`unspecified-high\` fallback). In-team category routing downcasts to the category worker, which is weaker than required — the verifier runs OUTSIDE the team as a \`task(category="deep")\`.
 - **quick × 2** for mechanical edits, **unspecified-low × 2** for reasoning edits — mirrors the plan's split.
 
 **Team lifecycle** (one team, reused until Phase 6 cleanup):
@@ -735,7 +737,7 @@ Rationale for this composition:
 While any team task is \`pending | claimed | in_progress\`:
 
 - Wait for \`<system-reminder>\` or member messages. Avoid tight polling; a single \`team_status\` check is acceptable if no notification arrives within roughly 10 seconds of expected completion.
-- On a worker completion report, immediately dispatch an **external verifier** — verification runs OUTSIDE the team because team-member category routing downcasts to sisyphus-junior:
+- On a worker completion report, immediately dispatch an **external verifier** — verification runs OUTSIDE the team because team-member category routing downcasts to the category worker:
   \`\`\`
   task(
     category="deep",
@@ -772,5 +774,5 @@ Append to the 6.6 summary a "Dispatch path" line and, when team path was used, t
 - Do not inline the Intent Card or verify-spec into task descriptions — rely on the broadcasts.
 - Do not recreate the team mid-session.
 - Do not run tests from Lead — the external verifier owns that lane.
-- Do not put \`oracle\` / \`librarian\` / \`deep\` into the team spec — oracle/librarian are team-ineligible, and \`deep\` under category routing downcasts to sisyphus-junior. Use them via \`task()\` outside the team when needed.
+- Do not put \`oracle\` / \`librarian\` / \`deep\` into the team spec — curated read-only agents are team-ineligible, and \`deep\` under category routing downcasts to the category worker. Use them via \`task()\` outside the team when needed.
 `

@@ -12,5 +12,7 @@ export interface CheckpointUlwLoopResult {
     readonly goal: UlwLoopItem;
     readonly ledgerEntry: UlwLoopLedgerEntry;
     readonly aggregateCompletion?: UlwLoopAggregateCompletion;
+    readonly nextActions: readonly string[];
+    readonly warnings: readonly string[];
 }
 export declare function checkpointUlwLoop(repoRoot: string, args: CheckpointUlwLoopArgs, scope?: UlwLoopScope): Promise<CheckpointUlwLoopResult>;

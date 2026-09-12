@@ -15,6 +15,13 @@ import { pathToFileURL as pathToFileURL3 } from "node:url";
 // ../lsp-core/src/lsp/connection.ts
 import { pathToFileURL } from "node:url";
 
+// ../lsp-core/src/lsp/timer-provider.ts
+var realTimerProvider = {
+  now: () => Date.now(),
+  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearTimeout: (handle) => clearTimeout(handle)
+};
+
 // ../lsp-core/src/lsp/constants.ts
 var DEFAULT_MAX_REFERENCES = 200;
 var DEFAULT_MAX_SYMBOLS = 200;
@@ -23,28 +30,24 @@ var DEFAULT_MAX_DIRECTORY_FILES = 50;
 var REQUEST_TIMEOUT_MS = 15000;
 var INIT_TIMEOUT_MS = 60000;
 var IDLE_TIMEOUT_MS = 5 * 60000;
+var MAX_RESIDENT_CLIENTS = 6;
 var REAPER_INTERVAL_MS = 60000;
 var STOP_HARD_KILL_TIMEOUT_MS = 5000;
 var STOP_SIGKILL_GRACE_MS = 1000;
+var CLIENT_RESPAWN_RETRY_LIMIT = 2;
+var CLIENT_RESPAWN_COOLDOWN_MS = 60000;
 
 // ../lsp-core/src/lsp/errors.ts
 class LspConnectionClosedError extends Error {
-  serverId;
-  root;
-  name = "LspConnectionClosedError";
   constructor(serverId, root, message) {
     super(message ?? `LSP connection closed for ${serverId} at ${root}`);
     this.serverId = serverId;
     this.root = root;
+    this.name = "LspConnectionClosedError";
   }
 }
 
 class LspProcessExitedError extends Error {
-  serverId;
-  root;
-  exitCode;
-  stderrTail;
-  name = "LspProcessExitedError";
   constructor(serverId, root, exitCode, stderrTail) {
     const stderrSuffix = stderrTail ? `
 stderr tail: ${stderrTail}` : "";
@@ -53,46 +56,59 @@ stderr tail: ${stderrTail}` : "";
     this.root = root;
     this.exitCode = exitCode;
     this.stderrTail = stderrTail;
+    this.name = "LspProcessExitedError";
   }
 }
 
 class LspRequestTimeoutError extends Error {
-  method;
-  stderrTail;
-  name = "LspRequestTimeoutError";
   constructor(method, stderrTail) {
     const stderrSuffix = stderrTail ? `
 recent stderr: ${stderrTail}` : "";
     super(`LSP request timeout (method: ${method})${stderrSuffix}`);
     this.method = method;
     this.stderrTail = stderrTail;
+    this.name = "LspRequestTimeoutError";
   }
 }
 
 class LspInvalidPathError extends Error {
-  name = "LspInvalidPathError";
+  constructor() {
+    super(...arguments);
+    this.name = "LspInvalidPathError";
+  }
 }
 
 class LspServerLookupError extends Error {
-  lookup;
-  name = "LspServerLookupError";
   constructor(message, lookup) {
     super(message);
     this.lookup = lookup;
+    this.name = "LspServerLookupError";
   }
 }
 
 class LspServerInitializingError extends Error {
-  originalError;
-  name = "LspServerInitializingError";
   constructor(originalError) {
     super(`LSP server is still initializing. Please retry in a few seconds. Original error: ${originalError.message}`);
     this.originalError = originalError;
+    this.name = "LspServerInitializingError";
   }
 }
 
 class LspProcessSpawnError extends Error {
-  name = "LspProcessSpawnError";
+  constructor() {
+    super(...arguments);
+    this.name = "LspProcessSpawnError";
+  }
+}
+
+class LspClientRespawnBudgetExceededError extends Error {
+  constructor(serverId, root, retryLimit) {
+    super(`LSP server ${serverId} at ${root} failed to stay alive; respawn budget exhausted ` + `(${retryLimit} consecutive dead generations). Retrying after the cooldown may succeed.`);
+    this.serverId = serverId;
+    this.root = root;
+    this.retryLimit = retryLimit;
+    this.name = "LspClientRespawnBudgetExceededError";
+  }
 }
 function isLspDeadConnectionError(err) {
   return err instanceof LspConnectionClosedError || err instanceof LspProcessExitedError;
@@ -108,20 +124,31 @@ var METHOD_NOT_FOUND = -32601;
 var INTERNAL_ERROR = -32603;
 
 class JsonRpcConnection {
-  reader;
-  writer;
-  pendingRequests = new Map;
-  notificationHandlers = new Map;
-  requestHandlers = new Map;
-  closeHandlers = [];
-  errorHandlers = [];
-  inputBuffer = Buffer.alloc(0);
-  nextRequestId = 1;
-  listening = false;
-  disposed = false;
   constructor(reader, writer) {
     this.reader = reader;
     this.writer = writer;
+    this.pendingRequests = new Map;
+    this.notificationHandlers = new Map;
+    this.requestHandlers = new Map;
+    this.closeHandlers = [];
+    this.errorHandlers = [];
+    this.inputBuffer = Buffer.alloc(0);
+    this.nextRequestId = 1;
+    this.listening = false;
+    this.disposed = false;
+    this.handleData = (chunk) => {
+      const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, "utf8");
+      this.inputBuffer = Buffer.concat([this.inputBuffer, chunkBuffer]);
+      this.drainInputBuffer();
+    };
+    this.handleClose = () => {
+      for (const handler of this.closeHandlers) {
+        handler();
+      }
+    };
+    this.handleStreamError = (error) => {
+      this.emitError(error);
+    };
   }
   listen() {
     if (this.listening)
@@ -156,6 +183,7 @@ class JsonRpcConnection {
     let cancelAfterWrite = false;
     let settled = false;
     const writeCancel = () => this.writeMessage({ jsonrpc: "2.0", method: "$/cancelRequest", params: { id } });
+    let rejectAfterCancelWrite;
     const responsePromise = new Promise((resolve, reject) => {
       const cleanup = () => {
         options.signal?.removeEventListener("abort", onAbort);
@@ -167,15 +195,19 @@ class JsonRpcConnection {
         this.pendingRequests.delete(key);
         cleanup();
         const rejectCancelled = () => reject(abortError(options.signal));
+        rejectAfterCancelWrite = async () => {
+          try {
+            await writeCancel();
+          } catch (error) {
+            this.emitError(toError(error));
+          }
+          rejectCancelled();
+        };
         if (!requestWritten) {
           cancelAfterWrite = true;
-          rejectCancelled();
           return;
         }
-        writeCancel().then(rejectCancelled, (error) => {
-          this.emitError(toError(error));
-          rejectCancelled();
-        });
+        rejectAfterCancelWrite();
       };
       const onAbort = () => settleCancel();
       this.pendingRequests.set(key, {
@@ -203,7 +235,7 @@ class JsonRpcConnection {
       await this.writeMessage(message);
       requestWritten = true;
       if (cancelAfterWrite)
-        await writeCancel();
+        await rejectAfterCancelWrite?.();
     } catch (error) {
       if (settled)
         return responsePromise;
@@ -242,19 +274,6 @@ class JsonRpcConnection {
     this.notificationHandlers.clear();
     this.requestHandlers.clear();
   }
-  handleData = (chunk) => {
-    const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, "utf8");
-    this.inputBuffer = Buffer.concat([this.inputBuffer, chunkBuffer]);
-    this.drainInputBuffer();
-  };
-  handleClose = () => {
-    for (const handler of this.closeHandlers) {
-      handler();
-    }
-  };
-  handleStreamError = (error) => {
-    this.emitError(error);
-  };
   drainInputBuffer() {
     while (true) {
       const headerEnd = this.inputBuffer.indexOf(HEADER_SEPARATOR);
@@ -602,33 +621,29 @@ function isPosition(value) {
 
 // ../lsp-core/src/lsp/transport.ts
 class LspClientNotStartedError extends Error {
-  serverId;
-  root;
-  name = "LspClientNotStartedError";
   constructor(serverId, root) {
     super("LSP client not started");
     this.serverId = serverId;
     this.root = root;
+    this.name = "LspClientNotStartedError";
   }
 }
 
 class LspClientTransport {
-  root;
-  server;
-  proc = null;
-  connection = null;
-  stderrBuffer = [];
-  processExited = false;
-  diagnosticsStore = new Map;
-  requestTimeoutMs;
-  initializeTimeoutMs;
-  workspaceApplyEditHandler = null;
-  diagnosticPullSupported = false;
   constructor(root, server, timeouts = {}) {
     this.root = root;
     this.server = server;
+    this.proc = null;
+    this.connection = null;
+    this.stderrBuffer = [];
+    this.processExited = false;
+    this.diagnosticsStore = new Map;
+    this.workspaceApplyEditHandler = null;
+    this.diagnosticPullSupported = false;
+    this.documentFormattingSupported = false;
     this.requestTimeoutMs = timeouts.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
     this.initializeTimeoutMs = timeouts.initializeTimeoutMs ?? INIT_TIMEOUT_MS;
+    this.timerProvider = timeouts.timerProvider ?? realTimerProvider;
   }
   pid() {
     return this.proc?.pid;
@@ -647,6 +662,12 @@ class LspClientTransport {
   }
   isDiagnosticPullSupported() {
     return this.diagnosticPullSupported;
+  }
+  setDocumentFormattingSupported(supported) {
+    this.documentFormattingSupported = supported;
+  }
+  isDocumentFormattingSupported() {
+    return this.documentFormattingSupported;
   }
   handlePublishDiagnostics(params) {
     this.diagnosticsStore.set(params.uri, [...params.diagnostics]);
@@ -723,7 +744,7 @@ class LspClientTransport {
     const options = args[1];
     const timeoutMs = options?.timeoutMs ?? this.requestTimeoutMs;
     const timeoutController = new AbortController;
-    const timeoutHandle = setTimeout(() => {
+    const timeoutHandle = this.timerProvider.setTimeout(() => {
       const stderrTail = this.stderrBuffer.slice(-5).join(`
 `);
       timeoutController.abort(new LspRequestTimeoutError(method, stderrTail || undefined));
@@ -742,7 +763,7 @@ class LspClientTransport {
       }
       throw error;
     } finally {
-      clearTimeout(timeoutHandle);
+      this.timerProvider.clearTimeout(timeoutHandle);
       combinedSignal.dispose();
     }
   }
@@ -861,6 +882,14 @@ function supportsDiagnosticPull(capabilities) {
     return false;
   return Object.hasOwn(capabilities, "diagnosticProvider");
 }
+function supportsDocumentFormatting(capabilities) {
+  if (capabilities === undefined)
+    return false;
+  const provider = capabilities.documentFormattingProvider;
+  if (provider === undefined || provider === null || provider === false)
+    return false;
+  return provider === true || typeof provider === "object";
+}
 
 class LspClientConnection extends LspClientTransport {
   async initialize() {
@@ -877,6 +906,7 @@ class LspClientConnection extends LspClientTransport {
           references: {},
           documentSymbol: { hierarchicalDocumentSymbolSupport: true },
           publishDiagnostics: {},
+          formatting: { dynamicRegistration: false },
           rename: {
             prepareSupport: true,
             prepareSupportDefaultBehavior: 1
@@ -918,7 +948,8 @@ class LspClientConnection extends LspClientTransport {
       initializationOptions: this.server.initialization
     }, { timeoutMs: this.initializeTimeoutMs });
     this.setDiagnosticPullSupported(supportsDiagnosticPull(result?.capabilities));
-    await this.sendNotification("initialized");
+    this.setDocumentFormattingSupported(supportsDocumentFormatting(result?.capabilities));
+    await this.sendNotification("initialized", {});
     await this.sendNotification("workspace/didChangeConfiguration", {
       settings: { json: { validate: { enable: true } } }
     });
@@ -1123,6 +1154,17 @@ function canonicalPath(filePath) {
     return absolute;
   }
 }
+function normalizeDocumentUri(uri) {
+  let decoded = uri;
+  try {
+    decoded = decodeURIComponent(uri);
+  } catch {
+    decoded = uri;
+  }
+  if (process.platform !== "win32")
+    return decoded;
+  return decoded.replace(/^(file:\/\/\/)([a-z]):/, (_match, prefix, drive) => `${prefix}${drive.toUpperCase()}:`);
+}
 function isSameOrDescendant(candidate, parent) {
   const suffix = relative(parent, candidate);
   return suffix === "" || !suffix.startsWith("..") && suffix !== "..";
@@ -1133,17 +1175,18 @@ function movedPath(candidate, oldPath, newPath) {
 }
 
 class WorkspaceDocumentState {
-  sendNotification;
-  clearDiagnostics;
-  openDocuments = new Map;
-  openByUri = new Map;
-  openPromises = new Map;
-  now;
-  versionlessPublishQuiescenceMs;
   constructor(sendNotification, clearDiagnostics, options = {}) {
     this.sendNotification = sendNotification;
     this.clearDiagnostics = clearDiagnostics;
-    this.now = options.now ?? (() => Date.now());
+    this.openDocuments = new Map;
+    this.openByUri = new Map;
+    this.openPromises = new Map;
+    this.timerProvider = options.timerProvider ?? {
+      now: options.now ?? (() => Date.now()),
+      setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+      clearTimeout: (handle) => clearTimeout(handle)
+    };
+    this.now = () => this.timerProvider.now();
     this.versionlessPublishQuiescenceMs = options.versionlessPublishQuiescenceMs ?? DEFAULT_VERSIONLESS_PUBLISH_QUIESCENCE_MS;
   }
   async openFile(filePath) {
@@ -1165,7 +1208,7 @@ class WorkspaceDocumentState {
     return this.openDocuments.get(canonicalPath(filePath))?.version;
   }
   getStoredDiagnostics(uri) {
-    const state = this.openByUri.get(uri);
+    const state = this.openByUri.get(normalizeDocumentUri(uri));
     if (!state)
       return [];
     return state.lastPublish?.diagnostics ?? state.pullCache?.diagnostics ?? [];
@@ -1187,13 +1230,13 @@ class WorkspaceDocumentState {
     return state !== undefined && state.uri === snapshot.uri && state.version === snapshot.version && state.generation === snapshot.documentGeneration;
   }
   getPullCache(snapshot) {
-    const state = this.openByUri.get(snapshot.uri);
+    const state = this.openByUri.get(normalizeDocumentUri(snapshot.uri));
     if (!state?.pullCache || state.pullCache.documentVersion !== snapshot.version)
       return null;
     return state.pullCache;
   }
   recordPullDiagnostics(snapshot, report) {
-    const state = this.openByUri.get(snapshot.uri);
+    const state = this.openByUri.get(normalizeDocumentUri(snapshot.uri));
     if (!state)
       return;
     state.pullCache = {
@@ -1203,7 +1246,7 @@ class WorkspaceDocumentState {
     };
   }
   recordPublishedDiagnostics(params) {
-    const state = this.openByUri.get(params.uri);
+    const state = this.openByUri.get(normalizeDocumentUri(params.uri));
     if (!state)
       return;
     state.publishGeneration += 1;
@@ -1217,7 +1260,7 @@ class WorkspaceDocumentState {
     this.notifyWaiters(state);
   }
   resolvePushDiagnostics(snapshot) {
-    const state = this.openByUri.get(snapshot.uri);
+    const state = this.openByUri.get(normalizeDocumentUri(snapshot.uri));
     if (!state?.lastPublish)
       return { status: "missing" };
     const publish = state.lastPublish;
@@ -1231,7 +1274,7 @@ class WorkspaceDocumentState {
     return waitMs === 0 ? { status: "ready", diagnostics: publish.diagnostics } : { status: "wait", waitMs };
   }
   waitForDiagnosticsActivity(snapshot, timeoutMs) {
-    const state = this.openByUri.get(snapshot.uri);
+    const state = this.openByUri.get(normalizeDocumentUri(snapshot.uri));
     if (!state || timeoutMs <= 0)
       return Promise.resolve();
     return new Promise((resolveActivity) => {
@@ -1240,11 +1283,11 @@ class WorkspaceDocumentState {
         if (settled)
           return;
         settled = true;
-        clearTimeout(timer);
+        this.timerProvider.clearTimeout(timer);
         state.waiters.delete(finish);
         resolveActivity();
       };
-      const timer = setTimeout(finish, timeoutMs);
+      const timer = this.timerProvider.setTimeout(finish, timeoutMs);
       if (typeof timer.unref === "function")
         timer.unref();
       state.waiters.add(finish);
@@ -1352,7 +1395,7 @@ class WorkspaceDocumentState {
         waiters: new Set
       };
       this.openDocuments.set(path, state);
-      this.openByUri.set(state.uri, state);
+      this.openByUri.set(normalizeDocumentUri(state.uri), state);
       this.notifyWaiters(state);
       await this.sendNotification("textDocument/didOpen", {
         textDocument: { uri: state.uri, languageId: state.languageId, version: state.version, text }
@@ -1377,7 +1420,7 @@ class WorkspaceDocumentState {
   }
   async closeDocument(state) {
     this.openDocuments.delete(state.path);
-    this.openByUri.delete(state.uri);
+    this.openByUri.delete(normalizeDocumentUri(state.uri));
     this.clearDiagnostics(state.uri);
     this.notifyWaiters(state);
     await this.sendNotification("textDocument/didClose", { textDocument: { uri: state.uri } });
@@ -1406,13 +1449,11 @@ import { dirname, isAbsolute, relative as relative2, resolve as resolve2 } from 
 import { fileURLToPath } from "node:url";
 
 class WorkspaceEditPathError extends Error {
-  path;
-  detail;
-  name = "WorkspaceEditPathError";
   constructor(path, detail) {
     super(`${detail}: ${path}`);
     this.path = path;
     this.detail = detail;
+    this.name = "WorkspaceEditPathError";
   }
 }
 function isPathInsideWorkspace(filePath, workspaceRoot) {
@@ -1704,13 +1745,11 @@ function canonicalFingerprint(operations) {
 
 // ../lsp-core/src/lsp/workspace-edit-types.ts
 class WorkspaceEditValidationError extends Error {
-  changeIndex;
-  detail;
-  name = "WorkspaceEditValidationError";
   constructor(changeIndex, detail) {
     super(`change ${changeIndex}: ${detail}`);
     this.changeIndex = changeIndex;
     this.detail = detail;
+    this.name = "WorkspaceEditValidationError";
   }
 }
 
@@ -1796,14 +1835,14 @@ function parseSinglePathResource(input, kind) {
     return;
   }
   if (kind === "create") {
-    const options2 = parseOptions(change["options"], ["overwrite", "ignoreIfExists"], changeIndex);
+    const options = parseOptions(change["options"], ["overwrite", "ignoreIfExists"], changeIndex);
     target.operations.push({
       kind,
       changeIndex,
       path: resolvedPath.path,
       reportedPath: resolvedPath.requestedPath,
-      overwrite: options2["overwrite"] ?? false,
-      ignoreIfExists: options2["ignoreIfExists"] ?? false,
+      overwrite: options["overwrite"] ?? false,
+      ignoreIfExists: options["ignoreIfExists"] ?? false,
       followedSymbolicLink: resolvedPath.followedSymbolicLink
     });
     return;
@@ -2208,10 +2247,9 @@ function simulateDelete(operation, virtual) {
 import { existsSync as existsSync4, lstatSync as lstatSync3, readdirSync as readdirSync2 } from "node:fs";
 import { dirname as dirname3, resolve as resolve4 } from "node:path";
 class WorkspaceSnapshotBuilder {
-  workspaceRoot;
-  snapshots = new Map;
   constructor(workspaceRoot) {
     this.workspaceRoot = workspaceRoot;
+    this.snapshots = new Map;
   }
   build(operations) {
     this.add(this.workspaceRoot, false);
@@ -2255,8 +2293,10 @@ function snapshotOperations(operations, workspaceRoot) {
 
 // ../lsp-core/src/lsp/workspace-edit-plan.ts
 class PlanPathIndex {
-  firstChangeByPath = new Map;
-  reportedPathByCanonical = new Map;
+  constructor() {
+    this.firstChangeByPath = new Map;
+    this.reportedPathByCanonical = new Map;
+  }
   build(operations) {
     for (const operation of operations) {
       switch (operation.kind) {
@@ -2272,11 +2312,11 @@ class PlanPathIndex {
       }
     }
   }
-  add(path, reportedPath2, changeIndex) {
+  add(path, reportedPath, changeIndex) {
     if (!this.firstChangeByPath.has(path))
       this.firstChangeByPath.set(path, changeIndex);
     if (!this.reportedPathByCanonical.has(path))
-      this.reportedPathByCanonical.set(path, reportedPath2);
+      this.reportedPathByCanonical.set(path, reportedPath);
   }
 }
 function fingerprintWorkspaceEdit(edit, workspaceRoot) {
@@ -2345,14 +2385,11 @@ function isRecord3(value) {
 }
 
 class WorkspaceMutationController {
-  workspaceRoot;
-  documents;
-  activeLease = null;
-  nextLeaseId = 1;
-  io;
   constructor(workspaceRoot, documents) {
     this.workspaceRoot = workspaceRoot;
     this.documents = documents;
+    this.activeLease = null;
+    this.nextLeaseId = 1;
   }
   setIo(io) {
     this.io = io;
@@ -2391,8 +2428,8 @@ class WorkspaceMutationController {
       };
     }
     lease.phase = "applying";
-    lease.applyCompletion = new Promise((resolve5) => {
-      lease.resolveApply = resolve5;
+    lease.applyCompletion = new Promise((resolve) => {
+      lease.resolveApply = resolve;
     });
     const edit = isRecord3(params) ? params["edit"] : undefined;
     const record = edit === undefined ? { fingerprint: null, result: failure("workspace/applyEdit params.edit is required", 0) } : await this.applyEdit(edit, lease);
@@ -2465,14 +2502,12 @@ var DIAGNOSTICS_FRESHNESS_TIMEOUT_MS = 3000;
 var VERSIONLESS_PUBLISH_QUIESCENCE_MS = 250;
 
 class LspClient extends LspClientConnection {
-  diagnosticPullErrors = [];
-  documents;
-  workspaceMutations;
-  diagnosticsFreshnessTimeoutMs;
   constructor(root, server, options = {}) {
     super(root, server, options);
+    this.diagnosticPullErrors = [];
     this.diagnosticsFreshnessTimeoutMs = options.diagnosticsFreshnessTimeoutMs ?? DIAGNOSTICS_FRESHNESS_TIMEOUT_MS;
     this.documents = new WorkspaceDocumentState((method, params) => this.sendNotification(method, params), (uri) => this.diagnosticsStore.delete(uri), {
+      timerProvider: this.timerProvider,
       versionlessPublishQuiescenceMs: options.versionlessPublishQuiescenceMs ?? VERSIONLESS_PUBLISH_QUIESCENCE_MS
     });
     this.workspaceMutations = new WorkspaceMutationController(root, this.documents);
@@ -2525,6 +2560,18 @@ class LspClient extends LspClientConnection {
       textDocument: { uri: pathToFileURL3(absPath).href }
     }, options);
   }
+  async formatDocument(filePath, options, signal) {
+    if (!this.isDocumentFormattingSupported())
+      return null;
+    const absPath = this.resolveWorkspacePath(filePath);
+    await this.openFile(absPath);
+    const requestOptions = signal === undefined ? {} : { signal };
+    const edits = await this.sendRequest("textDocument/formatting", {
+      textDocument: { uri: pathToFileURL3(absPath).href },
+      options
+    }, requestOptions);
+    return edits ?? [];
+  }
   async workspaceSymbols(query, signal) {
     const options = signal === undefined ? {} : { signal };
     return this.sendRequest("workspace/symbol", { query }, options);
@@ -2564,7 +2611,7 @@ class LspClient extends LspClientConnection {
     const absPath = this.resolveWorkspacePath(filePath);
     const uri = pathToFileURL3(absPath).href;
     await this.openFile(absPath);
-    const deadlineAt = Date.now() + this.diagnosticsFreshnessTimeoutMs;
+    const deadlineAt = this.timerProvider.now() + this.diagnosticsFreshnessTimeoutMs;
     for (;; ) {
       signal?.throwIfAborted();
       const snapshot = this.documents.captureDiagnosticSnapshot(absPath);
@@ -2577,13 +2624,13 @@ class LspClient extends LspClientConnection {
       if (!pushFallbackOnly) {
         const cached = this.documents.getPullCache(snapshot);
         try {
-          const remainingMs2 = deadlineAt - Date.now();
-          if (remainingMs2 <= 0)
+          const remainingMs = deadlineAt - this.timerProvider.now();
+          if (remainingMs <= 0)
             return this.freshnessTimeout(absPath);
           const result = await this.sendRequest("textDocument/diagnostic", {
             textDocument: { uri },
             ...cached?.resultId === undefined ? {} : { previousResultId: cached.resultId }
-          }, { timeoutMs: remainingMs2, ...signal === undefined ? {} : { signal } });
+          }, { timeoutMs: remainingMs, ...signal === undefined ? {} : { signal } });
           if (!this.documents.isCurrentSnapshot(snapshot))
             continue;
           const report = this.parseDiagnosticPullReport(result);
@@ -2612,7 +2659,7 @@ class LspClient extends LspClientConnection {
       }
       if (!pushFallbackOnly)
         continue;
-      const remainingMs = deadlineAt - Date.now();
+      const remainingMs = deadlineAt - this.timerProvider.now();
       if (remainingMs <= 0) {
         if (!this.isDiagnosticPullSupported() && snapshot.publishGeneration === 0) {
           const cached = this.documents.getPullCache(snapshot);
@@ -2664,7 +2711,7 @@ function waitForDiagnosticsActivity(wait, signal) {
     return wait;
   if (signal.aborted)
     return Promise.reject(abortError2(signal));
-  return new Promise((resolve6, reject) => {
+  return new Promise((resolve, reject) => {
     const onAbort = () => {
       signal.removeEventListener("abort", onAbort);
       reject(abortError2(signal));
@@ -2672,7 +2719,7 @@ function waitForDiagnosticsActivity(wait, signal) {
     signal.addEventListener("abort", onAbort, { once: true });
     wait.then(() => {
       signal.removeEventListener("abort", onAbort);
-      resolve6();
+      resolve();
     }, (error) => {
       signal.removeEventListener("abort", onAbort);
       reject(error);
@@ -2740,7 +2787,7 @@ async function stopClientBestEffort(client) {
 function awaitWithSignal(promise, signal) {
   if (!signal)
     return promise;
-  return new Promise((resolve6, reject) => {
+  return new Promise((resolve, reject) => {
     let settled = false;
     const onAbort = () => {
       if (settled)
@@ -2758,7 +2805,7 @@ function awaitWithSignal(promise, signal) {
         return;
       settled = true;
       signal.removeEventListener("abort", onAbort);
-      resolve6(value);
+      resolve(value);
     }, (err) => {
       if (settled)
         return;
@@ -2770,18 +2817,16 @@ function awaitWithSignal(promise, signal) {
 }
 
 class LspManager {
-  clients = new Map;
-  reaperHandle = null;
-  signalDisposer = null;
-  disposed = false;
-  idleTimeoutMs;
-  initTimeoutMs;
-  reaperIntervalMs;
-  clientFactory;
-  now;
   constructor(options = {}) {
+    this.clients = new Map;
+    this.pendingStops = new Map;
+    this.respawnBudgets = new Map;
+    this.reaperHandle = null;
+    this.signalDisposer = null;
+    this.disposed = false;
     this.idleTimeoutMs = options.idleTimeoutMs ?? IDLE_TIMEOUT_MS;
     this.initTimeoutMs = options.initTimeoutMs ?? INIT_TIMEOUT_MS;
+    this.maxResidentClients = options.maxResidentClients ?? MAX_RESIDENT_CLIENTS;
     this.reaperIntervalMs = options.reaperIntervalMs ?? REAPER_INTERVAL_MS;
     this.clientFactory = options.clientFactory ?? ((root, server) => new LspClient(root, server));
     this.now = options.now ?? (() => Date.now());
@@ -2801,24 +2846,79 @@ class LspManager {
   getKey(root, serverId) {
     return `${root}::${serverId}`;
   }
+  tombstoneStop(key, client) {
+    const stop = stopClientBestEffort(client);
+    this.pendingStops.set(key, stop);
+    stop.finally(() => {
+      if (this.pendingStops.get(key) === stop) {
+        this.pendingStops.delete(key);
+      }
+    });
+    return stop;
+  }
+  recordDeadGeneration(key) {
+    let budget = this.respawnBudgets.get(key);
+    if (budget === undefined) {
+      budget = { deadGenerations: 0, exhaustedAt: null };
+      this.respawnBudgets.set(key, budget);
+    }
+    budget.deadGenerations += 1;
+  }
+  markHealthyGeneration(key) {
+    this.respawnBudgets.delete(key);
+  }
+  ensureRespawnAllowed(key, root, serverId) {
+    const budget = this.respawnBudgets.get(key);
+    if (budget === undefined || budget.deadGenerations < CLIENT_RESPAWN_RETRY_LIMIT)
+      return;
+    if (budget.exhaustedAt === null) {
+      budget.exhaustedAt = this.now();
+      throw new LspClientRespawnBudgetExceededError(serverId, root, CLIENT_RESPAWN_RETRY_LIMIT);
+    }
+    if (this.now() - budget.exhaustedAt < CLIENT_RESPAWN_COOLDOWN_MS) {
+      throw new LspClientRespawnBudgetExceededError(serverId, root, CLIENT_RESPAWN_RETRY_LIMIT);
+    }
+    budget.deadGenerations = 0;
+    budget.exhaustedAt = null;
+  }
   reapStale() {
     const t = this.now();
     for (const [key, managed] of this.clients) {
       if (managed.isInitializing && managed.initializingSince !== null && t - managed.initializingSince > this.initTimeoutMs) {
-        stopClientBestEffort(managed.client);
         this.clients.delete(key);
+        this.tombstoneStop(key, managed.client);
         continue;
       }
       if (!managed.isInitializing && managed.refCount === 0 && managed.pendingWaiters === 0 && t - managed.lastUsedAt > this.idleTimeoutMs) {
-        stopClientBestEffort(managed.client);
         this.clients.delete(key);
+        this.tombstoneStop(key, managed.client);
       }
     }
+  }
+  evictForAdmission() {
+    while (this.clients.size >= this.maxResidentClients) {
+      const victim = this.leastRecentlyUsedIdleClient();
+      if (!victim)
+        return;
+      this.clients.delete(victim.key);
+      this.tombstoneStop(victim.key, victim.managed.client);
+    }
+  }
+  leastRecentlyUsedIdleClient() {
+    let candidate = null;
+    for (const [key, managed] of this.clients) {
+      if (managed.refCount > 0 || managed.pendingWaiters > 0 || managed.isInitializing)
+        continue;
+      if (candidate === null || managed.lastUsedAt < candidate.managed.lastUsedAt) {
+        candidate = { key, managed };
+      }
+    }
+    return candidate;
   }
   async tryDeleteIfOrphaned(key, managed) {
     if (managed.refCount === 0 && managed.pendingWaiters === 0 && !managed.isInitializing && this.clients.get(key) === managed) {
       this.clients.delete(key);
-      await stopClientBestEffort(managed.client);
+      await this.tombstoneStop(key, managed.client);
     }
   }
   async getClient(root, server, signal) {
@@ -2827,12 +2927,22 @@ class LspManager {
     }
     signal?.throwIfAborted();
     const key = this.getKey(root, server.id);
+    for (;; ) {
+      const pendingStop = this.pendingStops.get(key);
+      if (pendingStop === undefined)
+        break;
+      await awaitWithSignal(pendingStop, signal);
+      signal?.throwIfAborted();
+    }
+    if (this.disposed) {
+      throw new Error("LspManager has been disposed");
+    }
     let managed = this.clients.get(key);
     if (managed) {
       const t = this.now();
       if (managed.isInitializing && managed.initializingSince !== null && t - managed.initializingSince > this.initTimeoutMs) {
-        await stopClientBestEffort(managed.client);
         this.clients.delete(key);
+        await this.tombstoneStop(key, managed.client);
         managed = undefined;
       }
     }
@@ -2853,14 +2963,20 @@ class LspManager {
         signal.throwIfAborted();
       }
       if (!managed.client.isAlive()) {
-        await stopClientBestEffort(managed.client);
-        this.clients.delete(key);
+        this.recordDeadGeneration(key);
+        if (this.clients.get(key) === managed) {
+          this.clients.delete(key);
+        }
+        await this.tombstoneStop(key, managed.client);
         return this.getClient(root, server, signal);
       }
+      this.markHealthyGeneration(key);
       managed.refCount++;
       managed.lastUsedAt = this.now();
       return managed.client;
     }
+    this.evictForAdmission();
+    this.ensureRespawnAllowed(key, root, server.id);
     const client = this.clientFactory(root, server);
     const initStartedAt = this.now();
     const initPromise = (async () => {
@@ -2884,7 +3000,7 @@ class LspManager {
       if (this.clients.get(key) === newManaged) {
         this.clients.delete(key);
       }
-      await stopClientBestEffort(client);
+      await this.tombstoneStop(key, client);
       throw err;
     }
     newManaged.pendingWaiters--;
@@ -2895,6 +3011,15 @@ class LspManager {
       await this.tryDeleteIfOrphaned(key, newManaged);
       signal.throwIfAborted();
     }
+    if (!client.isAlive()) {
+      this.recordDeadGeneration(key);
+      if (this.clients.get(key) === newManaged) {
+        this.clients.delete(key);
+      }
+      await this.tombstoneStop(key, client);
+      return this.getClient(root, server, signal);
+    }
+    this.markHealthyGeneration(key);
     newManaged.refCount++;
     newManaged.lastUsedAt = this.now();
     return client;
@@ -2915,14 +3040,20 @@ class LspManager {
     if (client && managed.client !== client)
       return;
     this.clients.delete(key);
-    stopClientBestEffort(managed.client);
+    this.tombstoneStop(key, managed.client);
   }
   warmupClient(root, server) {
     if (this.disposed)
       return;
     const key = this.getKey(root, server.id);
-    if (this.clients.has(key))
+    if (this.clients.has(key) || this.pendingStops.has(key))
       return;
+    this.evictForAdmission();
+    try {
+      this.ensureRespawnAllowed(key, root, server.id);
+    } catch {
+      return;
+    }
     const client = this.clientFactory(root, server);
     const initStartedAt = this.now();
     const initPromise = (async () => {
@@ -2948,7 +3079,7 @@ class LspManager {
       if (this.clients.get(key) === managed) {
         this.clients.delete(key);
       }
-      stopClientBestEffort(client);
+      this.tombstoneStop(key, client);
     });
   }
   isServerInitializing(root, serverId) {
@@ -2992,8 +3123,11 @@ class LspManager {
     for (const managed of this.clients.values()) {
       stopPromises.push(stopClientBestEffort(managed.client));
     }
+    const tombstonedStops = [...this.pendingStops.values()];
     this.clients.clear();
-    await Promise.allSettled(stopPromises);
+    this.respawnBudgets.clear();
+    await Promise.allSettled([...stopPromises, ...tombstonedStops]);
+    this.pendingStops.clear();
   }
 }
 var _defaultInstance = null;
@@ -3011,7 +3145,7 @@ async function disposeDefaultLspManager() {
   }
 }
 export {
-  getLspManager,
+  LspManager,
   disposeDefaultLspManager,
-  LspManager
+  getLspManager
 };

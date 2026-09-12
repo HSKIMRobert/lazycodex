@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-var __defProp = Object.defineProperty;
-var __returnValue = (v) => v;
-function __exportSetter(name, newValue) {
-  this[name] = __returnValue.bind(null, newValue);
-}
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, {
-      get: all[name],
-      enumerable: true,
-      configurable: true,
-      set: __exportSetter.bind(all, name)
-    });
-};
 
 // components/telemetry/src/cli.ts
 import { stdin as processStdin, stdout as processStdout } from "node:process";
@@ -27,9 +13,12 @@ import {
   fsyncSync,
   openSync,
   renameSync,
+  rmSync,
   unlinkSync,
   writeFileSync
 } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { dirname } from "node:path";
 var TOLERATED_FSYNC_CODES = new Set([
   "EPERM",
   "EACCES",
@@ -51,24 +40,36 @@ function tolerantFsyncSync(fileDescriptor, fsyncImpl) {
   }
 }
 function writeFileAtomically(filePath, content, options = {}) {
-  const tempPath = `${filePath}.tmp`;
-  writeFileSync(tempPath, content, "utf-8");
-  const tempFileDescriptor = openSync(tempPath, "r+");
+  const platform = options.platform ?? process.platform;
+  const fsyncImpl = options.fsyncSync ?? fsyncSync;
+  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    tolerantFsyncSync(tempFileDescriptor, options.fsyncSync ?? fsyncSync);
-  } finally {
-    closeSync(tempFileDescriptor);
-  }
-  try {
-    renameSync(tempPath, filePath);
-  } catch (error) {
-    const isPermissionError = error instanceof Error && (error.message.includes("EPERM") || error.message.includes("EACCES"));
-    if ((options.platform ?? process.platform) === "win32" && isPermissionError) {
+    writeFileSync(tempPath, content, "utf-8");
+    const tempFileDescriptor = openSync(tempPath, "r+");
+    try {
+      tolerantFsyncSync(tempFileDescriptor, fsyncImpl);
+    } finally {
+      closeSync(tempFileDescriptor);
+    }
+    try {
+      renameSync(tempPath, filePath);
+    } catch (error) {
+      const isPermissionError = error instanceof Error && (error.message.includes("EPERM") || error.message.includes("EACCES"));
+      if (platform !== "win32" || !isPermissionError)
+        throw error;
       unlinkSync(filePath);
       renameSync(tempPath, filePath);
-      return;
     }
-    throw error;
+    if (platform === "win32")
+      return;
+    const directoryFileDescriptor = openSync(dirname(filePath), "r");
+    try {
+      tolerantFsyncSync(directoryFileDescriptor, fsyncImpl);
+    } finally {
+      closeSync(directoryFileDescriptor);
+    }
+  } finally {
+    rmSync(tempPath, { force: true });
   }
 }
 
@@ -174,6 +175,7 @@ function writePostHogActivityState(stateDir, nextState, diagnostics) {
 // ../../telemetry-core/src/constants.ts
 var DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 var DEFAULT_POSTHOG_API_KEY = "phc_CFJhj5HyvA62QPhvyaUCtaq23aUfznnijg5VaaGkNk74";
+var UNCONFIGURED_POSTHOG_API_KEY = "phc_REPLACE_ME_OMO_NATIVE";
 
 // ../../telemetry-core/src/diagnostics.ts
 import { appendFileSync, existsSync as existsSync2, mkdirSync as mkdirSync3, readFileSync as readFileSync2 } from "node:fs";
@@ -310,6 +312,9 @@ function shouldDisableTelemetry(input) {
   const env = input.env ?? process.env;
   const globalPrefix = input.globalEnvPrefix ?? "OMO";
   const prefixes = Array.from(new Set([globalPrefix, input.productEnvPrefix]));
+  if (isDisableFlag(env["DO_NOT_TRACK"])) {
+    return true;
+  }
   for (const prefix of prefixes) {
     if (isDisableFlag(env[`${prefix}_DISABLE_POSTHOG`])) {
       return true;
@@ -323,22 +328,19 @@ function shouldDisableTelemetry(input) {
 function getTelemetryApiKey(env = process.env, defaultApiKey = DEFAULT_POSTHOG_API_KEY) {
   return env["POSTHOG_API_KEY"]?.trim() ?? defaultApiKey;
 }
+function isConfiguredTelemetryApiKey(apiKey) {
+  const normalized = apiKey.trim();
+  return normalized.length > 0 && normalized !== UNCONFIGURED_POSTHOG_API_KEY;
+}
+function hasTelemetryApiKey(env, defaultApiKey) {
+  return isConfiguredTelemetryApiKey(getTelemetryApiKey(env, defaultApiKey));
+}
 function getTelemetryHost(env = process.env, defaultHost = DEFAULT_POSTHOG_HOST) {
   return env["POSTHOG_HOST"]?.trim() || defaultHost;
 }
 
-// ../../telemetry-core/src/machine-id.ts
-import { createHash } from "node:crypto";
-import os2 from "node:os";
-function getDefaultTelemetryOsProvider() {
-  return os2;
-}
-function getTelemetryDistinctId(machineIdPrefix, osProvider = getDefaultTelemetryOsProvider()) {
-  return createHash("sha256").update(`${machineIdPrefix}${osProvider.hostname()}`).digest("hex");
-}
-
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/module.node.mjs
-import { dirname, posix, sep } from "node:path";
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/module.node.mjs
+import { dirname as dirname2, posix, sep } from "node:path";
 function createModulerModifier() {
   const getModuleFromFileName = createGetModuleFromFilename();
   return async (frames) => {
@@ -347,7 +349,7 @@ function createModulerModifier() {
     return frames;
   };
 }
-function createGetModuleFromFilename(basePath = process.argv[1] ? dirname(process.argv[1]) : process.cwd(), isWindows = sep === "\\") {
+function createGetModuleFromFilename(basePath = process.argv[1] ? dirname2(process.argv[1]) : process.cwd(), isWindows = sep === "\\") {
   const normalizedBase = isWindows ? normalizeWindowsPath(basePath) : basePath;
   return (filename) => {
     if (!filename)
@@ -369,11 +371,11 @@ function createGetModuleFromFilename(basePath = process.argv[1] ? dirname(proces
     return decodedFile;
   };
 }
-function normalizeWindowsPath(path2) {
-  return path2.replace(/^[A-Z]:/, "").replace(/\\/g, "/");
+function normalizeWindowsPath(path) {
+  return path.replace(/^[A-Z]:/, "").replace(/\\/g, "/");
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/featureFlagUtils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/featureFlagUtils.mjs
 var normalizeFlagsResponse = (flagsResponse) => {
   if ("flags" in flagsResponse) {
     const featureFlags = getFlagValuesFromFlags(flagsResponse.flags);
@@ -443,8 +445,69 @@ var parsePayload = (response) => {
     return response;
   }
 };
+var MINIMAL_FLAG_CALLED_EVENT_CAMPAIGN_PROPERTIES = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "gad_source",
+  "mc_cid",
+  "gclid",
+  "gclsrc",
+  "dclid",
+  "gbraid",
+  "wbraid",
+  "fbclid",
+  "msclkid",
+  "twclid",
+  "li_fat_id",
+  "igshid",
+  "ttclid",
+  "rdt_cid",
+  "epik",
+  "qclid",
+  "sccid",
+  "irclid",
+  "_kx"
+];
+var MINIMAL_FLAG_CALLED_EVENT_PROPERTIES = [
+  "$feature_flag",
+  "$feature_flag_response",
+  "$feature_flag_has_experiment",
+  "$feature_flag_id",
+  "$feature_flag_version",
+  "$feature_flag_reason",
+  "$feature_flag_request_id",
+  "$feature_flag_evaluated_at",
+  "$feature_flag_error",
+  "locally_evaluated",
+  "$groups",
+  "$process_person_profile",
+  "$geoip_disable",
+  "$current_url",
+  "$pathname",
+  "$referring_domain",
+  ...MINIMAL_FLAG_CALLED_EVENT_CAMPAIGN_PROPERTIES,
+  "$session_id",
+  "$window_id",
+  "$lib",
+  "$lib_version",
+  "$device_id",
+  "$is_server"
+];
+var minimizeFlagCalledEventProperties = (properties, transportKeys = []) => {
+  const minimal = {};
+  const copyKey = (key) => {
+    if (properties[key] !== undefined)
+      minimal[key] = properties[key];
+  };
+  MINIMAL_FLAG_CALLED_EVENT_PROPERTIES.forEach(copyKey);
+  transportKeys.forEach(copyKey);
+  return minimal;
+};
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/types.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/types.mjs
 var types_PostHogPersistedProperty = /* @__PURE__ */ function(PostHogPersistedProperty) {
   PostHogPersistedProperty["AnonymousId"] = "anonymous_id";
   PostHogPersistedProperty["DistinctId"] = "distinct_id";
@@ -459,6 +522,8 @@ var types_PostHogPersistedProperty = /* @__PURE__ */ function(PostHogPersistedPr
   PostHogPersistedProperty["BootstrapFeatureFlagPayloads"] = "bootstrap_feature_flag_payloads";
   PostHogPersistedProperty["OverrideFeatureFlags"] = "override_feature_flags";
   PostHogPersistedProperty["Queue"] = "queue";
+  PostHogPersistedProperty["AiQueue"] = "ai_queue";
+  PostHogPersistedProperty["AiCaptureQueue"] = "ai_capture_queue";
   PostHogPersistedProperty["LogsQueue"] = "logs_queue";
   PostHogPersistedProperty["OptedOut"] = "opted_out";
   PostHogPersistedProperty["SessionId"] = "session_id";
@@ -469,6 +534,8 @@ var types_PostHogPersistedProperty = /* @__PURE__ */ function(PostHogPersistedPr
   PostHogPersistedProperty["InstalledAppBuild"] = "installed_app_build";
   PostHogPersistedProperty["InstalledAppVersion"] = "installed_app_version";
   PostHogPersistedProperty["SessionReplay"] = "session_replay";
+  PostHogPersistedProperty["PushRegistered"] = "push_registered";
+  PostHogPersistedProperty["SessionReplayEventTriggerActivatedSession"] = "session_replay_event_trigger_activated_session";
   PostHogPersistedProperty["SurveyLastSeenDate"] = "survey_last_seen_date";
   PostHogPersistedProperty["SurveysSeen"] = "surveys_seen";
   PostHogPersistedProperty["Surveys"] = "surveys";
@@ -478,7 +545,7 @@ var types_PostHogPersistedProperty = /* @__PURE__ */ function(PostHogPersistedPr
   return PostHogPersistedProperty;
 }({});
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/gzip.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/gzip.mjs
 function isGzipSupported() {
   return "CompressionStream" in globalThis && "TextEncoder" in globalThis && "Response" in globalThis && typeof Response.prototype.blob == "function";
 }
@@ -528,7 +595,7 @@ var validateNativeGzip = async (compressed, inputBytes) => {
 async function gzipCompress(input, isDebug = true, options) {
   try {
     const inputBytes = new TextEncoder().encode(input);
-    const compressedStream = new CompressionStream("gzip");
+    const compressedStream = new globalThis.CompressionStream("gzip");
     const writer = compressedStream.writable.getWriter();
     const writePromise = writer.write(inputBytes).then(() => writer.close()).catch(async (err) => {
       try {
@@ -552,7 +619,34 @@ async function gzipCompress(input, isDebug = true, options) {
   }
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/utils/bot-detection.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/json-utils.mjs
+var MAX_JSON_SAFE_VALUE_DEPTH = 20;
+var MAX_JSON_SAFE_VALUE_ITEMS = 1000;
+var MAX_JSON_SAFE_VALUE_NODES = 1e4;
+var CIRCULAR_VALUE = "[Circular]";
+var TRUNCATED_VALUE = "[Truncated]";
+var UNSERIALIZABLE_VALUE = "[Unserializable]";
+var FUNCTION_VALUE = "[Function]";
+var dateGetTime = Date.prototype.getTime;
+var dateToISOString = Date.prototype.toISOString;
+function sanitizeString(value) {
+  let output = "";
+  for (let index = 0;index < value.length; index++) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit >= 55296 && codeUnit <= 56319) {
+      const nextCodeUnit = value.charCodeAt(index + 1);
+      if (nextCodeUnit >= 56320 && nextCodeUnit <= 57343) {
+        output += value[index] + value[index + 1];
+        index++;
+      } else
+        output += "�";
+    } else
+      output += codeUnit >= 56320 && codeUnit <= 57343 ? "�" : value[index];
+  }
+  return output;
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/bot-detection.mjs
 var DEFAULT_BLOCKED_UA_STRS = [
   "amazonbot",
   "amazonproductbot",
@@ -641,7 +735,31 @@ var isBlockedUA = function(ua, customBlockedUserAgents = []) {
     return uaLower.indexOf(blockedUaLower) !== -1;
   });
 };
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/utils/type-utils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/string-utils.mjs
+function safeJsonStringify(value) {
+  const ancestors = [];
+  return JSON.stringify(value, function(_key, replacementValue) {
+    if (typeof replacementValue == "bigint")
+      return replacementValue.toString();
+    if (typeof replacementValue == "function" || typeof replacementValue == "symbol")
+      return;
+    if (replacementValue instanceof Error)
+      return {
+        name: replacementValue.name,
+        message: replacementValue.message,
+        stack: replacementValue.stack
+      };
+    if (replacementValue && typeof replacementValue == "object") {
+      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this)
+        ancestors.pop();
+      if (ancestors.includes(replacementValue))
+        return "[Circular]";
+      ancestors.push(replacementValue);
+    }
+    return replacementValue;
+  }) ?? "null";
+}
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/type-utils.mjs
 var nativeIsArray = Array.isArray;
 var ObjProto = Object.prototype;
 var type_utils_hasOwnProperty = ObjProto.hasOwnProperty;
@@ -653,16 +771,27 @@ var isObject = (x) => x === Object(x) && !isArray(x);
 var isUndefined = (x) => x === undefined;
 var isString = (x) => type_utils_toString.call(x) == "[object String]";
 var isEmptyString = (x) => isString(x) && x.trim().length === 0;
+var isNull = (x) => x === null;
+var isNullish = (x) => isUndefined(x) || isNull(x);
 var isNumber = (x) => type_utils_toString.call(x) == "[object Number]" && x === x;
-var isPlainError = (x) => x instanceof Error;
+var isBoolean = (x) => type_utils_toString.call(x) === "[object Boolean]";
 function isPrimitive(value) {
   return value === null || typeof value != "object";
 }
 function isBuiltin(candidate, className) {
   return Object.prototype.toString.call(candidate) === `[object ${className}]`;
 }
-function isErrorEvent(event) {
-  return isBuiltin(event, "ErrorEvent");
+function isError(candidate) {
+  switch (Object.prototype.toString.call(candidate)) {
+    case "[object Error]":
+    case "[object Exception]":
+    case "[object DOMException]":
+    case "[object DOMError]":
+    case "[object WebAssembly.Exception]":
+      return true;
+    default:
+      return isInstanceOf(candidate, Error);
+  }
 }
 function isEvent(candidate) {
   return typeof Event != "undefined" && isInstanceOf(candidate, Event);
@@ -678,7 +807,7 @@ function isInstanceOf(candidate, base) {
   }
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/utils/number-utils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/number-utils.mjs
 function clampToRange(value, min, max, logger, fallbackValue) {
   if (min > max) {
     logger.warn("min cannot be greater than max.");
@@ -698,8 +827,16 @@ function clampToRange(value, min, max, logger, fallbackValue) {
   return clampToRange(fallbackValue || max, min, max, logger);
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/utils/bucketed-rate-limiter.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/bucketed-rate-limiter.mjs
 var ONE_DAY_IN_MS = 86400000;
+var DEFAULT_EXCEPTION_RATE_LIMITER_REFILL_RATE = 1;
+var DEFAULT_EXCEPTION_RATE_LIMITER_BUCKET_SIZE = 10;
+function resolveExceptionRateLimiterConfig(config = {}) {
+  return {
+    refillRate: config.exceptionRateLimiterRefillRate ?? config.__exceptionRateLimiterRefillRate ?? DEFAULT_EXCEPTION_RATE_LIMITER_REFILL_RATE,
+    bucketSize: config.exceptionRateLimiterBucketSize ?? config.__exceptionRateLimiterBucketSize ?? DEFAULT_EXCEPTION_RATE_LIMITER_BUCKET_SIZE
+  };
+}
 
 class BucketedRateLimiter {
   constructor(options) {
@@ -742,7 +879,7 @@ class BucketedRateLimiter {
     this._buckets = {};
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/vendor/uuidv7.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/vendor/uuidv7.mjs
 /*! For license information please see uuidv7.mjs.LICENSE.txt */
 var DIGITS = "0123456789abcdef";
 
@@ -920,33 +1057,45 @@ var defaultGenerator;
 var uuidv7 = () => uuidv7obj().toString();
 var uuidv7obj = () => (defaultGenerator || (defaultGenerator = new V7Generator)).generate();
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/utils/promise-queue.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/promise-queue.mjs
 class PromiseQueue {
   add(promise) {
     const promiseUUID = uuidv7();
-    this.promiseByIds[promiseUUID] = promise;
+    const id = ++this.nextId;
+    this.promiseByIds[promiseUUID] = {
+      id,
+      promise
+    };
     promise.catch(() => {}).finally(() => {
       delete this.promiseByIds[promiseUUID];
     });
     return promise;
   }
   async join() {
-    let promises = Object.values(this.promiseByIds);
+    let promises = Object.values(this.promiseByIds).map((item) => item.promise);
     let length = promises.length;
     while (length > 0) {
       await Promise.all(promises);
-      promises = Object.values(this.promiseByIds);
+      promises = Object.values(this.promiseByIds).map((item) => item.promise);
       length = promises.length;
     }
+  }
+  getPromises(ignoredPromises = [], maxId = this.nextId) {
+    const ignoredPromiseSet = new Set(ignoredPromises);
+    return Object.values(this.promiseByIds).filter((item) => item.id <= maxId && !ignoredPromiseSet.has(item.promise)).map((item) => item.promise);
+  }
+  get maxId() {
+    return this.nextId;
   }
   get length() {
     return Object.keys(this.promiseByIds).length;
   }
   constructor() {
     this.promiseByIds = {};
+    this.nextId = 0;
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/utils/logger.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/logger.mjs
 function createConsole(consoleLike = console) {
   const lockedMethods = {
     log: consoleLike.log.bind(consoleLike),
@@ -987,7 +1136,7 @@ var passThrough = (fn) => fn();
 function createLogger(prefix, maybeCall = passThrough) {
   return _createLogger(prefix, maybeCall, createConsole());
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/utils/user-agent-utils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/user-agent-utils.mjs
 var MOBILE = "Mobile";
 var IOS = "iOS";
 var ANDROID = "Android";
@@ -1030,6 +1179,7 @@ var DUCKDUCKGO = "DuckDuckGo";
 var PALE_MOON = "Pale Moon";
 var WATERFOX = "Waterfox";
 var BRAVE = "Brave";
+var GOOGLE_SEARCH_APP = "Google Search App";
 var BROWSER_VERSION_REGEX_SUFFIX = "(\\d+(\\.\\d+)?)";
 var DEFAULT_BROWSER_VERSION_REGEX = new RegExp("Version/" + BROWSER_VERSION_REGEX_SUFFIX);
 var XBOX_REGEX = new RegExp(XBOX, "i");
@@ -1116,6 +1266,9 @@ var versionRegexes = {
   ],
   [WATERFOX]: [
     new RegExp(WATERFOX + "\\/" + BROWSER_VERSION_REGEX_SUFFIX)
+  ],
+  [GOOGLE_SEARCH_APP]: [
+    new RegExp("GSA\\/" + BROWSER_VERSION_REGEX_SUFFIX)
   ],
   [INTERNET_EXPLORER]: [
     new RegExp("(rv:|MSIE )" + BROWSER_VERSION_REGEX_SUFFIX)
@@ -1276,8 +1429,15 @@ var osMatchers = [
   ]
 ];
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/utils/index.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/index.mjs
 var STRING_FORMAT = "utf8";
+var UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isValidUUID(value) {
+  return typeof value == "string" && UUID_REGEX.test(value);
+}
+function getEventUuid(uuid, generateUuid) {
+  return isValidUUID(uuid) ? uuid : generateUuid();
+}
 function removeTrailingSlash(url) {
   return url?.replace(/\/+$/, "");
 }
@@ -1305,7 +1465,26 @@ function safeSetTimeout(fn, timeout) {
   t?.unref && t?.unref();
   return t;
 }
-var isError = (x) => x instanceof Error;
+async function raceWithTimeout(promise, timeoutMs, onTimeout) {
+  let timeoutHandle;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve, reject) => {
+        timeoutHandle = safeSetTimeout(() => {
+          try {
+            onTimeout?.();
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
 function allSettled(promises) {
   return Promise.all(promises.map((p) => (p ?? Promise.resolve()).then((value) => ({
     status: "fulfilled",
@@ -1316,7 +1495,7 @@ function allSettled(promises) {
   }))));
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/logs/logs-utils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/logs/logs-utils.mjs
 var OTLP_SEVERITY_MAP = {
   trace: {
     text: "TRACE",
@@ -1344,7 +1523,570 @@ var OTLP_SEVERITY_MAP = {
   }
 };
 var DEFAULT_OTLP_SEVERITY = OTLP_SEVERITY_MAP.info;
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/eventemitter.mjs
+var INT64_RANGE_LIMIT = 9223372036854776000;
+var propertyIsEnumerable = Object.prototype.propertyIsEnumerable;
+function newState() {
+  return {
+    ancestors: new WeakSet,
+    remainingNodes: MAX_JSON_SAFE_VALUE_NODES
+  };
+}
+function toOtlpKeyValueList(attrs, logger) {
+  try {
+    return encodeKeyValueList(attrs, logger, newState(), 0);
+  } catch {
+    return [];
+  }
+}
+function encodeAnyValue(value, logger, state, depth) {
+  if (state.remainingNodes <= 0)
+    return {
+      stringValue: TRUNCATED_VALUE
+    };
+  state.remainingNodes--;
+  if (isBoolean(value))
+    return {
+      boolValue: value
+    };
+  if (typeof value == "number") {
+    if (!Number.isFinite(value))
+      return {
+        stringValue: String(value)
+      };
+    if (Number.isInteger(value)) {
+      if (Number.isSafeInteger(value))
+        return {
+          intValue: String(value)
+        };
+      if (typeof BigInt == "undefined")
+        return {
+          stringValue: String(value)
+        };
+      const decimal = BigInt(value).toString();
+      if (value >= INT64_RANGE_LIMIT || value < -INT64_RANGE_LIMIT) {
+        logger?.debug(`Attribute ${decimal} is outside the int64 range; encoding it as a string`);
+        return {
+          stringValue: decimal
+        };
+      }
+      return {
+        intValue: decimal
+      };
+    }
+    return {
+      doubleValue: value
+    };
+  }
+  if (typeof value == "string")
+    return {
+      stringValue: sanitizeString(value)
+    };
+  if (typeof value == "function")
+    return {
+      stringValue: FUNCTION_VALUE
+    };
+  if (typeof value == "symbol")
+    return {
+      stringValue: String(value)
+    };
+  if (typeof value == "object" && value !== null) {
+    if (state.ancestors.has(value))
+      return {
+        stringValue: CIRCULAR_VALUE
+      };
+    if (depth >= MAX_JSON_SAFE_VALUE_DEPTH)
+      return {
+        stringValue: TRUNCATED_VALUE
+      };
+    if (value instanceof Date) {
+      const time = value.getTime();
+      const iso = Number.isFinite(time) ? value.toISOString() : String(value);
+      return {
+        stringValue: typeof iso == "string" ? sanitizeString(iso) : String(iso)
+      };
+    }
+    state.ancestors.add(value);
+    try {
+      try {
+        const toJSON = value.toJSON;
+        if (typeof toJSON == "function")
+          return encodeAnyValue(toJSON.call(value), logger, state, depth + 1);
+      } catch {}
+      if (isArray(value))
+        return {
+          arrayValue: {
+            values: encodeArrayValues(value, logger, state, depth + 1)
+          }
+        };
+      return {
+        kvlistValue: {
+          values: encodeKeyValueList(value, logger, state, depth + 1)
+        }
+      };
+    } finally {
+      state.ancestors.delete(value);
+    }
+  }
+  return {
+    stringValue: sanitizeString(String(value))
+  };
+}
+function encodeArrayValues(values, logger, state, depth) {
+  const result = [];
+  const itemCount = Math.min(values.length, MAX_JSON_SAFE_VALUE_ITEMS);
+  let index = 0;
+  for (;index < itemCount && state.remainingNodes > 0; index++)
+    try {
+      const element = index in values ? values[index] : undefined;
+      if (isNullish(element))
+        continue;
+      result.push(encodeAnyValue(element, logger, state, depth));
+    } catch {
+      result.push({
+        stringValue: UNSERIALIZABLE_VALUE
+      });
+    }
+  if (values.length > index)
+    result.push({
+      stringValue: TRUNCATED_VALUE
+    });
+  return result;
+}
+function encodeKeyValueList(attrs, logger, state, depth) {
+  const result = [];
+  for (const key in attrs)
+    if (propertyIsEnumerable.call(attrs, key)) {
+      if (result.length >= MAX_JSON_SAFE_VALUE_ITEMS || state.remainingNodes <= 0) {
+        logger?.debug("Attributes truncated: the value exceeds the OTLP encoder budget");
+        break;
+      }
+      try {
+        const value = attrs[key];
+        if (isNull(value) || isUndefined(value))
+          continue;
+        result.push({
+          key: sanitizeString(key),
+          value: encodeAnyValue(value, logger, state, depth)
+        });
+      } catch {
+        result.push({
+          key: sanitizeString(key),
+          value: {
+            stringValue: UNSERIALIZABLE_VALUE
+          }
+        });
+      }
+    }
+  return result;
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/metrics/metrics-utils.mjs
+var DEFAULT_HISTOGRAM_BOUNDS = [
+  0,
+  5,
+  10,
+  25,
+  50,
+  75,
+  100,
+  250,
+  500,
+  750,
+  1000,
+  2500,
+  5000,
+  7500,
+  1e4
+];
+function msToUnixNano(ms) {
+  return String(ms) + "000000";
+}
+function seriesKey(type, name, unit, attributes) {
+  let attrsKey = "";
+  if (attributes) {
+    const keys = Object.keys(attributes).sort();
+    attrsKey = keys.map((k) => `${JSON.stringify(k)}:${JSON.stringify(attributes[k])}`).join(",");
+  }
+  return `${type}\x00${name}\x00${unit ?? ""}\x00${attrsKey}`;
+}
+function bucketIndexFor(value, bounds) {
+  for (let i = 0;i < bounds.length; i++)
+    if (value <= bounds[i])
+      return i;
+  return bounds.length;
+}
+function buildMetricsResourceAttributes(config, scopeName, scopeVersion) {
+  return {
+    ...config.resourceAttributes,
+    "service.name": config.serviceName || "unknown_service",
+    ...config.environment && {
+      "deployment.environment": config.environment
+    },
+    ...config.serviceVersion && {
+      "service.version": config.serviceVersion
+    },
+    "telemetry.sdk.name": scopeName,
+    "telemetry.sdk.version": scopeVersion
+  };
+}
+function buildOtlpMetricsPayload(metrics, resourceAttributes, scopeName, scopeVersion) {
+  return {
+    resourceMetrics: [
+      {
+        resource: {
+          attributes: toOtlpKeyValueList(resourceAttributes)
+        },
+        scopeMetrics: [
+          {
+            scope: {
+              name: scopeName,
+              version: scopeVersion
+            },
+            metrics
+          }
+        ]
+      }
+    ]
+  };
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/metrics/config.mjs
+var DEFAULT_FLUSH_INTERVAL_MS = 1e4;
+var DEFAULT_MAX_SERIES_PER_FLUSH = 1000;
+function resolveMetricsConfig(config) {
+  const resourceAttributes = config?.resourceAttributes;
+  return {
+    serviceName: resourceAttributes?.["service.name"] ?? config?.serviceName,
+    serviceVersion: resourceAttributes?.["service.version"] ?? config?.serviceVersion,
+    environment: resourceAttributes?.["deployment.environment"] ?? config?.environment,
+    resourceAttributes,
+    beforeSend: config?.beforeSend,
+    flushIntervalMs: config?.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS,
+    maxSeriesPerFlush: config?.maxSeriesPerFlush ?? DEFAULT_MAX_SERIES_PER_FLUSH
+  };
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/metrics/index.mjs
+var OTLP_TEMPORALITY_DELTA = 1;
+
+class PostHogMetrics {
+  constructor(_instance, _config, _logger) {
+    this._instance = _instance;
+    this._config = _config;
+    this._logger = _logger;
+    this._series = new Map;
+    this._flushPromise = null;
+    this._seriesCapWarned = false;
+    this._typeByName = new Map;
+    this._typeCollisionWarned = new Set;
+    this._generation = 0;
+  }
+  count(name, value = 1, options) {
+    this._capture({
+      name,
+      type: "count",
+      value,
+      unit: options?.unit,
+      attributes: options?.attributes
+    });
+  }
+  gauge(name, value, options) {
+    this._capture({
+      name,
+      type: "gauge",
+      value,
+      unit: options?.unit,
+      attributes: options?.attributes
+    });
+  }
+  histogram(name, value, options) {
+    this._capture({
+      name,
+      type: "histogram",
+      value,
+      unit: options?.unit,
+      attributes: options?.attributes
+    });
+  }
+  flush() {
+    const prev = this._flushPromise;
+    const run = async () => {
+      if (prev)
+        await prev.catch(() => {});
+      await this._doFlush();
+    };
+    const p = run().finally(() => {
+      if (this._flushPromise === p)
+        this._flushPromise = null;
+    });
+    this._flushPromise = p;
+    return p;
+  }
+  drainWindow() {
+    if (this._series.size === 0)
+      return null;
+    const window = this._series;
+    this._series = new Map;
+    this._seriesCapWarned = false;
+    this._typeByName = new Map;
+    this._typeCollisionWarned = new Set;
+    return this._buildPayload(window);
+  }
+  reset() {
+    this._generation++;
+    this._clearFlushTimer();
+    this._series = new Map;
+    this._flushPromise = null;
+    this._seriesCapWarned = false;
+    this._typeByName = new Map;
+    this._typeCollisionWarned = new Set;
+  }
+  _capture(sample) {
+    if (this._instance.isDisabled || this._instance.optedOut)
+      return;
+    const filtered = this._runBeforeSend(sample);
+    if (filtered === null)
+      return;
+    if (!filtered.name || typeof filtered.name != "string")
+      return void this._logger.warn("Dropping metric with empty name");
+    if (typeof filtered.value != "number" || !Number.isFinite(filtered.value))
+      return void this._logger.warn(`Dropping metric '${filtered.name}': value must be a finite number`);
+    if (filtered.type === "count" && filtered.value < 0)
+      return void this._logger.warn(`Dropping count '${filtered.name}': counters are monotonic, value must be >= 0`);
+    let attributes;
+    let key;
+    try {
+      attributes = filtered.attributes ? {
+        ...filtered.attributes
+      } : undefined;
+      key = seriesKey(filtered.type, filtered.name, filtered.unit, attributes);
+    } catch (e) {
+      this._logger.warn(`Dropping metric '${filtered.name}': attributes could not be serialized`, e);
+      return;
+    }
+    let state = this._series.get(key);
+    if (!state) {
+      if (!this._admitNewSeries())
+        return;
+      state = {
+        name: filtered.name,
+        type: filtered.type,
+        unit: filtered.unit,
+        attributes,
+        windowStartMs: Date.now()
+      };
+      this._series.set(key, state);
+    }
+    const seenType = this._typeByName.get(filtered.name);
+    if (seenType === undefined)
+      this._typeByName.set(filtered.name, filtered.type);
+    else if (seenType !== filtered.type && !this._typeCollisionWarned.has(filtered.name)) {
+      this._typeCollisionWarned.add(filtered.name);
+      this._logger.warn(`Metric name '${filtered.name}' is already used as a ${seenType}; recording it as a ${filtered.type} too will blend both series in charts. Use a distinct name.`);
+    }
+    this._fold(state, filtered.value);
+    this._armFlushTimer();
+  }
+  _admitNewSeries() {
+    if (this._series.size < this._config.maxSeriesPerFlush)
+      return true;
+    if (!this._seriesCapWarned) {
+      this._seriesCapWarned = true;
+      this._logger.warn(`Metric series cap reached (${this._config.maxSeriesPerFlush} per flush window); dropping new series until the next flush. Reduce attribute cardinality.`);
+    }
+    return false;
+  }
+  _fold(state, value) {
+    switch (state.type) {
+      case "count":
+        state.total = (state.total ?? 0) + value;
+        break;
+      case "gauge":
+        state.last = value;
+        break;
+      case "histogram": {
+        if (!state.hist)
+          state.hist = {
+            count: 0,
+            sum: 0,
+            min: value,
+            max: value,
+            bucketCounts: new Array(DEFAULT_HISTOGRAM_BOUNDS.length + 1).fill(0)
+          };
+        const hist = state.hist;
+        hist.count += 1;
+        hist.sum += value;
+        hist.min = Math.min(hist.min, value);
+        hist.max = Math.max(hist.max, value);
+        hist.bucketCounts[bucketIndexFor(value, DEFAULT_HISTOGRAM_BOUNDS)] += 1;
+        break;
+      }
+    }
+  }
+  _runBeforeSend(sample) {
+    const beforeSend = this._config.beforeSend;
+    if (!beforeSend)
+      return sample;
+    const fns = isArray(beforeSend) ? beforeSend : [
+      beforeSend
+    ];
+    let result = sample;
+    for (const fn of fns)
+      try {
+        const next = fn(result);
+        if (!next) {
+          this._logger.info("Metric was rejected in beforeSend function");
+          return null;
+        }
+        result = next;
+      } catch (e) {
+        this._logger.error("Error in beforeSend function for metric:", e);
+        return null;
+      }
+    return result;
+  }
+  _armFlushTimer() {
+    if (this._flushTimer)
+      return;
+    this._flushTimer = safeSetTimeout(() => {
+      this._flushTimer = undefined;
+      this.flush().catch((e) => {
+        this._logger.error("Metrics flush failed:", e);
+      });
+    }, this._config.flushIntervalMs);
+  }
+  _clearFlushTimer() {
+    if (this._flushTimer) {
+      clearTimeout(this._flushTimer);
+      this._flushTimer = undefined;
+    }
+  }
+  async _doFlush() {
+    if (this._series.size === 0)
+      return;
+    const window = this._series;
+    this._series = new Map;
+    this._seriesCapWarned = false;
+    this._typeByName = new Map;
+    this._typeCollisionWarned = new Set;
+    const generation = this._generation;
+    const outcome = await this._instance._sendMetricsBatch(this._buildPayload(window));
+    if (generation !== this._generation)
+      return;
+    switch (outcome.kind) {
+      case "ok":
+        return;
+      case "retry-later":
+        this._mergeWindowBack(window);
+        this._armFlushTimer();
+        return;
+      case "too-large":
+        this._logger.warn("Metrics batch exceeded the server size limit and was dropped");
+        return;
+      case "fatal":
+        this._logger.error("Failed to send metrics batch:", outcome.error);
+        return;
+    }
+  }
+  _buildPayload(window) {
+    return buildOtlpMetricsPayload(this._buildMetrics(window), buildMetricsResourceAttributes(this._config, this._instance.getLibraryId(), this._instance.getLibraryVersion()), this._instance.getLibraryId(), this._instance.getLibraryVersion());
+  }
+  _buildMetrics(window) {
+    const nowNano = msToUnixNano(Date.now());
+    const byMetric = new Map;
+    for (const state of window.values()) {
+      const metricKey = seriesKey(state.type, state.name, state.unit, undefined);
+      let metric = byMetric.get(metricKey);
+      if (!metric) {
+        metric = {
+          name: state.name,
+          ...state.unit && {
+            unit: state.unit
+          }
+        };
+        if (state.type === "count")
+          metric.sum = {
+            aggregationTemporality: OTLP_TEMPORALITY_DELTA,
+            isMonotonic: true,
+            dataPoints: []
+          };
+        else if (state.type === "gauge")
+          metric.gauge = {
+            dataPoints: []
+          };
+        else
+          metric.histogram = {
+            aggregationTemporality: OTLP_TEMPORALITY_DELTA,
+            dataPoints: []
+          };
+        byMetric.set(metricKey, metric);
+      }
+      const attributes = toOtlpKeyValueList(state.attributes ?? {}, this._logger);
+      const startNano = msToUnixNano(state.windowStartMs);
+      if (state.type === "count") {
+        const dp = {
+          attributes,
+          startTimeUnixNano: startNano,
+          timeUnixNano: nowNano,
+          asDouble: state.total ?? 0
+        };
+        metric.sum.dataPoints.push(dp);
+      } else if (state.type === "gauge") {
+        const dp = {
+          attributes,
+          timeUnixNano: nowNano,
+          asDouble: state.last ?? 0
+        };
+        metric.gauge.dataPoints.push(dp);
+      } else if (state.hist) {
+        const dp = {
+          attributes,
+          startTimeUnixNano: startNano,
+          timeUnixNano: nowNano,
+          count: state.hist.count,
+          sum: state.hist.sum,
+          min: state.hist.min,
+          max: state.hist.max,
+          bucketCounts: state.hist.bucketCounts,
+          explicitBounds: DEFAULT_HISTOGRAM_BOUNDS
+        };
+        metric.histogram.dataPoints.push(dp);
+      }
+    }
+    return Array.from(byMetric.values());
+  }
+  _mergeWindowBack(window) {
+    for (const [key, old] of window) {
+      const current = this._series.get(key);
+      if (!current) {
+        if (this._admitNewSeries())
+          this._series.set(key, old);
+        continue;
+      }
+      current.windowStartMs = Math.min(current.windowStartMs, old.windowStartMs);
+      switch (current.type) {
+        case "count":
+          current.total = (current.total ?? 0) + (old.total ?? 0);
+          break;
+        case "gauge":
+          break;
+        case "histogram":
+          if (old.hist)
+            if (current.hist) {
+              current.hist.count += old.hist.count;
+              current.hist.sum += old.hist.sum;
+              current.hist.min = Math.min(current.hist.min, old.hist.min);
+              current.hist.max = Math.max(current.hist.max, old.hist.max);
+              for (let i = 0;i < current.hist.bucketCounts.length; i++)
+                current.hist.bucketCounts[i] += old.hist.bucketCounts[i];
+            } else
+              current.hist = old.hist;
+          break;
+      }
+    }
+  }
+}
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/eventemitter.mjs
 class SimpleEventEmitter {
   constructor() {
     this.events = {};
@@ -1366,37 +2108,7 @@ class SimpleEventEmitter {
   }
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/index.mjs
-var exports_error_tracking = {};
-__export(exports_error_tracking, {
-  winjsStackLineParser: () => winjsStackLineParser,
-  stripReservedExceptionStepFields: () => stripReservedExceptionStepFields,
-  reverseAndStripFrames: () => reverseAndStripFrames,
-  resolveExceptionStepsConfig: () => resolveExceptionStepsConfig,
-  opera11StackLineParser: () => opera11StackLineParser,
-  opera10StackLineParser: () => opera10StackLineParser,
-  nodeStackLineParser: () => nodeStackLineParser,
-  getUtf8ByteLength: () => getUtf8ByteLength,
-  geckoStackLineParser: () => geckoStackLineParser,
-  createStackParser: () => createStackParser,
-  createDefaultStackParser: () => createDefaultStackParser,
-  chromeStackLineParser: () => chromeStackLineParser,
-  StringCoercer: () => StringCoercer,
-  ReduceableCache: () => ReduceableCache,
-  PromiseRejectionEventCoercer: () => PromiseRejectionEventCoercer,
-  PrimitiveCoercer: () => PrimitiveCoercer,
-  ObjectCoercer: () => ObjectCoercer,
-  ExceptionStepsBuffer: () => ExceptionStepsBuffer,
-  EventCoercer: () => EventCoercer,
-  ErrorPropertiesBuilder: () => ErrorPropertiesBuilder,
-  ErrorEventCoercer: () => ErrorEventCoercer,
-  ErrorCoercer: () => ErrorCoercer,
-  EXCEPTION_STEP_INTERNAL_FIELDS: () => EXCEPTION_STEP_INTERNAL_FIELDS,
-  DOMExceptionCoercer: () => DOMExceptionCoercer,
-  DEFAULT_EXCEPTION_STEPS_CONFIG: () => DEFAULT_EXCEPTION_STEPS_CONFIG
-});
-
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/chunk-ids.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/chunk-ids.mjs
 var parsedStackResults;
 var lastKeysCount;
 var cachedFilenameChunkIds;
@@ -1435,7 +2147,7 @@ function getFilenameToChunkIdMap(stackParser) {
   return cachedFilenameChunkIds;
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/error-properties-builder.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/error-properties-builder.mjs
 var MAX_CAUSE_RECURSION = 4;
 
 class ErrorPropertiesBuilder {
@@ -1539,11 +2251,11 @@ class ErrorPropertiesBuilder {
     return context;
   }
   buildCoercingContext(mechanism, hint, depth = 0) {
-    const coerce = (input, depth2) => {
-      if (!(depth2 <= MAX_CAUSE_RECURSION))
+    const coerce = (input, depth) => {
+      if (!(depth <= MAX_CAUSE_RECURSION))
         return;
       {
-        const ctx = this.buildCoercingContext(mechanism, hint, depth2);
+        const ctx = this.buildCoercingContext(mechanism, hint, depth);
         return this.applyCoercers(input, ctx);
       }
     };
@@ -1557,14 +2269,16 @@ class ErrorPropertiesBuilder {
     return context;
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/parsers/base.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/base.mjs
 var UNKNOWN_FUNCTION = "?";
+var MASKED_URL_PREFIX = "webkit-masked-url://";
+var ANONYMOUS_FILENAME = "<anonymous>";
 function createFrame(platform, filename, func, lineno, colno) {
   const frame = {
     platform,
     filename,
     function: func === "<anonymous>" ? UNKNOWN_FUNCTION : func,
-    in_app: true
+    in_app: !filename?.startsWith(MASKED_URL_PREFIX) && filename !== ANONYMOUS_FILENAME
   };
   if (!isUndefined(lineno))
     frame.lineno = lineno;
@@ -1573,7 +2287,7 @@ function createFrame(platform, filename, func, lineno, colno) {
   return frame;
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/parsers/safari.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/safari.mjs
 var extractSafariExtensionDetails = (func, filename) => {
   const isSafariExtension = func.indexOf("safari-extension") !== -1;
   const isSafariWebExtension = func.indexOf("safari-web-extension") !== -1;
@@ -1586,15 +2300,15 @@ var extractSafariExtensionDetails = (func, filename) => {
   ];
 };
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/parsers/chrome.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/chrome.mjs
 var chromeRegexNoFnName = /^\s*at (\S+?)(?::(\d+))(?::(\d+))\s*$/i;
 var chromeRegex = /^\s*at (?:(.+?\)(?: \[.+\])?|.*?) ?\((?:address at )?)?(?:async )?((?:<anonymous>|[-a-z]+:|.*bundle|\/)?.*?)(?::(\d+))?(?::(\d+))?\)?\s*$/i;
 var chromeEvalRegex = /\((\S*)(?::(\d+))(?::(\d+))\)/;
 var chromeStackLineParser = (line, platform) => {
   const noFnParts = chromeRegexNoFnName.exec(line);
   if (noFnParts) {
-    const [, filename, line2, col] = noFnParts;
-    return createFrame(platform, filename, UNKNOWN_FUNCTION, +line2, +col);
+    const [, filename, line, col] = noFnParts;
+    return createFrame(platform, filename, UNKNOWN_FUNCTION, +line, +col);
   }
   const parts = chromeRegex.exec(line);
   if (parts) {
@@ -1612,7 +2326,7 @@ var chromeStackLineParser = (line, platform) => {
   }
 };
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/parsers/gecko.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/gecko.mjs
 var geckoREgex = /^\s*(.*?)(?:\((.*?)\))?(?:^|@)?((?:[-a-z]+)?:\/.*?|\[native code\]|[^@]*(?:bundle|\d+\.js)|\/[\w\-. /=]+)(?::(\d+))?(?::(\d+))?\s*$/i;
 var geckoEvalRegex = /(\S+) line (\d+)(?: > eval line \d+)* > eval/i;
 var geckoStackLineParser = (line, platform) => {
@@ -1635,28 +2349,12 @@ var geckoStackLineParser = (line, platform) => {
   }
 };
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/parsers/winjs.mjs
-var winjsRegex = /^\s*at (?:((?:\[object object\])?.+) )?\(?((?:[-a-z]+):.*?):(\d+)(?::(\d+))?\)?\s*$/i;
-var winjsStackLineParser = (line, platform) => {
-  const parts = winjsRegex.exec(line);
-  return parts ? createFrame(platform, parts[2], parts[1] || UNKNOWN_FUNCTION, +parts[3], parts[4] ? +parts[4] : undefined) : undefined;
-};
-
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/parsers/opera.mjs
-var opera10Regex = / line (\d+).*script (?:in )?(\S+)(?:: in function (\S+))?$/i;
-var opera10StackLineParser = (line, platform) => {
-  const parts = opera10Regex.exec(line);
-  return parts ? createFrame(platform, parts[2], parts[3] || UNKNOWN_FUNCTION, +parts[1]) : undefined;
-};
-var opera11Regex = / line (\d+), column (\d+)\s*(?:in (?:<anonymous function: ([^>]+)>|([^)]+))\(.*\))? in (.*):\s*$/i;
-var opera11StackLineParser = (line, platform) => {
-  const parts = opera11Regex.exec(line);
-  return parts ? createFrame(platform, parts[5], parts[3] || parts[4] || UNKNOWN_FUNCTION, +parts[1], +parts[2]) : undefined;
-};
-
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/parsers/node.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/node.mjs
 var FILENAME_MATCH = /^\s*[-]{4,}$/;
 var FULL_MATCH = /at (?:async )?(?:(.+?)\s+\()?(?:(.+):(\d+):(\d+)?|([^)]+))\)?/;
+var PROMISE_COMBINATOR = /^Promise\.(?:all|any)$/;
+var PROMISE_INDEX = /^index \d+$/;
+var PROMISE_FRAME_FILENAME = "node:internal/promise";
 var nodeStackLineParser = (line, platform) => {
   const lineMatch = line.match(FULL_MATCH);
   if (lineMatch) {
@@ -1699,6 +2397,8 @@ var nodeStackLineParser = (line, platform) => {
       filename = filename.slice(1);
     if (!filename && lineMatch[5] && !isNative)
       filename = lineMatch[5];
+    if (PROMISE_COMBINATOR.test(functionName) && PROMISE_INDEX.test(filename || ""))
+      filename = PROMISE_FRAME_FILENAME;
     return {
       filename: filename ? decodeURI(filename) : undefined,
       module: undefined,
@@ -1723,7 +2423,7 @@ function _parseIntOrUndefined(input) {
   return parseInt(input || "", 10) || undefined;
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/parsers/index.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/index.mjs
 var WEBPACK_ERROR_REGEXP = /\(error: (.*)\)/;
 var STACKTRACE_FRAME_LIMIT = 50;
 function reverseAndStripFrames(stack) {
@@ -1768,48 +2468,20 @@ function createStackParser(platform, ...parsers) {
     return reverseAndStripFrames(frames);
   };
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/coercers/dom-exception-coercer.mjs
-class DOMExceptionCoercer {
-  match(err) {
-    return this.isDOMException(err) || this.isDOMError(err);
-  }
-  coerce(err, ctx) {
-    const hasStack = isString(err.stack);
-    return {
-      type: this.getType(err),
-      value: this.getValue(err),
-      stack: hasStack ? err.stack : undefined,
-      cause: err.cause ? ctx.next(err.cause) : undefined,
-      synthetic: false
-    };
-  }
-  getType(candidate) {
-    return this.isDOMError(candidate) ? "DOMError" : "DOMException";
-  }
-  getValue(err) {
-    const name = err.name || (this.isDOMError(err) ? "DOMError" : "DOMException");
-    const message = err.message ? `${name}: ${err.message}` : name;
-    return message;
-  }
-  isDOMException(err) {
-    return isBuiltin(err, "DOMException");
-  }
-  isDOMError(err) {
-    return isBuiltin(err, "DOMError");
-  }
-}
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/coercers/error-coercer.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/error-coercer.mjs
 class ErrorCoercer {
   match(err) {
-    return isPlainError(err);
+    return isError(err);
   }
   coerce(err, ctx) {
+    const stack = this.getStack(err);
+    const synthetic = stack === undefined;
     return {
       type: this.getType(err),
       value: this.getMessage(err, ctx),
-      stack: this.getStack(err),
+      stack: stack ?? ctx.syntheticException?.stack,
       cause: err.cause ? ctx.next(err.cause) : undefined,
-      synthetic: false
+      synthetic
     };
   }
   getType(err) {
@@ -1825,25 +2497,7 @@ class ErrorCoercer {
     return err.stacktrace || err.stack || undefined;
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/coercers/error-event-coercer.mjs
-class ErrorEventCoercer {
-  constructor() {}
-  match(err) {
-    return isErrorEvent(err) && err.error != null;
-  }
-  coerce(err, ctx) {
-    const exceptionLike = ctx.apply(err.error);
-    if (!exceptionLike)
-      return {
-        type: "ErrorEvent",
-        value: err.message,
-        stack: ctx.syntheticException?.stack,
-        synthetic: true
-      };
-    return exceptionLike;
-  }
-}
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/coercers/string-coercer.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/string-coercer.mjs
 var ERROR_TYPES_PATTERN = /^(?:[Uu]ncaught (?:exception: )?)?(?:((?:Eval|Internal|Range|Reference|Syntax|Type|URI|)Error): )?(.*)$/i;
 
 class StringCoercer {
@@ -1873,7 +2527,7 @@ class StringCoercer {
     ];
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/types.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/types.mjs
 var severityLevels = [
   "fatal",
   "error",
@@ -1883,7 +2537,7 @@ var severityLevels = [
   "debug"
 ];
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/coercers/utils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/utils.mjs
 function extractExceptionKeysForMessage(err, maxLength = 40) {
   const keys = Object.keys(err);
   keys.sort();
@@ -1900,7 +2554,7 @@ function extractExceptionKeysForMessage(err, maxLength = 40) {
   return "";
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/coercers/object-coercer.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/object-coercer.mjs
 class ObjectCoercer {
   match(candidate) {
     return typeof candidate == "object" && candidate !== null;
@@ -1912,13 +2566,16 @@ class ObjectCoercer {
     return {
       type: this.getType(candidate),
       value: this.getValue(candidate),
-      stack: ctx.syntheticException?.stack,
+      stack: this.getStack(candidate) ?? ctx.syntheticException?.stack,
       level: this.isSeverityLevel(candidate.level) ? candidate.level : "error",
       synthetic: true
     };
   }
   getType(err) {
-    return isEvent(err) ? err.constructor.name : "Error";
+    if (isEvent(err))
+      return err.constructor.name;
+    const name = "name" in err ? err.name : undefined;
+    return isString(name) && !isEmptyString(name) ? name : "Error";
   }
   getValue(err) {
     if ("name" in err && typeof err.name == "string") {
@@ -1935,6 +2592,15 @@ class ObjectCoercer {
   }
   isSeverityLevel(x) {
     return isString(x) && !isEmptyString(x) && severityLevels.indexOf(x) >= 0;
+  }
+  getStack(candidate) {
+    try {
+      if (isString(candidate.stacktrace) && candidate.stacktrace.length > 0)
+        return candidate.stacktrace;
+      return isString(candidate.stack) && candidate.stack.length > 0 ? candidate.stack : undefined;
+    } catch {
+      return;
+    }
   }
   getErrorPropertyFromObject(obj) {
     for (const prop in obj)
@@ -1953,7 +2619,7 @@ class ObjectCoercer {
     }
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/coercers/event-coercer.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/event-coercer.mjs
 class EventCoercer {
   match(err) {
     return isEvent(err);
@@ -1968,7 +2634,7 @@ class EventCoercer {
     };
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/coercers/primitive-coercer.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/primitive-coercer.mjs
 class PrimitiveCoercer {
   match(candidate) {
     return isPrimitive(candidate);
@@ -1982,43 +2648,7 @@ class PrimitiveCoercer {
     };
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/coercers/promise-rejection-event.mjs
-class PromiseRejectionEventCoercer {
-  match(err) {
-    return isBuiltin(err, "PromiseRejectionEvent") || this.isCustomEventWrappingRejection(err);
-  }
-  isCustomEventWrappingRejection(err) {
-    if (!isEvent(err))
-      return false;
-    try {
-      const detail = err.detail;
-      return detail != null && typeof detail == "object" && "reason" in detail;
-    } catch {
-      return false;
-    }
-  }
-  coerce(err, ctx) {
-    const reason = this.getUnhandledRejectionReason(err);
-    if (isPrimitive(reason))
-      return {
-        type: "UnhandledRejection",
-        value: `Non-Error promise rejection captured with value: ${String(reason)}`,
-        stack: ctx.syntheticException?.stack,
-        synthetic: true
-      };
-    return ctx.apply(reason);
-  }
-  getUnhandledRejectionReason(error) {
-    try {
-      if ("reason" in error)
-        return error.reason;
-      if ("detail" in error && error.detail != null && typeof error.detail == "object" && "reason" in error.detail)
-        return error.detail.reason;
-    } catch {}
-    return error;
-  }
-}
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/utils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/utils.mjs
 class ReduceableCache {
   constructor(_maxSize) {
     this._maxSize = _maxSize;
@@ -2043,7 +2673,7 @@ class ReduceableCache {
     }
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/exception-steps.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/exception-steps.mjs
 var EXCEPTION_STEP_INTERNAL_FIELDS = {
   MESSAGE: "$message",
   TIMESTAMP: "$timestamp"
@@ -2052,167 +2682,65 @@ var RESERVED_EXCEPTION_STEP_KEYS = new Set([
   EXCEPTION_STEP_INTERNAL_FIELDS.MESSAGE,
   EXCEPTION_STEP_INTERNAL_FIELDS.TIMESTAMP
 ]);
-var DEFAULT_EXCEPTION_STEPS_CONFIG = {
-  enabled: true,
-  max_bytes: 32768
-};
-function resolveExceptionStepsConfig(config) {
-  if (!config)
-    return {
-      ...DEFAULT_EXCEPTION_STEPS_CONFIG
-    };
-  return {
-    enabled: config.enabled ?? DEFAULT_EXCEPTION_STEPS_CONFIG.enabled,
-    max_bytes: normalizePositiveInteger(config.max_bytes, DEFAULT_EXCEPTION_STEPS_CONFIG.max_bytes)
-  };
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/release.mjs
+function getInjectedReleaseId() {
+  const injected = globalThis._posthogReleaseId;
+  return typeof injected == "string" && injected.length > 0 ? injected : undefined;
 }
-function stripReservedExceptionStepFields(properties) {
-  if (!properties)
-    return {
-      sanitizedProperties: {},
-      droppedKeys: []
-    };
-  const droppedKeys = [];
-  const sanitizedProperties = Object.keys(properties).reduce((acc, key) => {
-    if (RESERVED_EXCEPTION_STEP_KEYS.has(key)) {
-      droppedKeys.push(key);
-      return acc;
-    }
-    acc[key] = properties[key];
-    return acc;
-  }, {});
-  return {
-    sanitizedProperties,
-    droppedKeys
-  };
-}
-
-class ExceptionStepsBuffer {
-  constructor(config) {
-    this._entries = [];
-    this._totalBytes = 0;
-    this._config = resolveExceptionStepsConfig(config);
-  }
-  setConfig(config) {
-    this._config = resolveExceptionStepsConfig(config);
-    this._trimToMaxBytes();
-  }
-  add(step) {
-    const serialized = normalizeAndSerializeStep(step);
-    if (!serialized)
-      return;
-    const bytes = getUtf8ByteLength(serialized.json);
-    if (bytes > this._config.max_bytes)
-      return;
-    this._entries.push({
-      step: serialized.step,
-      bytes
-    });
-    this._totalBytes += bytes;
-    this._trimToMaxBytes();
-  }
-  getAttachable() {
-    return this._entries.map((e) => e.step);
-  }
-  clear() {
-    this._entries = [];
-    this._totalBytes = 0;
-  }
-  size() {
-    return this._entries.length;
-  }
-  _trimToMaxBytes() {
-    while (this._totalBytes > this._config.max_bytes && this._entries.length > 0) {
-      const evicted = this._entries.shift();
-      if (evicted)
-        this._totalBytes -= evicted.bytes;
-    }
-  }
-}
-function normalizePositiveInteger(input, fallback) {
-  if (!isNumber(input) || input === 1 / 0 || input === -1 / 0)
-    return fallback;
-  const normalized = Math.floor(input);
-  if (normalized < 0)
-    return fallback;
-  return normalized;
-}
-function normalizeAndSerializeStep(step) {
-  const json = safeStringify(step);
-  if (!json)
-    return;
-  try {
-    const parsed = JSON.parse(json);
-    if (!isObject(parsed))
-      return;
-    const parsedStep = parsed;
-    const message = parsedStep[EXCEPTION_STEP_INTERNAL_FIELDS.MESSAGE];
-    const timestamp = parsedStep[EXCEPTION_STEP_INTERNAL_FIELDS.TIMESTAMP];
-    if (!isString(message) || message.trim().length === 0)
-      return;
-    if (!isString(timestamp) && !isNumber(timestamp))
-      return;
-    return {
-      step: parsedStep,
-      json
-    };
-  } catch {
-    return;
-  }
-}
-function safeStringify(value) {
-  const seen = new WeakSet;
-  try {
-    return JSON.stringify(value, (_key, replacementValue) => {
-      if (typeof replacementValue == "bigint")
-        return replacementValue.toString();
-      if (typeof replacementValue == "function" || typeof replacementValue == "symbol")
-        return;
-      if (replacementValue instanceof Date)
-        return replacementValue.toISOString();
-      if (replacementValue instanceof Error)
-        return {
-          name: replacementValue.name,
-          message: replacementValue.message,
-          stack: replacementValue.stack
-        };
-      if (replacementValue && typeof replacementValue == "object") {
-        if (seen.has(replacementValue))
-          return "[Circular]";
-        seen.add(replacementValue);
-      }
-      return replacementValue;
-    });
-  } catch {
-    return;
-  }
-}
-function getUtf8ByteLength(value) {
-  if (typeof TextEncoder != "undefined")
-    return new TextEncoder().encode(value).length;
-  const encoded = encodeURIComponent(value);
-  let byteLength = 0;
-  for (let i = 0;i < encoded.length; i++)
-    if (encoded[i] === "%") {
-      byteLength += 1;
-      i += 2;
-    } else
-      byteLength += 1;
-  return byteLength;
-}
-// ../../../node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/posthog-core-stateless.mjs
+// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/posthog-core-stateless.mjs
 class PostHogFetchHttpError extends Error {
-  constructor(response, reqByteLength) {
-    super("HTTP error while fetching PostHog: status=" + response.status + ", reqByteLength=" + reqByteLength), this.response = response, this.reqByteLength = reqByteLength, this.name = "PostHogFetchHttpError";
+  constructor(response, reqByteLength, responseBodyDeadline, abortController) {
+    super("HTTP error while fetching PostHog: status=" + response.status + ", reqByteLength=" + reqByteLength), this.response = response, this.reqByteLength = reqByteLength, this.responseBodyDeadline = responseBodyDeadline, this.abortController = abortController, this.name = "PostHogFetchHttpError", this._bodyReadTimedOut = false;
   }
   get status() {
     return this.response.status;
   }
+  get bodyReadTimedOut() {
+    return this._bodyReadTimedOut;
+  }
   get text() {
-    return this.response.text();
+    if (!this.responseBodyTextPromise)
+      if (Date.now() >= this.responseBodyDeadline) {
+        this._bodyReadTimedOut = true;
+        const timeoutError = new Error("Response body read timed out");
+        timeoutError.name = "AbortError";
+        this.cancelResponseBody(timeoutError);
+        this.responseBodyTextPromise = Promise.reject(timeoutError);
+      } else {
+        const responseBodyTimeout = new Promise((_resolve, reject) => {
+          this.responseBodyTimer = safeSetTimeout(() => {
+            this._bodyReadTimedOut = true;
+            const timeoutError = new Error("Response body read timed out");
+            timeoutError.name = "AbortError";
+            reject(timeoutError);
+            this.cancelResponseBody(timeoutError);
+          }, this.responseBodyDeadline - Date.now());
+        });
+        let responseBodyText;
+        try {
+          responseBodyText = Promise.resolve(this.response.text());
+        } catch (error) {
+          responseBodyText = Promise.reject(error);
+        }
+        this.responseBodyTextPromise = Promise.race([
+          responseBodyText,
+          responseBodyTimeout
+        ]).finally(() => clearTimeout(this.responseBodyTimer));
+      }
+    return this.responseBodyTextPromise;
   }
   get json() {
-    return this.response.json();
+    return this.text.then((text) => JSON.parse(text));
+  }
+  cancelResponseBody(reason) {
+    clearTimeout(this.responseBodyTimer);
+    if (!this.abortController.signal.aborted)
+      this.abortController.abort(reason);
+    (async () => {
+      try {
+        await this.response.body?.cancel();
+      } catch {}
+    })();
   }
 }
 
@@ -2223,12 +2751,20 @@ class PostHogFetchNetworkError extends Error {
     } : {}), this.error = error, this.name = "PostHogFetchNetworkError";
   }
 }
+var applyCallerFeatureFlagOverrides = (target, callerProperties) => {
+  for (const key of Object.keys(callerProperties))
+    if (key.startsWith("$feature/") || key === "$active_feature_flags")
+      target[key] = callerProperties[key];
+};
 async function logFlushError(err) {
   if (err instanceof PostHogFetchHttpError) {
     let text = "";
     try {
       text = await err.text;
-    } catch {}
+    } catch {
+      if (err.bodyReadTimedOut)
+        text = "<response body read timed out>";
+    }
     console.error(`Error while flushing PostHog: message=${err.message}, response body=${text}`, err);
   } else
     console.error("Error while flushing PostHog", err);
@@ -2240,9 +2776,28 @@ function isPostHogFetchError(err) {
 function isPostHogFetchNetworkError(err) {
   return err instanceof PostHogFetchNetworkError;
 }
+function isRetryableFlagsFetchError(err) {
+  if (err instanceof PostHogFetchHttpError)
+    return err.status === 502 || err.status === 504;
+  if (!(err instanceof PostHogFetchNetworkError))
+    return false;
+  const cause = err.error;
+  const code = cause?.code ?? cause?.cause?.code;
+  return code !== "ECONNREFUSED";
+}
 function isPostHogFetchContentTooLargeError(err) {
   return typeof err == "object" && err instanceof PostHogFetchHttpError && err.status === 413;
 }
+function isPostHogFetchRetryableError(err) {
+  if (err instanceof PostHogFetchHttpError)
+    return err.status === 408 || err.status === 429 || err.status >= 500;
+  return isPostHogFetchNetworkError(err);
+}
+function isPostHogEventProperties(value) {
+  return value !== null && typeof value == "object" && !Array.isArray(value);
+}
+var DEFAULT_QUEUE_ROUTE = "default";
+
 class PostHogCoreStateless {
   getErrorPropertiesBuilder() {
     if (!this._errorPropertiesBuilder)
@@ -2259,6 +2814,9 @@ class PostHogCoreStateless {
   }
   constructor(apiKey, options = {}) {
     this.flushPromise = null;
+    this.pendingFlushPromise = null;
+    this.flushPromises = new Set;
+    this._dequeuedMessagesCount = 0;
     this.shutdownPromise = null;
     this.promiseQueue = new PromiseQueue;
     this._events = new SimpleEventEmitter;
@@ -2281,10 +2839,11 @@ class PostHogCoreStateless {
     this._retryOptions = {
       retryCount: options.fetchRetryCount ?? 3,
       retryDelay: options.fetchRetryDelay ?? 3000,
-      retryCheck: isPostHogFetchError
+      retryCheck: isPostHogFetchRetryableError
     };
     this.requestTimeout = options.requestTimeout ?? 1e4;
     this.featureFlagsRequestTimeoutMs = options.featureFlagsRequestTimeoutMs ?? 3000;
+    this.featureFlagsRequestMaxRetries = options.featureFlagsRequestMaxRetries ?? 1;
     this.remoteConfigRequestTimeoutMs = options.remoteConfigRequestTimeoutMs ?? 3000;
     this.disableGeoip = options.disableGeoip ?? true;
     this.disabled = (options.disabled ?? false) || missingApiKey;
@@ -2346,14 +2905,22 @@ class PostHogCoreStateless {
     return this.disabled;
   }
   buildPayload(payload) {
+    const userProperties = payload.properties || {};
+    let properties = {
+      ...userProperties,
+      ...this.getCommonEventProperties()
+    };
+    applyCallerFeatureFlagOverrides(properties, userProperties);
+    if (payload.event === "$feature_flag_called" && properties.$feature_flag_has_experiment === false && this.isMinimalFlagCalledEventsEnabled())
+      properties = minimizeFlagCalledEventProperties(properties);
     return {
       distinct_id: payload.distinct_id,
       event: payload.event,
-      properties: {
-        ...payload.properties || {},
-        ...this.getCommonEventProperties()
-      }
+      properties
     };
+  }
+  isMinimalFlagCalledEventsEnabled() {
+    return false;
   }
   addPendingPromise(promise) {
     return this.promiseQueue.add(promise);
@@ -2439,6 +3006,19 @@ class PostHogCoreStateless {
       this.enqueue("capture", payload, options);
     });
   }
+  async groupIdentifyStatelessImmediate(groupType, groupKey, groupProperties, options, distinctId, eventProperties) {
+    const payload = this.buildPayload({
+      distinct_id: distinctId || `$${groupType}_${groupKey}`,
+      event: "$groupidentify",
+      properties: {
+        $group_type: groupType,
+        $group_key: groupKey,
+        $group_set: groupProperties || {},
+        ...eventProperties || {}
+      }
+    });
+    await this.sendImmediate("capture", payload, options);
+  }
   async getRemoteConfig() {
     await this._initPromise;
     let host = this.host;
@@ -2455,8 +3035,11 @@ class PostHogCoreStateless {
       }
     };
     return this.fetchWithRetry(url, fetchOptions, {
+      type: "required",
+      consume: (response) => response.json()
+    }, {
       retryCount: 0
-    }, this.remoteConfigRequestTimeoutMs).then((response) => response.json()).catch((error) => {
+    }, this.remoteConfigRequestTimeoutMs).catch((error) => {
       this._logger.error("Remote config could not be loaded", error);
       this._events.emit("error", error);
     });
@@ -2487,8 +3070,12 @@ class PostHogCoreStateless {
     };
     this._logger.info("Flags URL", url);
     return this.fetchWithRetry(url, fetchOptions, {
-      retryCount: 0
-    }, this.featureFlagsRequestTimeoutMs).then((response) => response.json()).then((response) => ({
+      type: "required",
+      consume: (response) => response.json()
+    }, {
+      retryCount: this.featureFlagsRequestMaxRetries,
+      retryCheck: isRetryableFlagsFetchError
+    }, this.featureFlagsRequestTimeoutMs).then((response) => ({
       success: true,
       response: normalizeFlagsResponse(response)
     })).catch((error) => {
@@ -2588,9 +3175,9 @@ class PostHogCoreStateless {
   }
   async getFeatureFlagDetailsStateless(distinctId, groups = {}, personProperties = {}, groupProperties = {}, disableGeoip, flagKeysToEvaluate) {
     await this._initPromise;
-    const extraPayload = {};
-    if (disableGeoip ?? this.disableGeoip)
-      extraPayload["geoip_disable"] = true;
+    const extraPayload = {
+      geoip_disable: disableGeoip ?? this.disableGeoip
+    };
     if (flagKeysToEvaluate)
       extraPayload["flag_keys_to_evaluate"] = flagKeysToEvaluate;
     const result = await this.getFlags(distinctId, groups, personProperties, groupProperties, extraPayload);
@@ -2627,15 +3214,18 @@ class PostHogCoreStateless {
         "Content-Type": "application/json"
       }
     };
-    const response = await this.fetchWithRetry(url, fetchOptions).then((response2) => {
-      if (response2.status !== 200 || !response2.json) {
-        const msg = `Surveys API could not be loaded: ${response2.status}`;
-        const error = new Error(msg);
-        this._logger.error(error);
-        this._events.emit("error", new Error(msg));
-        return;
+    const response = await this.fetchWithRetry(url, fetchOptions, {
+      type: "required",
+      consume: (response) => {
+        if (response.status !== 200 || !response.json) {
+          const msg = `Surveys API could not be loaded: ${response.status}`;
+          const error = new Error(msg);
+          this._logger.error(error);
+          this._events.emit("error", new Error(msg));
+          return Promise.resolve(undefined);
+        }
+        return response.json();
       }
-      return response2.json();
     }).catch((error) => {
       this._logger.error("Surveys API could not be loaded", error);
       this._events.emit("error", error);
@@ -2672,23 +3262,39 @@ class PostHogCoreStateless {
     return message;
   }
   async flushStorage() {}
-  enqueue(type, _message, options) {
+  getQueueRouteKey(_message) {
+    return DEFAULT_QUEUE_ROUTE;
+  }
+  persistedQueueKeyForRoute(_route) {
+    return types_PostHogPersistedProperty.Queue;
+  }
+  getActiveQueueRoutes() {
+    return [
+      DEFAULT_QUEUE_ROUTE
+    ];
+  }
+  getRouteQueue(route) {
+    return this.getPersistedProperty(this.persistedQueueKeyForRoute(route)) || [];
+  }
+  enqueue(type, _message, options, explicitRoute) {
     this.wrap(() => {
       if (this.optedOut)
         return void this._events.emit(type, "Library is disabled. Not sending event. To re-enable, call posthog.optIn()");
-      let message = this.prepareMessage(type, _message, options);
+      let message = this.prepareMessage(_message, options);
       message = this.processBeforeEnqueue(message);
       if (message === null)
         return;
-      const queue = this.getPersistedProperty(types_PostHogPersistedProperty.Queue) || [];
+      message = this.normalizeMessage(message);
+      const queueKey = this.persistedQueueKeyForRoute(explicitRoute ?? this.getQueueRouteKey(message));
+      const queue = this.getPersistedProperty(queueKey) || [];
       if (queue.length >= this.maxQueueSize) {
         queue.shift();
-        this._logger.info("Queue is full, the oldest event is dropped.");
+        this._logger.warn("Queue is full, the oldest event is dropped.");
       }
       queue.push({
         message
       });
-      this.setPersistedProperty(types_PostHogPersistedProperty.Queue, queue);
+      this.setPersistedProperty(queueKey, queue);
       this._events.emit(type, message);
       if (queue.length >= this.flushAt)
         this.flushBackground();
@@ -2696,61 +3302,63 @@ class PostHogCoreStateless {
         this._flushTimer = safeSetTimeout(() => this.flushBackground(), this.flushInterval);
     });
   }
-  async sendImmediate(type, _message, options) {
+  async sendImmediate(type, _message, options, explicitRoute) {
     if (this.disabled)
       return void this._logger.warn("The client is disabled");
     if (!this._isInitialized)
       await this._initPromise;
     if (this.optedOut)
       return void this._events.emit(type, "Library is disabled. Not sending event. To re-enable, call posthog.optIn()");
-    let message = this.prepareMessage(type, _message, options);
+    let message = this.prepareMessage(_message, options);
     message = this.processBeforeEnqueue(message);
     if (message === null)
       return;
-    const data = {
-      api_key: this.apiKey,
-      batch: [
-        message
-      ],
-      sent_at: currentISOTime()
-    };
-    if (this.historicalMigration)
-      data.historical_migration = true;
-    const payload = JSON.stringify(data);
-    const url = `${this.host}/batch/`;
-    const gzippedPayload = this.disableCompression ? null : await gzipCompress(payload, this.isDebug);
-    const fetchOptions = {
-      method: "POST",
-      headers: {
-        ...this.getCustomHeaders(),
-        "Content-Type": "application/json",
-        ...gzippedPayload !== null && {
-          "Content-Encoding": "gzip"
-        }
-      },
-      body: gzippedPayload || payload
-    };
+    message = this.normalizeMessage(message);
     try {
-      const response = await this.fetchWithRetry(url, fetchOptions);
-      await response.body?.cancel()?.catch(() => {});
+      await this.sendBatch([
+        message
+      ], undefined, explicitRoute ?? this.getQueueRouteKey(message));
     } catch (err) {
       this._events.emit("error", err);
     }
   }
-  prepareMessage(type, _message, options) {
+  normalizeMessage(message) {
+    const { type: _type, library, library_version, ...sanitizedMessage } = message;
+    let properties = isPostHogEventProperties(sanitizedMessage.properties) ? sanitizedMessage.properties : undefined;
+    if (library !== undefined && properties?.$lib === undefined)
+      properties = {
+        ...properties || {},
+        $lib: library
+      };
+    if (library_version !== undefined && properties?.$lib_version === undefined)
+      properties = {
+        ...properties || {},
+        $lib_version: library_version
+      };
+    if (properties)
+      sanitizedMessage.properties = properties;
+    sanitizedMessage.uuid = getEventUuid(sanitizedMessage.uuid, uuidv7);
+    return sanitizedMessage;
+  }
+  normalizeTimestampForWire(timestamp) {
+    const parsedTimestamp = timestamp instanceof Date ? timestamp : typeof timestamp == "string" ? new Date(timestamp) : null;
+    if (!parsedTimestamp || Number.isNaN(parsedTimestamp.getTime()))
+      return timestamp;
+    const normalized = parsedTimestamp.toISOString();
+    const fractionalSeconds = typeof timestamp == "string" ? timestamp.match(/\.(\d+)(?:Z|[+-]\d{2}:?\d{2})?$/i)?.[1] : undefined;
+    return fractionalSeconds && fractionalSeconds.length > 3 ? normalized.replace(/\.\d{3}Z$/, `.${fractionalSeconds}Z`) : normalized;
+  }
+  prepareMessage(_message, options) {
     const message = {
       ..._message,
-      type,
-      library: this.getLibraryId(),
-      library_version: this.getLibraryVersion(),
       timestamp: options?.timestamp ? options?.timestamp : currentISOTime(),
-      uuid: options?.uuid ? options.uuid : uuidv7()
+      uuid: getEventUuid(options?.uuid, uuidv7)
     };
     const addGeoipDisableProperty = options?.disableGeoip ?? this.disableGeoip;
     if (addGeoipDisableProperty) {
-      if (!message.properties)
+      if (!isPostHogEventProperties(message.properties))
         message.properties = {};
-      message["properties"]["$geoip_disable"] = true;
+      message.properties["$geoip_disable"] = true;
     }
     if (message.distinctId) {
       message.distinct_id = message.distinctId;
@@ -2765,21 +3373,64 @@ class PostHogCoreStateless {
     }
   }
   flushBackground() {
+    if (this.pendingFlushPromise)
+      return;
     this.flush().catch(async (err) => {
       await logFlushError(err);
     });
   }
-  async flush() {
+  async waitForPendingPromises(maxPromiseId, ignoredPromises = []) {
+    const ignoredPendingPromises = ignoredPromises.filter((promise) => !!promise);
+    let iteration = 0;
+    while (true) {
+      const promises = this.promiseQueue.getPromises([
+        ...ignoredPendingPromises,
+        ...this.flushPromises
+      ], maxPromiseId);
+      if (promises.length === 0)
+        return;
+      if (iteration > 0)
+        this._logger.debug(`flush() re-checking ${promises.length} pending promise(s) before flushing`);
+      await Promise.all(promises.map((promise) => promise.catch(() => {})));
+      iteration++;
+    }
+  }
+  flushWithPendingPromises() {
+    return this.flushInternal(true);
+  }
+  flush() {
+    return this.flushInternal(false);
+  }
+  flushInternal(waitForPendingPromises) {
     if (this.disabled)
-      return;
-    const nextFlushPromise = allSettled([
-      this.flushPromise
-    ]).then(() => this._flush());
+      return Promise.resolve();
+    if (!waitForPendingPromises && this.pendingFlushPromise)
+      return this.pendingFlushPromise;
+    const previousFlushPromise = this.flushPromise;
+    const maxPromiseId = this.promiseQueue.maxId;
+    const nextFlushPromise = Promise.resolve().then(() => {
+      if (waitForPendingPromises)
+        return this.waitForPendingPromises(maxPromiseId, [
+          previousFlushPromise,
+          nextFlushPromise
+        ]);
+    }).then(() => allSettled([
+      previousFlushPromise
+    ])).then(() => {
+      if (this.pendingFlushPromise === nextFlushPromise)
+        this.pendingFlushPromise = null;
+      return this._flush();
+    });
+    this.pendingFlushPromise = nextFlushPromise;
     this.flushPromise = nextFlushPromise;
+    this.flushPromises.add(nextFlushPromise);
     this.addPendingPromise(nextFlushPromise);
     allSettled([
       nextFlushPromise
     ]).then(() => {
+      this.flushPromises.delete(nextFlushPromise);
+      if (this.pendingFlushPromise === nextFlushPromise)
+        this.pendingFlushPromise = null;
       if (this.flushPromise === nextFlushPromise)
         this.flushPromise = null;
     });
@@ -2792,55 +3443,102 @@ class PostHogCoreStateless {
       headers["User-Agent"] = customUserAgent;
     return headers;
   }
+  compressPayload(payload) {
+    return gzipCompress(payload, this.isDebug);
+  }
+  getBatchEndpointPath(_route) {
+    return "/batch/";
+  }
+  async sendBatch(batchMessages, retryOptions, route = DEFAULT_QUEUE_ROUTE) {
+    const data = {
+      api_key: this.apiKey,
+      batch: batchMessages.map((message) => {
+        if (!message)
+          return message;
+        const timestamp = this.normalizeTimestampForWire(message.timestamp);
+        return timestamp === message.timestamp ? message : {
+          ...message,
+          timestamp
+        };
+      }),
+      sent_at: currentISOTime()
+    };
+    if (this.historicalMigration)
+      data.historical_migration = true;
+    const payload = safeJsonStringify(data);
+    const url = `${this.host}${this.getBatchEndpointPath(route)}`;
+    const gzippedPayload = this.disableCompression ? null : await this.compressPayload(payload);
+    const fetchOptions = {
+      method: "POST",
+      headers: {
+        ...this.getCustomHeaders(),
+        "Content-Type": "application/json",
+        ...gzippedPayload !== null && {
+          "Content-Encoding": "gzip"
+        }
+      },
+      body: gzippedPayload || payload
+    };
+    await this.fetchWithRetry(url, fetchOptions, {
+      type: "successful-write"
+    }, retryOptions);
+  }
   async _flush() {
     this.clearFlushTimer();
     await this._initPromise;
-    let queue = this.getPersistedProperty(types_PostHogPersistedProperty.Queue) || [];
-    if (!queue.length)
+    const routes = this.getActiveQueueRoutes();
+    if (!routes.some((route) => this.getRouteQueue(route).length > 0))
       return;
     const sentMessages = [];
+    let firstError;
+    for (const route of routes)
+      try {
+        await this._flushRoute(route, sentMessages);
+      } catch (err) {
+        if (firstError === undefined)
+          firstError = err;
+      }
+    if (firstError !== undefined)
+      throw firstError;
+    this._events.emit("flush", sentMessages);
+  }
+  async _flushRoute(route, sentMessages) {
+    const queueKey = this.persistedQueueKeyForRoute(route);
+    let queue = this.getPersistedProperty(queueKey) || [];
+    if (!queue.length)
+      return;
     const originalQueueLength = queue.length;
-    while (queue.length > 0 && sentMessages.length < originalQueueLength) {
+    let sentFromRoute = 0;
+    while (queue.length > 0 && sentFromRoute < originalQueueLength) {
       const batchItems = queue.slice(0, this.maxBatchSize);
-      const batchMessages = batchItems.map((item) => item.message);
+      const batchMessages = batchItems.map((item) => item.message === undefined ? item.message : this.normalizeMessage(item.message));
       const persistQueueChange = async () => {
-        const refreshedQueue = this.getPersistedProperty(types_PostHogPersistedProperty.Queue) || [];
-        const newQueue = refreshedQueue.slice(batchItems.length);
-        this.setPersistedProperty(types_PostHogPersistedProperty.Queue, newQueue);
+        const refreshedQueue = this.getPersistedProperty(queueKey) || [];
+        const remainingBatchItems = [
+          ...batchItems
+        ];
+        const newQueue = refreshedQueue.filter((item) => {
+          const itemUuid = item.message?.uuid;
+          const batchItemIndex = remainingBatchItems.findIndex((batchItem) => batchItem === item || typeof itemUuid == "string" && itemUuid.length > 0 && batchItem.message?.uuid === itemUuid);
+          if (batchItemIndex === -1)
+            return true;
+          remainingBatchItems.splice(batchItemIndex, 1);
+          return false;
+        });
+        this.setPersistedProperty(queueKey, newQueue);
         queue = newQueue;
+        this._dequeuedMessagesCount += batchItems.length;
         await this.flushStorage();
-      };
-      const data = {
-        api_key: this.apiKey,
-        batch: batchMessages,
-        sent_at: currentISOTime()
-      };
-      if (this.historicalMigration)
-        data.historical_migration = true;
-      const payload = JSON.stringify(data);
-      const url = `${this.host}/batch/`;
-      const gzippedPayload = this.disableCompression ? null : await gzipCompress(payload, this.isDebug);
-      const fetchOptions = {
-        method: "POST",
-        headers: {
-          ...this.getCustomHeaders(),
-          "Content-Type": "application/json",
-          ...gzippedPayload !== null && {
-            "Content-Encoding": "gzip"
-          }
-        },
-        body: gzippedPayload || payload
       };
       const retryOptions = {
         retryCheck: (err) => {
           if (isPostHogFetchContentTooLargeError(err))
             return false;
-          return isPostHogFetchError(err);
+          return isPostHogFetchRetryableError(err);
         }
       };
       try {
-        const response = await this.fetchWithRetry(url, fetchOptions, retryOptions);
-        await response.body?.cancel()?.catch(() => {});
+        await this.sendBatch(batchMessages, retryOptions, route);
       } catch (err) {
         if (isPostHogFetchContentTooLargeError(err) && batchMessages.length > 1) {
           this.maxBatchSize = Math.max(1, Math.floor(batchMessages.length / 2));
@@ -2854,8 +3552,8 @@ class PostHogCoreStateless {
       }
       await persistQueueChange();
       sentMessages.push(...batchMessages);
+      sentFromRoute += batchMessages.length;
     }
-    this._events.emit("flush", sentMessages);
   }
   async _sendLogsBatch(payload) {
     if (this.disabled)
@@ -2865,7 +3563,7 @@ class PostHogCoreStateless {
       };
     const serialized = JSON.stringify(payload);
     const url = `${this.host}/i/v1/logs?token=${encodeURIComponent(this.apiKey)}`;
-    const gzippedPayload = this.disableCompression ? null : await gzipCompress(serialized, this.isDebug);
+    const gzippedPayload = this.disableCompression ? null : await this.compressPayload(serialized);
     const fetchOptions = {
       method: "POST",
       headers: {
@@ -2879,10 +3577,12 @@ class PostHogCoreStateless {
     };
     try {
       await this.fetchWithRetry(url, fetchOptions, {
+        type: "successful-write"
+      }, {
         retryCheck: (err) => {
           if (isPostHogFetchContentTooLargeError(err))
             return false;
-          return isPostHogFetchError(err);
+          return isPostHogFetchRetryableError(err);
         }
       });
       return {
@@ -2904,41 +3604,155 @@ class PostHogCoreStateless {
       };
     }
   }
-  async fetchWithRetry(url, options, retryOptions, requestTimeout) {
+  async _sendMetricsBatch(payload) {
+    if (this.disabled)
+      return {
+        kind: "fatal",
+        error: new Error("The client is disabled")
+      };
+    const serialized = JSON.stringify(payload);
+    const url = `${this.host}/i/v1/metrics?token=${encodeURIComponent(this.apiKey)}`;
+    const gzippedPayload = this.disableCompression ? null : await this.compressPayload(serialized);
+    const fetchOptions = {
+      method: "POST",
+      headers: {
+        ...this.getCustomHeaders(),
+        "Content-Type": "application/json",
+        ...gzippedPayload !== null && {
+          "Content-Encoding": "gzip"
+        }
+      },
+      body: gzippedPayload || serialized
+    };
+    try {
+      await this.fetchWithRetry(url, fetchOptions, {
+        type: "successful-write"
+      }, {
+        retryCheck: (err) => {
+          if (isPostHogFetchContentTooLargeError(err))
+            return false;
+          return isPostHogFetchRetryableError(err);
+        }
+      });
+      return {
+        kind: "ok"
+      };
+    } catch (err) {
+      if (isPostHogFetchContentTooLargeError(err))
+        return {
+          kind: "too-large"
+        };
+      if (isPostHogFetchRetryableError(err))
+        return {
+          kind: "retry-later",
+          error: err
+        };
+      return {
+        kind: "fatal",
+        error: err
+      };
+    }
+  }
+  async fetchWithRetry(url, options, responseHandling, retryOptions, requestTimeout) {
     const body = options.body ? options.body : "";
     let reqByteLength = -1;
     try {
-      reqByteLength = body instanceof Blob ? body.size : Buffer.byteLength(body, STRING_FORMAT);
+      reqByteLength = body instanceof Blob ? body.size : body instanceof Uint8Array ? body.byteLength : Buffer.byteLength(body, STRING_FORMAT);
     } catch {
       if (body instanceof Blob)
         reqByteLength = body.size;
+      else if (body instanceof Uint8Array)
+        reqByteLength = body.byteLength;
       else {
         const encoded = new TextEncoder().encode(body);
         reqByteLength = encoded.length;
       }
     }
-    return await retriable(async () => {
-      const ctrl = new AbortController;
-      const timeoutMs = requestTimeout ?? this.requestTimeout;
-      const timer = safeSetTimeout(() => ctrl.abort(), timeoutMs);
-      let res = null;
-      try {
-        res = await this.fetch(url, {
-          signal: ctrl.signal,
-          ...options
-        });
-      } catch (e) {
-        throw new PostHogFetchNetworkError(e);
-      } finally {
-        clearTimeout(timer);
-      }
-      const isNoCors = options.mode === "no-cors";
-      if (!isNoCors && (res.status < 200 || res.status >= 400))
-        throw new PostHogFetchHttpError(res, reqByteLength);
-      return res;
-    }, {
+    const retriableOptions = {
       ...this._retryOptions,
       ...retryOptions
+    };
+    let attempt = 0;
+    return await retriable(async () => {
+      attempt++;
+      const ctrl = new AbortController;
+      const timeoutMs = requestTimeout ?? this.requestTimeout;
+      const requestDeadline = Date.now() + timeoutMs;
+      let timer;
+      const deadline = new Promise((_resolve, reject) => {
+        timer = safeSetTimeout(() => {
+          const timeoutError = new Error(`Request timed out after ${timeoutMs}ms`);
+          timeoutError.name = "AbortError";
+          reject(timeoutError);
+          ctrl.abort(timeoutError);
+        }, timeoutMs);
+      });
+      let res;
+      let responseAccepted = false;
+      let cancellation;
+      const cancelBody = () => cancellation ??= (async () => {
+        try {
+          await res?.body?.cancel();
+        } catch {}
+      })();
+      try {
+        let fetchPromise;
+        try {
+          fetchPromise = this.fetch(url, {
+            signal: ctrl.signal,
+            ...options
+          });
+        } catch (e) {
+          throw new PostHogFetchNetworkError(e);
+        }
+        fetchPromise.then((lateResponse) => {
+          if (ctrl.signal.aborted && !responseAccepted)
+            Promise.resolve(lateResponse.body?.cancel()).catch(() => {});
+        }).catch(() => {});
+        try {
+          res = await Promise.race([
+            fetchPromise,
+            deadline
+          ]);
+          responseAccepted = true;
+        } catch (e) {
+          throw new PostHogFetchNetworkError(e);
+        }
+        const isNoCors = options.mode === "no-cors";
+        if (!isNoCors && (res.status < 200 || res.status >= 400))
+          throw new PostHogFetchHttpError(res, reqByteLength, requestDeadline, ctrl);
+        if (responseHandling.type === "successful-write") {
+          try {
+            await Promise.race([
+              cancelBody(),
+              deadline
+            ]);
+          } catch {}
+          return;
+        }
+        try {
+          return await Promise.race([
+            responseHandling.consume(res),
+            deadline
+          ]);
+        } catch (e) {
+          if (ctrl.signal.aborted)
+            throw new PostHogFetchNetworkError(e);
+          throw e;
+        }
+      } finally {
+        clearTimeout(timer);
+        if (ctrl.signal.aborted && res)
+          cancelBody();
+      }
+    }, {
+      ...retriableOptions,
+      retryCheck: (error) => {
+        const shouldRetry = retriableOptions.retryCheck(error);
+        if (shouldRetry && attempt <= retriableOptions.retryCount && error instanceof PostHogFetchHttpError)
+          error.cancelResponseBody();
+        return shouldRetry;
+      }
     });
   }
   async _shutdown(shutdownTimeoutMs = 30000) {
@@ -2951,12 +3765,17 @@ class PostHogCoreStateless {
       try {
         await this.promiseQueue.join();
         while (true) {
-          const queue = this.getPersistedProperty(types_PostHogPersistedProperty.Queue) || [];
-          if (queue.length === 0)
+          const hasQueuedEvents = this.getActiveQueueRoutes().some((route) => this.getRouteQueue(route).length > 0);
+          if (!hasQueuedEvents)
             break;
+          const dequeuedBeforeFlush = this._dequeuedMessagesCount;
           await this.flush();
           if (hasTimedOut)
             break;
+          if (this._dequeuedMessagesCount === dequeuedBeforeFlush) {
+            this._logger.warn("Shutdown flush completed but did not send any queued events. Stopping drain to avoid a loop.");
+            break;
+          }
         }
       } catch (e) {
         if (!isPostHogFetchError(e))
@@ -2964,21 +3783,12 @@ class PostHogCoreStateless {
         await logFlushError(e);
       }
     };
-    let timeoutHandle;
-    try {
-      return await Promise.race([
-        new Promise((_, reject) => {
-          timeoutHandle = safeSetTimeout(() => {
-            this._logger.error("Timed out while shutting down PostHog");
-            hasTimedOut = true;
-            reject("Timeout while shutting down PostHog. Some events may not have been sent.");
-          }, shutdownTimeoutMs);
-        }),
-        doShutdown()
-      ]);
-    } finally {
-      clearTimeout(timeoutHandle);
-    }
+    return raceWithTimeout(doShutdown(), shutdownTimeoutMs, () => {
+      this._logger.critical("Timeout while shutting down PostHog. Some events may not have been sent.", {
+        shutdownTimeoutMs
+      });
+      hasTimedOut = true;
+    });
   }
   async shutdown(shutdownTimeoutMs = 30000) {
     if (this.shutdownPromise)
@@ -2990,20 +3800,29 @@ class PostHogCoreStateless {
     return this.shutdownPromise;
   }
 }
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/context-lines.node.mjs
-import { createReadStream } from "node:fs";
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/context-lines.node.mjs
+import { constants as constants2 } from "node:fs";
+import { open as promises_open } from "node:fs/promises";
+import { isAbsolute } from "node:path";
 import { createInterface } from "node:readline";
-var LRU_FILE_CONTENTS_CACHE = new exports_error_tracking.ReduceableCache(25);
-var LRU_FILE_CONTENTS_FS_READ_FAILED = new exports_error_tracking.ReduceableCache(20);
+var LRU_FILE_CONTENTS_CACHE = new ReduceableCache(25);
+var LRU_FILE_CONTENTS_FS_READ_FAILED = new ReduceableCache(20);
 var DEFAULT_LINES_OF_CONTEXT = 7;
 var MAX_CONTEXTLINES_COLNO = 1000;
 var MAX_CONTEXTLINES_LINENO = 1e4;
-async function addSourceContext(frames) {
+var MAX_CONTEXTLINES_FILE_SIZE = 10485760;
+async function addSourceContext(frames, openSourceFile = promises_open, logger) {
   const filesToLines = {};
+  let basePath;
+  try {
+    basePath = process.cwd();
+  } catch {}
   for (let i = frames.length - 1;i >= 0; i--) {
     const frame = frames[i];
     const filename = frame?.filename;
     if (!frame || typeof filename != "string" || typeof frame.lineno != "number" || shouldSkipContextLinesForFile(filename) || shouldSkipContextLinesForFrame(frame))
+      continue;
+    if (!isAbsolute(filename) && basePath === undefined)
       continue;
     const filesToLinesOutput = filesToLines[filename];
     if (!filesToLinesOutput)
@@ -3015,50 +3834,98 @@ async function addSourceContext(frames) {
     return frames;
   const readlinePromises = [];
   for (const file of files) {
-    if (LRU_FILE_CONTENTS_FS_READ_FAILED.get(file))
+    const cacheKey = makeSourceCacheKey(file, basePath);
+    if (cacheKey === undefined)
+      continue;
+    if (LRU_FILE_CONTENTS_FS_READ_FAILED.get(cacheKey))
       continue;
     const filesToLineRanges = filesToLines[file];
     if (!filesToLineRanges)
       continue;
     filesToLineRanges.sort((a, b) => a - b);
     const ranges = makeLineReaderRanges(filesToLineRanges);
-    if (ranges.every((r) => rangeExistsInContentCache(file, r)))
+    if (ranges.every((r) => rangeExistsInContentCache(cacheKey, r)))
       continue;
-    const cache = emplace(LRU_FILE_CONTENTS_CACHE, file, {});
-    readlinePromises.push(getContextLinesFromFile(file, ranges, cache));
+    const cache = emplace(LRU_FILE_CONTENTS_CACHE, cacheKey, {});
+    readlinePromises.push(getContextLinesFromFile(file, ranges, cache, cacheKey, openSourceFile, logger));
   }
   await Promise.all(readlinePromises).catch(() => {});
   if (frames && frames.length > 0)
-    addSourceContextToFrames(frames, LRU_FILE_CONTENTS_CACHE);
+    addSourceContextToFrames(frames, LRU_FILE_CONTENTS_CACHE, basePath);
   LRU_FILE_CONTENTS_CACHE.reduce();
   return frames;
 }
-function getContextLinesFromFile(path2, ranges, output) {
+async function openRegularSourceFile(path, openSourceFile, logger) {
+  let fileHandle;
+  let isValid = false;
+  try {
+    fileHandle = await openSourceFile(path, constants2.O_RDONLY | constants2.O_NONBLOCK);
+    const fileStat = await fileHandle.stat();
+    if (!fileStat.isFile())
+      return;
+    if (fileStat.size > MAX_CONTEXTLINES_FILE_SIZE)
+      return void logger?.debug(`Skipping source context for oversized file ${path}: ${fileStat.size} bytes exceeds ${MAX_CONTEXTLINES_FILE_SIZE}`);
+    isValid = true;
+    return fileHandle;
+  } catch {
+    return;
+  } finally {
+    if (fileHandle && !isValid)
+      await fileHandle.close().catch(() => {});
+  }
+}
+async function getContextLinesFromFile(path, ranges, output, cacheKey, openSourceFile, logger) {
+  const fileHandle = await openRegularSourceFile(path, openSourceFile, logger);
+  if (fileHandle === undefined)
+    return void LRU_FILE_CONTENTS_FS_READ_FAILED.set(cacheKey, 1);
+  const openedFileHandle = fileHandle;
   return new Promise((resolve) => {
-    const stream = createReadStream(path2);
-    const lineReaded = createInterface({
-      input: stream
-    });
-    function destroyStreamAndResolve() {
-      stream.destroy();
-      resolve();
+    let finished = false;
+    function destroyStreamAndResolve(stream) {
+      if (finished)
+        return;
+      finished = true;
+      stream?.destroy();
+      openedFileHandle.close().then(resolve, resolve);
+    }
+    let stream;
+    try {
+      stream = openedFileHandle.createReadStream({
+        autoClose: false,
+        start: 0,
+        end: MAX_CONTEXTLINES_FILE_SIZE - 1
+      });
+    } catch {
+      LRU_FILE_CONTENTS_FS_READ_FAILED.set(cacheKey, 1);
+      destroyStreamAndResolve();
+      return;
+    }
+    let lineReaded;
+    try {
+      lineReaded = createInterface({
+        input: stream
+      });
+    } catch {
+      LRU_FILE_CONTENTS_FS_READ_FAILED.set(cacheKey, 1);
+      destroyStreamAndResolve(stream);
+      return;
     }
     let lineNumber = 0;
     let currentRangeIndex = 0;
     const range = ranges[currentRangeIndex];
     if (range === undefined)
-      return void destroyStreamAndResolve();
+      return void destroyStreamAndResolve(stream);
     let rangeStart = range[0];
     let rangeEnd = range[1];
     function onStreamError() {
-      LRU_FILE_CONTENTS_FS_READ_FAILED.set(path2, 1);
+      LRU_FILE_CONTENTS_FS_READ_FAILED.set(cacheKey, 1);
       lineReaded.close();
       lineReaded.removeAllListeners();
-      destroyStreamAndResolve();
+      destroyStreamAndResolve(stream);
     }
     stream.on("error", onStreamError);
     lineReaded.on("error", onStreamError);
-    lineReaded.on("close", destroyStreamAndResolve);
+    lineReaded.on("close", () => destroyStreamAndResolve(stream));
     lineReaded.on("line", (line) => {
       lineNumber++;
       if (lineNumber < rangeStart)
@@ -3071,22 +3938,23 @@ function getContextLinesFromFile(path2, ranges, output) {
           return;
         }
         currentRangeIndex++;
-        const range2 = ranges[currentRangeIndex];
-        if (range2 === undefined) {
+        const range = ranges[currentRangeIndex];
+        if (range === undefined) {
           lineReaded.close();
           lineReaded.removeAllListeners();
           return;
         }
-        rangeStart = range2[0];
-        rangeEnd = range2[1];
+        rangeStart = range[0];
+        rangeEnd = range[1];
       }
     });
   });
 }
-function addSourceContextToFrames(frames, cache) {
+function addSourceContextToFrames(frames, cache, basePath) {
   for (const frame of frames)
     if (frame.filename && frame.context_line === undefined && typeof frame.lineno == "number") {
-      const contents = cache.get(frame.filename);
+      const cacheKey = makeSourceCacheKey(frame.filename, basePath);
+      const contents = cacheKey === undefined ? undefined : cache.get(cacheKey);
       if (contents === undefined)
         continue;
       addContextToFrame(frame.lineno, frame, contents);
@@ -3119,8 +3987,8 @@ function clearLineContext(frame) {
   delete frame.context_line;
   delete frame.post_context;
 }
-function shouldSkipContextLinesForFile(path2) {
-  return path2.startsWith("node:") || path2.endsWith(".min.js") || path2.endsWith(".min.cjs") || path2.endsWith(".min.mjs") || path2.startsWith("data:");
+function shouldSkipContextLinesForFile(path) {
+  return path.startsWith("node:") || path.endsWith(".min.js") || path.endsWith(".min.cjs") || path.endsWith(".min.mjs") || path.startsWith("data:");
 }
 function shouldSkipContextLinesForFrame(frame) {
   if (frame.lineno !== undefined && frame.lineno > MAX_CONTEXTLINES_LINENO)
@@ -3129,8 +3997,19 @@ function shouldSkipContextLinesForFrame(frame) {
     return true;
   return false;
 }
-function rangeExistsInContentCache(file, range) {
-  const contents = LRU_FILE_CONTENTS_CACHE.get(file);
+function makeSourceCacheKey(path, basePath) {
+  if (isAbsolute(path))
+    return JSON.stringify([
+      null,
+      path
+    ]);
+  return basePath === undefined ? undefined : JSON.stringify([
+    basePath,
+    path
+  ]);
+}
+function rangeExistsInContentCache(cacheKey, range) {
+  const contents = LRU_FILE_CONTENTS_CACHE.get(cacheKey);
   if (contents === undefined)
     return false;
   for (let i = range[0];i <= range[1]; i++)
@@ -3208,8 +4087,8 @@ function snipLine(line, colno) {
   return newLine;
 }
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/relative-path.node.mjs
-import { isAbsolute, relative, sep as sep2 } from "node:path";
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/relative-path.node.mjs
+import { isAbsolute as isAbsolute2, relative, sep as sep2 } from "node:path";
 function createRelativePathModifier(basePath = process.cwd()) {
   const isWindows = sep2 === "\\";
   const toUnix = (p) => isWindows ? p.replace(/\\/g, "/") : p;
@@ -3217,17 +4096,17 @@ function createRelativePathModifier(basePath = process.cwd()) {
   return async (frames) => {
     for (const frame of frames)
       if (!(!frame.filename || frame.filename.startsWith("node:") || frame.filename.startsWith("data:"))) {
-        if (isAbsolute(frame.filename))
+        if (isAbsolute2(frame.filename))
           frame.filename = toUnix(relative(normalizedBase, toUnix(frame.filename)));
       }
     return frames;
   };
 }
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/version.mjs
-var version = "5.35.12";
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/version.mjs
+var version = "5.51.1";
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/types.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/types.mjs
 var FeatureFlagError2 = {
   ERRORS_WHILE_COMPUTING: "errors_while_computing_flags",
   FLAG_MISSING: "flag_missing",
@@ -3235,7 +4114,7 @@ var FeatureFlagError2 = {
   UNKNOWN_ERROR: "unknown_error"
 };
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/feature-flag-evaluations.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/feature-flag-evaluations.mjs
 class FeatureFlagEvaluations {
   constructor(init) {
     this._host = init.host;
@@ -3251,10 +4130,10 @@ class FeatureFlagEvaluations {
     this._accessed = init.accessed ?? new Set;
     this._isSlice = init.isSlice ?? false;
   }
-  isEnabled(key) {
+  isEnabled(key, options = {}) {
     const flag = this._flags[key];
     this._recordAccess(key);
-    return flag?.enabled ?? false;
+    return flag?.enabled ?? options.defaultValue ?? false;
   }
   getFlag(key) {
     const flag = this._flags[key];
@@ -3344,6 +4223,8 @@ class FeatureFlagEvaluations {
       $feature_flag_request_id: this._requestId,
       $feature_flag_evaluated_at: flag?.locallyEvaluated ? Date.now() : this._evaluatedAt
     };
+    if (flag?.hasExperiment !== undefined)
+      properties.$feature_flag_has_experiment = flag.hasExperiment;
     if (flag?.locallyEvaluated && this._flagDefinitionsLoadedAt !== undefined)
       properties.$feature_flag_definitions_loaded_at = this._flagDefinitionsLoadedAt;
     const errors = [];
@@ -3366,7 +4247,7 @@ class FeatureFlagEvaluations {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/extensions/feature-flags/crypto.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/feature-flags/crypto.mjs
 async function hashSHA1(text) {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle)
@@ -3376,7 +4257,7 @@ async function hashSHA1(text) {
   return hashArray.map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/extensions/feature-flags/feature-flags.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/feature-flags/feature-flags.mjs
 var SIXTY_SECONDS = 60000;
 var LONG_SCALE = 1152921504606847000;
 var NULL_VALUES_ALLOWED_OPERATORS = [
@@ -3393,22 +4274,23 @@ class ClientError extends Error {
     Object.setPrototypeOf(this, ClientError.prototype);
   }
 }
+function setCustomErrorPrototype(error, constructor) {
+  error.name = constructor.name;
+  Error.captureStackTrace(error, constructor);
+  Object.setPrototypeOf(error, constructor.prototype);
+}
 
 class InconclusiveMatchError extends Error {
   constructor(message) {
     super(message);
-    this.name = this.constructor.name;
-    Error.captureStackTrace(this, this.constructor);
-    Object.setPrototypeOf(this, InconclusiveMatchError.prototype);
+    setCustomErrorPrototype(this, InconclusiveMatchError);
   }
 }
 
 class RequiresServerEvaluation extends Error {
   constructor(message) {
     super(message);
-    this.name = this.constructor.name;
-    Error.captureStackTrace(this, this.constructor);
-    Object.setPrototypeOf(this, RequiresServerEvaluation.prototype);
+    setCustomErrorPrototype(this, RequiresServerEvaluation);
   }
 }
 
@@ -3417,6 +4299,7 @@ class FeatureFlagsPoller {
     this.debugMode = false;
     this.shouldBeginExponentialBackoff = false;
     this.backOffCount = 0;
+    this.pollerStopped = false;
     this.pollingInterval = pollingInterval;
     this.personalApiKey = personalApiKey;
     this.featureFlags = [];
@@ -3432,6 +4315,7 @@ class FeatureFlagsPoller {
     this.onError = options.onError;
     this.customHeaders = customHeaders;
     this.onLoad = options.onLoad;
+    this.onMinimalFlagCalledEvents = options.onMinimalFlagCalledEvents;
     this.cacheProvider = options.cacheProvider;
     this.strictLocalEvaluation = options.strictLocalEvaluation ?? false;
     this.loadFeatureFlags();
@@ -3629,6 +4513,7 @@ class FeatureFlagsPoller {
     const flagFilters = flag.filters || {};
     const flagConditions = flagFilters.groups || [];
     const flagAggregation = flagFilters.aggregation_group_type_index;
+    const earlyExitEnabled = flagFilters.early_exit ?? false;
     const { groups, groupProperties } = evaluationContext;
     let isInconclusive = false;
     let result;
@@ -3652,12 +4537,15 @@ class FeatureFlagsPoller {
             effectiveBucketingValue = groups[groupName];
           }
         }
-        if (await this.isConditionMatch(flag, effectiveBucketingValue, condition, effectiveProperties, evaluationContext)) {
+        const matchResult = await this.isConditionMatch(flag, effectiveBucketingValue, condition, effectiveProperties, evaluationContext);
+        if (matchResult === "match") {
           const variantOverride = condition.variant;
           const flagVariants = flagFilters.multivariate?.variants || [];
           result = variantOverride && flagVariants.some((variant) => variant.key === variantOverride) ? variantOverride : await this.getMatchingVariant(flag, effectiveBucketingValue) || true;
           break;
         }
+        if (earlyExitEnabled && matchResult === "out_of_rollout_bound")
+          return false;
       } catch (e) {
         if (e instanceof RequiresServerEvaluation)
           throw e;
@@ -3681,16 +4569,20 @@ class FeatureFlagsPoller {
       for (const prop of condition.properties) {
         const propertyType = prop.type;
         let matches = false;
-        matches = propertyType === "cohort" ? await matchCohort(prop, properties, this.cohorts, this.debugMode, (depProp) => this.evaluateFlagDependency(depProp, properties, evaluationContext)) : propertyType === "flag" ? await this.evaluateFlagDependency(prop, properties, evaluationContext) : matchProperty(prop, properties, warnFunction);
+        if (propertyType === "cohort") {
+          const inCohort = await matchCohort(prop, properties, this.cohorts, this.debugMode, (depProp) => this.evaluateFlagDependency(depProp, properties, evaluationContext));
+          matches = prop.operator === "not_in" ? !inCohort : inCohort;
+        } else
+          matches = propertyType === "flag" ? await this.evaluateFlagDependency(prop, properties, evaluationContext) : matchProperty(prop, properties, warnFunction);
         if (!matches)
-          return false;
+          return "no_match";
       }
       if (rolloutPercentage == undefined)
-        return true;
+        return "match";
     }
     if (rolloutPercentage != null && await _hash(flag.key, bucketingValue) > rolloutPercentage / 100)
-      return false;
-    return true;
+      return "out_of_rollout_bound";
+    return "match";
   }
   async getMatchingVariant(flag, bucketingValue) {
     const hashValue = await _hash(flag.key, bucketingValue, "variant");
@@ -3721,6 +4613,7 @@ class FeatureFlagsPoller {
     this.groupTypeMapping = flagData.groupTypeMapping;
     this.cohorts = flagData.cohorts;
     this.loadedSuccessfullyOnce = true;
+    this.onMinimalFlagCalledEvents?.(flagData.minimalFlagCalledEvents === true);
   }
   warnAboutExperienceContinuityFlags(flags) {
     if (this.strictLocalEvaluation)
@@ -3784,7 +4677,6 @@ class FeatureFlagsPoller {
       clearTimeout(this.poller);
       this.poller = undefined;
     }
-    this.poller = setTimeout(() => this.loadFeatureFlags(true), this.getPollingInterval());
     try {
       let shouldFetch = true;
       if (this.cacheProvider)
@@ -3812,17 +4704,18 @@ class FeatureFlagsPoller {
           return;
         case 401:
           this.beginBackoff();
-          throw new ClientError(`Your project key or personal API key is invalid. Setting next polling interval to ${this.getPollingInterval()}ms. More information: https://posthog.com/docs/api#rate-limiting`);
+          throw new ClientError(`Your project key or secret key is invalid. Setting next polling interval to ${this.getPollingInterval()}ms. More information: https://posthog.com/docs/api#rate-limiting`);
         case 402:
           console.warn("[FEATURE FLAGS] Feature flags quota limit exceeded - unsetting all local flags. Learn more about billing limits at https://posthog.com/docs/billing/limits-alerts");
           this.featureFlags = [];
           this.featureFlagsByKey = {};
           this.groupTypeMapping = {};
           this.cohorts = {};
+          this.onMinimalFlagCalledEvents?.(false);
           return;
         case 403:
           this.beginBackoff();
-          throw new ClientError(`Your personal API key does not have permission to fetch feature flag definitions for local evaluation. Setting next polling interval to ${this.getPollingInterval()}ms. Are you sure you're using the correct personal and Project API key pair? More information: https://posthog.com/docs/api/overview`);
+          throw new ClientError(`Your secret key does not have permission to fetch feature flag definitions for local evaluation. Setting next polling interval to ${this.getPollingInterval()}ms. Are you sure you're using the correct secret and Project API key pair? More information: https://posthog.com/docs/api/overview`);
         case 429:
           this.beginBackoff();
           throw new ClientError(`You are being rate limited. Setting next polling interval to ${this.getPollingInterval()}ms. More information: https://posthog.com/docs/api#rate-limiting`);
@@ -3834,7 +4727,8 @@ class FeatureFlagsPoller {
           const flagData = {
             flags: responseJson.flags ?? [],
             groupTypeMapping: responseJson.group_type_mapping || {},
-            cohorts: responseJson.cohorts || {}
+            cohorts: responseJson.cohorts || {},
+            minimalFlagCalledEvents: responseJson.minimal_flag_called_events === true
           };
           this.updateFlagState(flagData);
           this.flagDefinitionsLoadedAt = Date.now();
@@ -3855,6 +4749,9 @@ class FeatureFlagsPoller {
     } catch (err) {
       if (err instanceof ClientError)
         this.onError?.(err);
+    } finally {
+      if (!this.pollerStopped)
+        this.poller = setTimeout(() => this.loadFeatureFlags(true), this.getPollingInterval());
     }
   }
   getPersonalApiKeyRequestOptions(method = "GET", etag) {
@@ -3870,7 +4767,7 @@ class FeatureFlagsPoller {
       headers
     };
   }
-  _requestFeatureFlagDefinitions() {
+  async _requestFeatureFlagDefinitions() {
     const url = `${this.host}/flags/definitions?token=${this.projectApiKey}&send_cohorts`;
     const options = this.getPersonalApiKeyRequestOptions("GET", this.flagsEtag);
     let abortTimeout = null;
@@ -3881,23 +4778,49 @@ class FeatureFlagsPoller {
       }, this.timeout);
       options.signal = controller.signal;
     }
+    const clearAbortTimeout = () => clearTimeout(abortTimeout);
     try {
       const fetch1 = this.fetch;
-      return fetch1(url, options);
-    } finally {
-      clearTimeout(abortTimeout);
+      const res = await fetch1(url, options);
+      if (res.status !== 200) {
+        clearAbortTimeout();
+        return res;
+      }
+      return {
+        status: res.status,
+        headers: res.headers,
+        body: res.body,
+        text: async () => {
+          try {
+            return await res.text();
+          } finally {
+            clearAbortTimeout();
+          }
+        },
+        json: async () => {
+          try {
+            return await res.json();
+          } finally {
+            clearAbortTimeout();
+          }
+        }
+      };
+    } catch (err) {
+      clearAbortTimeout();
+      throw err;
     }
   }
   async stopPoller(timeoutMs = 30000) {
+    this.pollerStopped = true;
     clearTimeout(this.poller);
+    this.poller = undefined;
     if (this.cacheProvider)
       try {
         const shutdownResult = this.cacheProvider.shutdown();
         if (shutdownResult instanceof Promise)
-          await Promise.race([
-            shutdownResult,
-            new Promise((_, reject) => setTimeout(() => reject(new Error(`Cache shutdown timeout after ${timeoutMs}ms`)), timeoutMs))
-          ]);
+          await raceWithTimeout(shutdownResult, timeoutMs, () => {
+            throw new Error(`Cache shutdown timeout after ${timeoutMs}ms`);
+          });
       } catch (err) {
         this.onError?.(new Error(`Error during cache shutdown: ${err}`));
       }
@@ -3925,21 +4848,21 @@ function matchProperty(property, propertyValues, warnFunction) {
       warnFunction(`Property ${key} cannot have a value of null/undefined with the ${operator} operator`);
     return false;
   }
-  function computeExactMatch(value2, overrideValue2) {
-    if (Array.isArray(value2))
-      return value2.map((val) => String(val).toLowerCase()).includes(String(overrideValue2).toLowerCase());
-    return String(value2).toLowerCase() === String(overrideValue2).toLowerCase();
+  function computeExactMatch(value, overrideValue) {
+    if (Array.isArray(value))
+      return value.map((val) => String(val).toLowerCase()).includes(String(overrideValue).toLowerCase());
+    return String(value).toLowerCase() === String(overrideValue).toLowerCase();
   }
-  function compare(lhs, rhs, operator2) {
-    if (operator2 === "gt")
+  function compare(lhs, rhs, operator) {
+    if (operator === "gt")
       return lhs > rhs;
-    if (operator2 === "gte")
+    if (operator === "gte")
       return lhs >= rhs;
-    if (operator2 === "lt")
+    if (operator === "lt")
       return lhs < rhs;
-    if (operator2 === "lte")
+    if (operator === "lte")
       return lhs <= rhs;
-    throw new Error(`Invalid operator: ${operator2}`);
+    throw new Error(`Invalid operator: ${operator}`);
   }
   switch (operator) {
     case "exact":
@@ -3952,6 +4875,14 @@ function matchProperty(property, propertyValues, warnFunction) {
       return String(overrideValue).toLowerCase().includes(String(value).toLowerCase());
     case "not_icontains":
       return !String(overrideValue).toLowerCase().includes(String(value).toLowerCase());
+    case "starts_with":
+      return String(overrideValue).toLowerCase().startsWith(String(value).toLowerCase());
+    case "not_starts_with":
+      return !String(overrideValue).toLowerCase().startsWith(String(value).toLowerCase());
+    case "ends_with":
+      return String(overrideValue).toLowerCase().endsWith(String(value).toLowerCase());
+    case "not_ends_with":
+      return !String(overrideValue).toLowerCase().endsWith(String(value).toLowerCase());
     case "regex":
       return isValidRegex(String(value)) && String(overrideValue).match(String(value)) !== null;
     case "not_regex":
@@ -4278,19 +5209,75 @@ function relativeDateParseForFeatureFlagMatching(value) {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/extensions/error-tracking/autocapture.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/autocapture.mjs
+var UNHANDLED_REJECTION_OPTION_NAMES = [
+  "--unhandled-rejections",
+  "--unhandled_rejections"
+];
+var UNHANDLED_REJECTION_MODES = new Set([
+  "throw",
+  "strict",
+  "warn",
+  "warn-with-error-code",
+  "none"
+]);
+var STARTUP_EXEC_ARGV = [
+  ...globalThis.process?.execArgv ?? []
+];
+var STARTUP_NODE_OPTIONS = globalThis.process?.env?.NODE_OPTIONS;
+function splitNodeOptions(nodeOptions) {
+  const args = [];
+  let current = "";
+  let isInString = false;
+  for (let index = 0;index < nodeOptions.length; index++) {
+    const character = nodeOptions[index];
+    if (character === "\\" && isInString && index + 1 < nodeOptions.length)
+      current += nodeOptions[++index];
+    else if (character !== " " || isInString)
+      if (character === '"')
+        isInString = !isInString;
+      else
+        current += character;
+    else if (current) {
+      args.push(current);
+      current = "";
+    }
+  }
+  if (current)
+    args.push(current);
+  return args;
+}
+function findUnhandledRejectionMode(args) {
+  let mode;
+  for (let index = 0;index < args.length; index++) {
+    const argument = args[index];
+    const optionName = UNHANDLED_REJECTION_OPTION_NAMES.find((name) => argument === name || argument.startsWith(`${name}=`));
+    if (!optionName)
+      continue;
+    const value = argument === optionName ? args[++index] : argument.slice(optionName.length + 1);
+    if (UNHANDLED_REJECTION_MODES.has(value))
+      mode = value;
+  }
+  return mode;
+}
+function getUnhandledRejectionMode(execArgv = STARTUP_EXEC_ARGV, nodeOptions = STARTUP_NODE_OPTIONS) {
+  return findUnhandledRejectionMode(execArgv) ?? findUnhandledRejectionMode(splitNodeOptions(nodeOptions ?? "")) ?? "throw";
+}
+var STARTUP_UNHANDLED_REJECTION_MODE = getUnhandledRejectionMode();
+function captureUncaughtException(captureFn, error, origin) {
+  captureFn(error, {
+    mechanism: {
+      type: origin === "unhandledRejection" ? "onunhandledrejection" : "onuncaughtexception",
+      handled: false
+    }
+  });
+}
 function makeUncaughtExceptionHandler(captureFn, onFatalFn) {
   let calledFatalError = false;
-  return Object.assign((error) => {
+  return Object.assign((error, origin) => {
     const userProvidedListenersCount = global.process.listeners("uncaughtException").filter((listener) => listener.name !== "domainUncaughtExceptionClear" && listener._posthogErrorHandler !== true).length;
-    const processWouldExit = userProvidedListenersCount === 0;
-    captureFn(error, {
-      mechanism: {
-        type: "onuncaughtexception",
-        handled: false
-      }
-    });
-    if (!calledFatalError && processWouldExit) {
+    captureUncaughtException(captureFn, error, origin);
+    if (!calledFatalError && userProvidedListenersCount === 0) {
       calledFatalError = true;
       onFatalFn(error);
     }
@@ -4298,29 +5285,38 @@ function makeUncaughtExceptionHandler(captureFn, onFatalFn) {
     _posthogErrorHandler: true
   });
 }
-function addUncaughtExceptionListener(captureFn, onFatalFn) {
-  globalThis.process?.on("uncaughtException", makeUncaughtExceptionHandler(captureFn, onFatalFn));
+function addUncaughtExceptionListener(captureFn, onFatalFn, mode = STARTUP_UNHANDLED_REJECTION_MODE) {
+  const process2 = globalThis.process;
+  if (!process2)
+    return;
+  if (mode === "strict")
+    return void process2.on("uncaughtExceptionMonitor", (error, origin) => captureUncaughtException(captureFn, error, origin));
+  process2.on("uncaughtException", makeUncaughtExceptionHandler(captureFn, onFatalFn));
 }
-function addUnhandledRejectionListener(captureFn) {
-  globalThis.process?.on("unhandledRejection", (reason) => captureFn(reason, {
-    mechanism: {
-      type: "onunhandledrejection",
-      handled: false
-    }
-  }));
+function addUnhandledRejectionListener(captureFn, mode = STARTUP_UNHANDLED_REJECTION_MODE) {
+  const process2 = globalThis.process;
+  if (!process2 || mode === "throw" || mode === "strict" || mode === "warn-with-error-code")
+    return;
+  process2.on("unhandledRejection", (reason) => {
+    captureFn(reason, {
+      mechanism: {
+        type: "onunhandledrejection",
+        handled: false
+      }
+    });
+  });
 }
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/extensions/error-tracking/index.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/index.mjs
 var SHUTDOWN_TIMEOUT = 2000;
 
-class ErrorTracking {
+class error_tracking_ErrorTracking {
   constructor(client, options, _logger) {
     this.client = client;
     this._exceptionAutocaptureEnabled = options.enableExceptionAutocapture || false;
     this._logger = _logger;
     this._rateLimiter = new BucketedRateLimiter({
-      refillRate: 1,
-      bucketSize: 10,
+      ...resolveExceptionRateLimiterConfig(options),
       refillInterval: 1e4,
       _logger: this._logger
     });
@@ -4335,6 +5331,9 @@ class ErrorTracking {
     };
     const exceptionProperties = builder.buildFromUnknown(error, hint);
     exceptionProperties.$exception_list = await builder.modifyFrames(exceptionProperties.$exception_list);
+    const injectedReleaseId = getInjectedReleaseId();
+    if (injectedReleaseId)
+      properties.$release_id = injectedReleaseId;
     return {
       event: "$exception",
       distinctId,
@@ -4353,8 +5352,8 @@ class ErrorTracking {
   }
   onException(exception, hint) {
     this.client.addPendingPromise((async () => {
-      if (!ErrorTracking.isPreviouslyCapturedError(exception)) {
-        const eventMessage = await ErrorTracking.buildEventMessage(this.client.getErrorPropertiesBuilder(), exception, hint);
+      if (!error_tracking_ErrorTracking.isPreviouslyCapturedError(exception)) {
+        const eventMessage = await error_tracking_ErrorTracking.buildEventMessage(this.client.getErrorPropertiesBuilder(), exception, hint);
         const exceptionProperties = eventMessage.properties;
         const exceptionType = exceptionProperties?.$exception_list[0]?.type ?? "Exception";
         const isRateLimited = this._rateLimiter.consumeRateLimit(exceptionType);
@@ -4362,14 +5361,14 @@ class ErrorTracking {
           return void this._logger.info("Skipping exception capture because of client rate limiting.", {
             exception: exceptionType
           });
-        return this.client.capture(eventMessage);
+        return this.client._capturePreparedEvent(eventMessage, false);
       }
     })());
   }
   async onFatalError(exception) {
     console.error(exception);
     await this.client.shutdown(SHUTDOWN_TIMEOUT);
-    process.exit(1);
+    globalThis.process.exit(1);
   }
   isEnabled() {
     return !this.client.isDisabled && this._exceptionAutocaptureEnabled;
@@ -4379,7 +5378,7 @@ class ErrorTracking {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/storage-memory.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/storage-memory.mjs
 class PostHogMemoryStorage {
   getProperty(key) {
     return this._memoryStorage[key];
@@ -4392,7 +5391,452 @@ class PostHogMemoryStorage {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/client.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/config.mjs
+function isCaptureMode(value) {
+  return value === "v0" || value === "v1";
+}
+function resolveCaptureMode() {
+  const envMode = typeof process != "undefined" ? process.env?.POSTHOG_CAPTURE_MODE : undefined;
+  return isCaptureMode(envMode) ? envMode : "v0";
+}
+
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/routing.mjs
+var AI_EVENT_PREFIX = "$ai_";
+var ANALYTICS_ROUTE = "analytics";
+var AI_ROUTE = "ai";
+function isLegacyOnlyEvent(message) {
+  return typeof message.event == "string" && message.event.startsWith(AI_EVENT_PREFIX);
+}
+
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/errors.mjs
+class CaptureV1Error extends Error {
+  constructor({ requestId, drops, retryExhausted, cause }) {
+    super(CaptureV1Error.buildMessage(requestId, drops, retryExhausted, cause)), this.name = "CaptureV1Error";
+    this.requestId = requestId;
+    this.drops = drops;
+    this.retryExhausted = retryExhausted;
+    this.cause = cause;
+  }
+  static buildMessage(requestId, drops, retryExhausted, cause) {
+    let message = `Capture V1 batch ${requestId} did not fully deliver: ${drops.length} dropped, ${retryExhausted.length} undelivered`;
+    if (cause instanceof Error)
+      message += ` (${cause.message})`;
+    return message;
+  }
+}
+
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/transform.mjs
+function coerceBool(value) {
+  if (typeof value == "boolean")
+    return value;
+  if (typeof value == "number")
+    return value !== 0;
+  if (typeof value == "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1")
+      return true;
+    if (normalized === "false" || normalized === "0")
+      return false;
+  }
+}
+function coerceString(value) {
+  return typeof value == "string" ? value : undefined;
+}
+var OPTION_SENTINELS = [
+  {
+    property: "$cookieless_mode",
+    optionKey: "cookieless_mode",
+    coerce: coerceBool
+  },
+  {
+    property: "$ignore_sent_at",
+    optionKey: "disable_skew_correction",
+    coerce: coerceBool
+  },
+  {
+    property: "$process_person_profile",
+    optionKey: "process_person_profile",
+    coerce: coerceBool
+  },
+  {
+    property: "$product_tour_id",
+    optionKey: "product_tour_id",
+    coerce: coerceString
+  }
+];
+var TOPLEVEL_SENTINELS = [
+  {
+    property: "$session_id",
+    field: "session_id"
+  },
+  {
+    property: "$window_id",
+    field: "window_id"
+  }
+];
+function isRecord2(value) {
+  return typeof value == "object" && value !== null && !Array.isArray(value);
+}
+function toRfc3339(timestamp) {
+  if (typeof timestamp == "string") {
+    const asDate = new Date(timestamp);
+    if (Number.isNaN(asDate.getTime()))
+      return new Date().toISOString();
+    const normalized = asDate.toISOString();
+    const fractionalSeconds = timestamp.match(/\.(\d+)(?:Z|[+-]\d{2}:?\d{2})?$/i)?.[1];
+    return fractionalSeconds && fractionalSeconds.length > 3 ? normalized.replace(/\.\d{3}Z$/, `.${fractionalSeconds}Z`) : normalized;
+  }
+  if (timestamp instanceof Date)
+    return Number.isNaN(timestamp.getTime()) ? new Date().toISOString() : timestamp.toISOString();
+  const asDate = timestamp == null ? new Date : new Date(timestamp);
+  return Number.isNaN(asDate.getTime()) ? new Date().toISOString() : asDate.toISOString();
+}
+function relocateInto(properties, key, value) {
+  if (value !== undefined && !(key in properties))
+    properties[key] = value;
+}
+function buildV1Event(message) {
+  const sourceProperties = isRecord2(message.properties) ? message.properties : {};
+  const properties = {
+    ...sourceProperties
+  };
+  const options = {};
+  for (const { property, optionKey, coerce } of OPTION_SENTINELS)
+    if (property in properties) {
+      const coerced = coerce(properties[property]);
+      if (coerced !== undefined)
+        options[optionKey] = coerced;
+      delete properties[property];
+    }
+  const topLevel = {};
+  for (const { property, field } of TOPLEVEL_SENTINELS)
+    if (property in properties) {
+      const value = properties[property];
+      if (typeof value == "string")
+        topLevel[field] = value;
+      delete properties[property];
+    }
+  delete properties.$lib;
+  delete properties.$lib_version;
+  relocateInto(properties, "$set", message.$set);
+  relocateInto(properties, "$set_once", message.$set_once);
+  return {
+    event: String(message.event ?? ""),
+    uuid: String(message.uuid ?? ""),
+    distinct_id: String(message.distinct_id ?? ""),
+    timestamp: toRfc3339(message.timestamp),
+    ...topLevel,
+    options,
+    properties
+  };
+}
+function buildV1Batch(messages, { createdAt, historicalMigration }) {
+  const batch = {
+    created_at: createdAt,
+    batch: messages.map(buildV1Event)
+  };
+  if (historicalMigration)
+    batch.historical_migration = true;
+  return batch;
+}
+
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/sender.mjs
+var V1_ANALYTICS_PATH = "/i/v1/analytics/events";
+var DEFAULT_MAX_BACKOFF_MS = 30000;
+var RETRYABLE_STATUSES = new Set([
+  408,
+  500,
+  502,
+  503,
+  504
+]);
+
+class V1CaptureSender {
+  constructor(config, hooks) {
+    this.config = config;
+    this.maxBackoffMs = config.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
+    this.fetchFn = hooks.fetch;
+    this.onError = hooks.onError;
+    this.now = hooks.now ?? Date.now;
+    this.sleep = hooks.sleep ?? ((ms) => new Promise((resolve) => safeSetTimeout(resolve, ms)));
+    this.generateRequestId = hooks.generateRequestId ?? uuidv7;
+    this.compress = hooks.compress ?? gzipCompress;
+  }
+  async sendV1Batch(messages) {
+    if (messages.length === 0)
+      return;
+    const requestId = this.generateRequestId();
+    const createdAt = new Date(this.now()).toISOString();
+    const { batch } = buildV1Batch(messages, {
+      createdAt,
+      historicalMigration: this.config.historicalMigration
+    });
+    const url = `${this.config.host}${V1_ANALYTICS_PATH}`;
+    const drops = [];
+    let pending = batch;
+    const maxAttempts = Math.max(1, this.config.maxAttempts);
+    for (let attempt = 1;attempt <= maxAttempts; attempt++) {
+      const isLastAttempt = attempt === maxAttempts;
+      const payload = safeJsonStringify({
+        created_at: createdAt,
+        ...this.config.historicalMigration ? {
+          historical_migration: true
+        } : {},
+        batch: pending
+      });
+      let captureAttempt;
+      let retryDelayMs;
+      try {
+        captureAttempt = await this.sendOnce(url, payload, attempt, requestId);
+        const { response, signal } = captureAttempt;
+        const { status } = response;
+        if (status < 200 || status >= 300)
+          if (!isLastAttempt && RETRYABLE_STATUSES.has(status)) {
+            const retryAfterMs = this.parseRetryAfter(response);
+            await captureAttempt.waitFor(captureAttempt.cancelBody()).catch(() => {});
+            retryDelayMs = this.backoffDelay(attempt, retryAfterMs);
+          } else {
+            const httpError = await this.buildHttpError(response, status, captureAttempt.waitFor);
+            return this.surfaceBatchFailure(requestId, drops, pending, httpError);
+          }
+        else {
+          let parsed;
+          try {
+            parsed = await captureAttempt.waitFor(this.parseResponse(response));
+          } catch (error) {
+            if (signal.aborted)
+              throw error;
+            return this.surfaceBatchFailure(requestId, drops, pending, new Error(`Capture V1 returned an unparseable ${status} response body`));
+          }
+          const retryable = this.classify(pending, parsed, drops);
+          if (retryable.length === 0)
+            return this.surfacePartialDrops(requestId, drops);
+          if (isLastAttempt)
+            return void this.onError(new CaptureV1Error({
+              requestId,
+              drops,
+              retryExhausted: retryable.map((event) => event.uuid)
+            }));
+          pending = retryable;
+          const retryAfterMs = this.parseRetryAfter(response);
+          retryDelayMs = this.backoffDelay(attempt, retryAfterMs);
+        }
+      } catch (transportError) {
+        if (captureAttempt && !captureAttempt.signal.aborted)
+          throw transportError;
+        if (isLastAttempt)
+          return this.surfaceBatchFailure(requestId, drops, pending, transportError);
+        retryDelayMs = this.backoffDelay(attempt);
+      } finally {
+        captureAttempt?.cleanup();
+      }
+      if (retryDelayMs !== undefined)
+        await this.sleep(retryDelayMs);
+    }
+  }
+  async sendOnce(url, payload, attempt, requestId) {
+    const headers = this.buildHeaders(attempt, requestId);
+    let body = payload;
+    if (this.config.compressionEnabled) {
+      const compressed = await this.compress(payload, this.config.isDebug);
+      if (compressed !== null) {
+        body = compressed;
+        headers["Content-Encoding"] = "gzip";
+      }
+    }
+    const controller = new AbortController;
+    let timeoutPhase = "waiting for response headers";
+    let timer;
+    const deadline = new Promise((_resolve, reject) => {
+      timer = safeSetTimeout(() => {
+        const timeoutError = new Error(`Capture V1 request timed out ${timeoutPhase} after ${this.config.requestTimeoutMs}ms`);
+        timeoutError.name = "AbortError";
+        reject(timeoutError);
+        controller.abort(timeoutError);
+      }, this.config.requestTimeoutMs);
+    });
+    try {
+      const fetchPromise = this.fetchFn(url, {
+        method: "POST",
+        headers,
+        body,
+        signal: controller.signal
+      });
+      let responseAccepted = false;
+      fetchPromise.then((lateResponse) => {
+        if (controller.signal.aborted && !responseAccepted)
+          this.cancelBody(lateResponse);
+      }).catch(() => {});
+      const response = await Promise.race([
+        fetchPromise,
+        deadline
+      ]);
+      responseAccepted = true;
+      timeoutPhase = "while reading the response body";
+      let cleanedUp = false;
+      let cancellation;
+      const cancelBody = () => cancellation ??= this.cancelBody(response);
+      return {
+        response,
+        signal: controller.signal,
+        waitFor: (operation) => Promise.race([
+          operation,
+          deadline
+        ]),
+        cancelBody,
+        cleanup: () => {
+          if (cleanedUp)
+            return;
+          cleanedUp = true;
+          clearTimeout(timer);
+          if (controller.signal.aborted)
+            cancelBody();
+        }
+      };
+    } catch (error) {
+      clearTimeout(timer);
+      throw error;
+    }
+  }
+  buildHeaders(attempt, requestId) {
+    const sdkInfo = `${this.config.libraryId}/${this.config.libraryVersion}`;
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${this.config.apiKey}`,
+      "PostHog-Sdk-Info": sdkInfo,
+      "PostHog-Attempt": String(attempt),
+      "PostHog-Request-Id": requestId,
+      "PostHog-Request-Timestamp": new Date(this.now()).toISOString()
+    };
+    if (this.config.userAgent)
+      headers["User-Agent"] = this.config.userAgent;
+    return headers;
+  }
+  classify(pending, parsed, drops) {
+    const results = parsed.results ?? {};
+    const retryable = [];
+    for (const event of pending) {
+      const result = results[event.uuid];
+      if (result) {
+        if (result.result === "drop")
+          drops.push({
+            uuid: event.uuid,
+            details: result.details ?? undefined
+          });
+        else if (result.result === "retry")
+          retryable.push(event);
+      }
+    }
+    return retryable;
+  }
+  backoffDelay(attempt, retryAfterMs) {
+    const exponential = Math.min(this.config.initialRetryDelayMs * 2 ** (attempt - 1), this.maxBackoffMs);
+    if (retryAfterMs === undefined)
+      return exponential;
+    return Math.max(exponential, Math.min(retryAfterMs, this.maxBackoffMs));
+  }
+  parseRetryAfter(response) {
+    const raw = response.headers?.get("Retry-After");
+    if (!raw)
+      return;
+    const trimmed = raw.trim();
+    if (/^\d+$/.test(trimmed)) {
+      const seconds = parseInt(trimmed, 10);
+      return Number.isFinite(seconds) && seconds > 0 ? 1000 * seconds : undefined;
+    }
+    const dateMs = Date.parse(trimmed);
+    if (Number.isNaN(dateMs))
+      return;
+    const delta = dateMs - this.now();
+    return delta > 0 ? delta : undefined;
+  }
+  async parseResponse(response) {
+    const text = await response.text();
+    const parsed = JSON.parse(text);
+    if (typeof parsed != "object" || parsed === null || Array.isArray(parsed))
+      throw new Error("unexpected response shape");
+    const results = parsed.results;
+    if (results !== undefined && (typeof results != "object" || results === null || Array.isArray(results)))
+      throw new Error("unexpected results shape");
+    return {
+      results: results ?? {}
+    };
+  }
+  async buildHttpError(response, status, waitFor) {
+    let bodyText = "";
+    try {
+      bodyText = (await waitFor(response.text())).slice(0, 512);
+    } catch {}
+    const suffix = bodyText ? `: ${bodyText}` : "";
+    return new Error(`Capture V1 request failed with HTTP ${status}${suffix}`);
+  }
+  surfaceBatchFailure(requestId, drops, pending, cause) {
+    this.onError(new CaptureV1Error({
+      requestId,
+      drops,
+      retryExhausted: pending.map((event) => event.uuid),
+      cause
+    }));
+  }
+  surfacePartialDrops(requestId, drops) {
+    if (drops.length > 0)
+      this.onError(new CaptureV1Error({
+        requestId,
+        drops,
+        retryExhausted: []
+      }));
+  }
+  async cancelBody(response) {
+    try {
+      await response.body?.cancel();
+    } catch {}
+  }
+}
+
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/ai-capture/routing.mjs
+var AI_CAPTURE_ROUTE = "ai-capture";
+var AI_CAPTURE_ENDPOINT_PATH = "/i/v0/ai/batch/";
+var AI_MAX_EVENT_BYTES = 8388608;
+var AI_BATCH_TARGET_BYTES = 5242880;
+
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/ai-capture/batching.mjs
+var encoder = new TextEncoder;
+function eventByteSize(message) {
+  return encoder.encode(safeJsonStringify(message)).length;
+}
+function partitionAiBatch(messages, maxEventBytes = AI_MAX_EVENT_BYTES, targetBatchBytes = AI_BATCH_TARGET_BYTES) {
+  const batches = [];
+  const dropped = [];
+  let current = [];
+  let currentBytes = 0;
+  for (const message of messages) {
+    if (message === undefined)
+      continue;
+    const bytes = eventByteSize(message);
+    if (bytes > maxEventBytes) {
+      dropped.push({
+        event: typeof message.event == "string" ? message.event : "unknown",
+        bytes
+      });
+      continue;
+    }
+    if (current.length > 0 && currentBytes + bytes > targetBatchBytes) {
+      batches.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(message);
+    currentBytes += bytes;
+  }
+  if (current.length > 0)
+    batches.push(current);
+  return {
+    batches,
+    dropped
+  };
+}
+
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/client.mjs
 var MINIMUM_POLLING_INTERVAL = 100;
 var THIRTY_SECONDS = 30000;
 var MAX_CACHE_SIZE = 50000;
@@ -4417,6 +5861,12 @@ function normalizeHost(value) {
   const normalizedValue = typeof value == "string" ? value.trim() : "";
   return normalizedValue || DEFAULT_NODE_HOST;
 }
+function normalizeUnsetPersonProperties(value) {
+  const propertyNames = Array.isArray(value) ? value : [
+    value
+  ];
+  return propertyNames.filter((propertyName) => typeof propertyName == "string" && propertyName.trim().length > 0);
+}
 function buildFlagEventProperties(flagValues) {
   if (!flagValues)
     return {};
@@ -4434,11 +5884,15 @@ class PostHogBackendClient extends PostHogCoreStateless {
     const normalizedApiKey = normalizeApiKey(apiKey);
     const normalizedOptions = {
       ...options,
+      maxQueueSize: options.maxQueueSize ?? 1e4,
+      flushInterval: options.flushInterval ?? 5000,
       host: normalizeHost(options.host),
-      personalApiKey: normalizePersonalApiKey(options.personalApiKey)
+      personalApiKey: normalizePersonalApiKey(options.secretKey ?? options.personalApiKey)
     };
-    super(normalizedApiKey, normalizedOptions), this._memoryStorage = new PostHogMemoryStorage;
+    super(normalizedApiKey, normalizedOptions), this._memoryStorage = new PostHogMemoryStorage, this._aiCaptureRouteActive = false, this._minimalFlagCalledEvents = false;
     this.options = normalizedOptions;
+    this.captureMode = resolveCaptureMode();
+    this.enableFullAiCapture = normalizedOptions.enableFullAiCapture === true;
     this.context = this.initializeContext();
     this.options.featureFlagsPollingInterval = typeof normalizedOptions.featureFlagsPollingInterval == "number" ? Math.max(normalizedOptions.featureFlagsPollingInterval, MINIMUM_POLLING_INTERVAL) : THIRTY_SECONDS;
     if (typeof normalizedOptions.waitUntilDebounceMs == "number")
@@ -4463,21 +5917,24 @@ class PostHogBackendClient extends PostHogCoreStateless {
           onLoad: (count) => {
             this._events.emit("localEvaluationFlagsLoaded", count);
           },
+          onMinimalFlagCalledEvents: (enabled) => {
+            this._minimalFlagCalledEvents = enabled;
+          },
           customHeaders: this.getCustomHeaders(),
           cacheProvider: normalizedOptions.flagDefinitionCacheProvider,
           strictLocalEvaluation: normalizedOptions.strictLocalEvaluation
         });
     }
-    this.errorTracking = new ErrorTracking(this, normalizedOptions, this._logger);
+    this.errorTracking = new error_tracking_ErrorTracking(this, normalizedOptions, this._logger);
     this.distinctIdHasSentFlagCalls = {};
     this.maxCacheSize = normalizedOptions.maxCacheSize || MAX_CACHE_SIZE;
   }
-  enqueue(type, message, options) {
-    super.enqueue(type, message, options);
+  enqueue(type, message, options, explicitRoute) {
+    super.enqueue(type, message, options, explicitRoute);
     this.scheduleDebouncedFlush();
   }
   async flush() {
-    const flushPromise = super.flush();
+    const flushPromise = this.flushWithPendingPromises();
     const waitUntil = this.options.waitUntil;
     if (waitUntil && !this._waitUntilCycle)
       try {
@@ -4530,7 +5987,7 @@ class PostHogBackendClient extends PostHogCoreStateless {
   async resolveWaitUntilFlush() {
     const resolve = this._consumeWaitUntilCycle();
     try {
-      await super.flush();
+      await this.flushWithPendingPromises();
     } catch {} finally {
       resolve?.();
     }
@@ -4544,11 +6001,102 @@ class PostHogBackendClient extends PostHogCoreStateless {
   fetch(url, options) {
     return this.options.fetch ? this.options.fetch(url, options) : fetch(url, options);
   }
+  getQueueRouteKey(message) {
+    return this.captureMode === "v1" && isLegacyOnlyEvent(message) ? AI_ROUTE : ANALYTICS_ROUTE;
+  }
+  persistedQueueKeyForRoute(route) {
+    if (route === AI_CAPTURE_ROUTE)
+      return types_PostHogPersistedProperty.AiCaptureQueue;
+    return route === AI_ROUTE ? types_PostHogPersistedProperty.AiQueue : types_PostHogPersistedProperty.Queue;
+  }
+  getActiveQueueRoutes() {
+    const routes = this.captureMode === "v1" ? [
+      ANALYTICS_ROUTE,
+      AI_ROUTE
+    ] : [
+      ANALYTICS_ROUTE
+    ];
+    if (this._aiCaptureRouteActive)
+      routes.push(AI_CAPTURE_ROUTE);
+    return routes;
+  }
+  getBatchEndpointPath(route) {
+    return route === AI_CAPTURE_ROUTE ? AI_CAPTURE_ENDPOINT_PATH : super.getBatchEndpointPath(route);
+  }
+  async sendBatch(batchMessages, retryOptions, route = ANALYTICS_ROUTE) {
+    if (route === AI_CAPTURE_ROUTE)
+      return this.sendAiCaptureBatch(batchMessages, retryOptions);
+    if (this.captureMode !== "v1" || route === AI_ROUTE)
+      return super.sendBatch(batchMessages, retryOptions, route);
+    const v1Events = batchMessages.filter((message) => message !== undefined);
+    await this.getV1Sender().sendV1Batch(v1Events);
+  }
+  async sendAiCaptureBatch(batchMessages, retryOptions) {
+    const { batches, dropped } = partitionAiBatch(batchMessages);
+    for (const { event, bytes } of dropped) {
+      const message = `Event ${event} (${bytes} bytes) exceeds the ${AI_MAX_EVENT_BYTES / 1048576}MiB limit for ${AI_CAPTURE_ENDPOINT_PATH}, dropping.`;
+      this._logger.error(message);
+      this._events.emit("error", new Error(message));
+    }
+    for (const batch of batches)
+      await this.sendAiSubBatch(batch, retryOptions);
+  }
+  async sendAiSubBatch(batch, retryOptions) {
+    try {
+      await super.sendBatch(batch, retryOptions, AI_CAPTURE_ROUTE);
+    } catch (err) {
+      if (!isPostHogFetchContentTooLargeError(err))
+        throw err;
+      if (batch.length === 1) {
+        const [event] = batch;
+        const eventName = typeof event.event == "string" ? event.event : "unknown";
+        const message = `Event ${eventName} (${eventByteSize(event)} bytes) was rejected with 413 by ${AI_CAPTURE_ENDPOINT_PATH} on its own, dropping.`;
+        this._logger.error(message);
+        this._events.emit("error", new Error(message));
+        return;
+      }
+      const mid = Math.ceil(batch.length / 2);
+      await this.sendAiSubBatch(batch.slice(0, mid), retryOptions);
+      await this.sendAiSubBatch(batch.slice(mid), retryOptions);
+    }
+  }
+  getV1Sender() {
+    if (!this._v1Sender)
+      this._v1Sender = new V1CaptureSender({
+        host: this.host,
+        apiKey: this.apiKey,
+        libraryId: this.getLibraryId(),
+        libraryVersion: this.getLibraryVersion(),
+        userAgent: this.getCustomUserAgent() || undefined,
+        historicalMigration: this.historicalMigration,
+        compressionEnabled: !this.disableCompression,
+        requestTimeoutMs: this.requestTimeout,
+        maxAttempts: (this.options.fetchRetryCount ?? 3) + 1,
+        initialRetryDelayMs: this.options.fetchRetryDelay ?? 3000,
+        isDebug: this.isDebug
+      }, {
+        fetch: (url, fetchOptions) => this.fetch(url, fetchOptions),
+        onError: (error) => this._events.emit("error", error),
+        compress: (payload) => this.compressPayload(payload)
+      });
+    return this._v1Sender;
+  }
   getLibraryVersion() {
     return version;
   }
+  get metrics() {
+    if (!this._metrics)
+      this._metrics = new PostHogMetrics(this, resolveMetricsConfig(this.options.metrics), this._logger);
+    return this._metrics;
+  }
   getCustomUserAgent() {
     return `${this.getLibraryId()}/${this.getLibraryVersion()}`;
+  }
+  getCommonEventProperties() {
+    const commonProperties = super.getCommonEventProperties();
+    if (this.options.isServer ?? true)
+      commonProperties.$is_server = true;
+    return commonProperties;
   }
   enable() {
     return super.optIn();
@@ -4560,33 +6108,69 @@ class PostHogBackendClient extends PostHogCoreStateless {
     super.debug(enabled);
     this.featureFlagsPoller?.debug(enabled);
   }
-  capture(props) {
+  _warnIfInvalidCapture(props, stringArgumentWarning, exceptionCaptureWarning) {
     if (typeof props == "string")
-      this._logger.warn("Called capture() with a string as the first argument when an object was expected.");
+      this._logger.warn(stringArgumentWarning);
     if (props.event === "$exception" && !props._originatedFromCaptureException)
-      this._logger.warn("Using `posthog.capture('$exception')` is unreliable because it does not attach required metadata. Use `posthog.captureException(error)` instead, which attaches required metadata automatically.");
-    this.addPendingPromise(this.prepareEventMessage(props).then(({ distinctId, event, properties, options }) => super.captureStateless(distinctId, event, properties, {
-      timestamp: options.timestamp,
-      disableGeoip: options.disableGeoip,
-      uuid: options.uuid
-    })).catch((err) => {
+      this._logger.warn(exceptionCaptureWarning);
+  }
+  _sendPreparedEvent(type, props, immediate, prepareOptions, explicitRoute) {
+    return this.addPendingPromise(this._prepareEventMessage(props, prepareOptions).then(({ distinctId, event, properties, options }) => {
+      const captureOptions = {
+        timestamp: options.timestamp,
+        disableGeoip: options.disableGeoip,
+        uuid: options.uuid
+      };
+      const message = {
+        distinctId,
+        event,
+        properties: {
+          ...properties,
+          ...this.getCommonEventProperties()
+        }
+      };
+      return immediate ? this.sendImmediate(type, message, captureOptions, explicitRoute) : this.enqueue(type, message, captureOptions, explicitRoute);
+    }).catch((err) => {
       if (err)
         console.error(err);
     }));
   }
+  _capturePreparedEvent(props, immediate) {
+    return this._sendPreparedEvent("capture", props, immediate);
+  }
+  capture(props) {
+    this._warnIfInvalidCapture(props, "Called capture() with a string as the first argument when an object was expected.", "Using `posthog.capture('$exception')` is unreliable because it does not attach required metadata. Use `posthog.captureException(error)` instead, which attaches required metadata automatically.");
+    this._capturePreparedEvent(props, false);
+  }
   async captureImmediate(props) {
-    if (typeof props == "string")
-      this._logger.warn("Called captureImmediate() with a string as the first argument when an object was expected.");
-    if (props.event === "$exception" && !props._originatedFromCaptureException)
-      this._logger.warn("Capturing a `$exception` event via `posthog.captureImmediate('$exception')` is unreliable because it does not attach required metadata. Use `posthog.captureExceptionImmediate(error)` instead, which attaches this metadata by default.");
-    return this.addPendingPromise(this.prepareEventMessage(props).then(({ distinctId, event, properties, options }) => super.captureStatelessImmediate(distinctId, event, properties, {
-      timestamp: options.timestamp,
-      disableGeoip: options.disableGeoip,
-      uuid: options.uuid
-    })).catch((err) => {
-      if (err)
-        console.error(err);
-    }));
+    this._warnIfInvalidCapture(props, "Called captureImmediate() with a string as the first argument when an object was expected.", "Capturing a `$exception` event via `posthog.captureImmediate('$exception')` is unreliable because it does not attach required metadata. Use `posthog.captureExceptionImmediate(error)` instead, which attaches this metadata by default.");
+    return this._capturePreparedEvent(props, true);
+  }
+  captureAi(props) {
+    if (this.disabled)
+      return;
+    const uuid = getEventUuid(props.uuid, uuidv7);
+    this._sendPreparedAiEvent({
+      ...props,
+      uuid
+    }, false);
+    return uuid;
+  }
+  async captureAiImmediate(props) {
+    if (this.disabled)
+      return;
+    const uuid = getEventUuid(props.uuid, uuidv7);
+    await this._sendPreparedAiEvent({
+      ...props,
+      uuid
+    }, true);
+    return uuid;
+  }
+  _sendPreparedAiEvent(props, immediate) {
+    if (typeof props?.event == "string" && !props.event.startsWith("$ai_"))
+      this._logger.debug(`captureAi called with non-AI event ${props.event}; routing it to the AI endpoint anyway.`);
+    this._aiCaptureRouteActive = true;
+    return this._sendPreparedEvent("capture", props, immediate, undefined, AI_CAPTURE_ROUTE);
   }
   identify({ distinctId, properties = {}, disableGeoip }) {
     const { $set, $set_once, $anon_distinct_id, ...rest } = properties;
@@ -4597,8 +6181,13 @@ class PostHogBackendClient extends PostHogCoreStateless {
       $set_once: setOnceProps,
       $anon_distinct_id: $anon_distinct_id ?? undefined
     };
-    super.identifyStateless(distinctId, eventProperties, {
+    this._sendPreparedEvent("identify", {
+      distinctId,
+      event: "$identify",
+      properties: eventProperties,
       disableGeoip
+    }, false, {
+      includeContextProperties: false
     });
   }
   async identifyImmediate({ distinctId, properties = {}, disableGeoip }) {
@@ -4610,18 +6199,65 @@ class PostHogBackendClient extends PostHogCoreStateless {
       $set_once: setOnceProps,
       $anon_distinct_id: $anon_distinct_id ?? undefined
     };
-    await super.identifyStatelessImmediate(distinctId, eventProperties, {
+    await this._sendPreparedEvent("identify", {
+      distinctId,
+      event: "$identify",
+      properties: eventProperties,
       disableGeoip
+    }, true, {
+      includeContextProperties: false
+    });
+  }
+  setPersonProperties({ distinctId, properties = {}, propertiesOnce = {} }) {
+    if (Object.keys(properties).length === 0 && Object.keys(propertiesOnce).length === 0)
+      return;
+    const eventProperties = {};
+    if (Object.keys(properties).length > 0)
+      eventProperties.$set = properties;
+    if (Object.keys(propertiesOnce).length > 0)
+      eventProperties.$set_once = propertiesOnce;
+    this.capture({
+      distinctId,
+      event: "$set",
+      properties: eventProperties
+    });
+  }
+  unsetPersonProperties({ distinctId, properties }) {
+    const propertyNames = normalizeUnsetPersonProperties(properties);
+    if (propertyNames.length === 0)
+      return;
+    this.capture({
+      distinctId,
+      event: "$set",
+      properties: {
+        $unset: propertyNames
+      }
     });
   }
   alias(data) {
-    super.aliasStateless(data.alias, data.distinctId, undefined, {
+    this._sendPreparedEvent("alias", {
+      distinctId: data.distinctId,
+      event: "$create_alias",
+      properties: {
+        distinct_id: data.distinctId,
+        alias: data.alias
+      },
       disableGeoip: data.disableGeoip
+    }, false, {
+      includeContextProperties: false
     });
   }
   async aliasImmediate(data) {
-    await super.aliasStatelessImmediate(data.alias, data.distinctId, undefined, {
+    await this._sendPreparedEvent("alias", {
+      distinctId: data.distinctId,
+      event: "$create_alias",
+      properties: {
+        distinct_id: data.distinctId,
+        alias: data.alias
+      },
       disableGeoip: data.disableGeoip
+    }, true, {
+      includeContextProperties: false
     });
   }
   isLocalEvaluationReady() {
@@ -4676,7 +6312,7 @@ class PostHogBackendClient extends PostHogCoreStateless {
     const adjustedProperties = this.addLocalPersonAndGroupProperties(distinctId, groups, personProperties, groupProperties);
     personProperties = adjustedProperties.allPersonProperties;
     groupProperties = adjustedProperties.allGroupProperties;
-    const evaluationContext = this.createFeatureFlagEvaluationContext(distinctId, groups, personProperties, groupProperties);
+    const evaluationContext = this.createFeatureFlagEvaluationContext(distinctId, groups, this.personPropertiesForLocalEvaluation(distinctId, personProperties), groupProperties);
     if (onlyEvaluateLocally == undefined)
       onlyEvaluateLocally = this.options.strictLocalEvaluation ?? false;
     let result;
@@ -4687,6 +6323,7 @@ class PostHogBackendClient extends PostHogCoreStateless {
     let flagId;
     let flagVersion;
     let flagReason;
+    let flagHasExperiment;
     const localEvaluationEnabled = this.featureFlagsPoller !== undefined;
     if (localEvaluationEnabled) {
       await this.featureFlagsPoller?.loadFeatureFlags();
@@ -4701,6 +6338,7 @@ class PostHogBackendClient extends PostHogCoreStateless {
             const value = localResult.value;
             flagId = flag.id;
             flagReason = "Evaluated locally";
+            flagHasExperiment = flag.has_experiment;
             result = {
               key,
               enabled: value !== false,
@@ -4716,12 +6354,13 @@ class PostHogBackendClient extends PostHogCoreStateless {
         }
     }
     if (!flagWasLocallyEvaluated && !onlyEvaluateLocally) {
-      const flagsResponse = await super.getFeatureFlagDetailsStateless(evaluationContext.distinctId, evaluationContext.groups, evaluationContext.personProperties, evaluationContext.groupProperties, disableGeoip, [
+      const flagsResponse = await super.getFeatureFlagDetailsStateless(evaluationContext.distinctId, evaluationContext.groups, personProperties, groupProperties, disableGeoip, [
         key
       ]);
       if (flagsResponse === undefined)
         featureFlagError = FeatureFlagError2.UNKNOWN_ERROR;
       else {
+        this._minimalFlagCalledEvents = flagsResponse.minimalFlagCalledEvents === true;
         requestId = flagsResponse.requestId;
         evaluatedAt = flagsResponse.evaluatedAt;
         const errors = [];
@@ -4736,6 +6375,7 @@ class PostHogBackendClient extends PostHogCoreStateless {
           flagId = flagDetail.metadata?.id;
           flagVersion = flagDetail.metadata?.version;
           flagReason = flagDetail.reason?.description ?? flagDetail.reason?.code;
+          flagHasExperiment = flagDetail.metadata?.has_experiment;
           let parsedPayload;
           if (flagDetail.metadata?.payload !== undefined)
             try {
@@ -4746,7 +6386,7 @@ class PostHogBackendClient extends PostHogCoreStateless {
           result = {
             key,
             enabled: flagDetail.enabled,
-            variant: flagDetail.variant,
+            variant: flagDetail.variant ?? undefined,
             payload: parsedPayload
           };
         }
@@ -4767,6 +6407,8 @@ class PostHogBackendClient extends PostHogCoreStateless {
         $feature_flag_request_id: requestId,
         $feature_flag_evaluated_at: flagWasLocallyEvaluated ? Date.now() : evaluatedAt
       };
+      if (flagHasExperiment !== undefined)
+        properties.$feature_flag_has_experiment = flagHasExperiment;
       if (flagWasLocallyEvaluated && this.featureFlagsPoller) {
         const flagDefinitionsLoadedAt = this.featureFlagsPoller.getFlagDefinitionsLoadedAt();
         if (flagDefinitionsLoadedAt !== undefined)
@@ -4881,7 +6523,7 @@ class PostHogBackendClient extends PostHogCoreStateless {
     const adjustedProperties = this.addLocalPersonAndGroupProperties(resolvedDistinctId, groups, personProperties, groupProperties);
     personProperties = adjustedProperties.allPersonProperties;
     groupProperties = adjustedProperties.allGroupProperties;
-    const evaluationContext = this.createFeatureFlagEvaluationContext(resolvedDistinctId, groups, personProperties, groupProperties);
+    const evaluationContext = this.createFeatureFlagEvaluationContext(resolvedDistinctId, groups, this.personPropertiesForLocalEvaluation(resolvedDistinctId, personProperties), groupProperties);
     if (onlyEvaluateLocally == undefined)
       onlyEvaluateLocally = this.options.strictLocalEvaluation ?? false;
     const localEvaluationResult = await this.featureFlagsPoller?.getAllFlagsAndPayloads(evaluationContext, flagKeys);
@@ -4894,7 +6536,7 @@ class PostHogBackendClient extends PostHogCoreStateless {
       fallbackToFlags = localEvaluationResult.fallbackToFlags;
     }
     if (fallbackToFlags && !onlyEvaluateLocally) {
-      const remoteEvaluationResult = await super.getFeatureFlagsAndPayloadsStateless(evaluationContext.distinctId, evaluationContext.groups, evaluationContext.personProperties, evaluationContext.groupProperties, disableGeoip, flagKeys);
+      const remoteEvaluationResult = await super.getFeatureFlagsAndPayloadsStateless(evaluationContext.distinctId, evaluationContext.groups, personProperties, groupProperties, disableGeoip, flagKeys);
       featureFlags = {
         ...featureFlags,
         ...remoteEvaluationResult.flags || {}
@@ -4942,9 +6584,10 @@ class PostHogBackendClient extends PostHogCoreStateless {
     const adjustedProperties = this.addLocalPersonAndGroupProperties(resolvedDistinctId, groups, personProperties, groupProperties);
     personProperties = adjustedProperties.allPersonProperties;
     groupProperties = adjustedProperties.allGroupProperties;
-    const evaluationContext = this.createFeatureFlagEvaluationContext(resolvedDistinctId, groups, personProperties, groupProperties);
+    const evaluationContext = this.createFeatureFlagEvaluationContext(resolvedDistinctId, groups, this.personPropertiesForLocalEvaluation(resolvedDistinctId, personProperties), groupProperties);
     if (onlyEvaluateLocally == undefined)
       onlyEvaluateLocally = this.options.strictLocalEvaluation ?? false;
+    const requestedFlagKeys = flagKeys ? new Set(flagKeys) : undefined;
     const records = {};
     let requestId;
     let evaluatedAt;
@@ -4963,14 +6606,17 @@ class PostHogBackendClient extends PostHogCoreStateless {
           id: flagDef?.id,
           version: undefined,
           reason: "Evaluated locally",
-          locallyEvaluated: true
+          locallyEvaluated: true,
+          hasExperiment: flagDef?.has_experiment
         };
         locallyEvaluatedKeys.add(key);
       }
-    const fallbackToFlags = localResult ? localResult.fallbackToFlags : true;
+    const requestedFlagMissingLocally = requestedFlagKeys !== undefined && Array.from(requestedFlagKeys).some((key) => this.featureFlagsPoller?.featureFlagsByKey[key] === undefined);
+    const fallbackToFlags = localResult ? localResult.fallbackToFlags || requestedFlagMissingLocally : true;
     if (fallbackToFlags && !onlyEvaluateLocally) {
-      const details = await super.getFeatureFlagDetailsStateless(evaluationContext.distinctId, evaluationContext.groups, evaluationContext.personProperties, evaluationContext.groupProperties, disableGeoip, flagKeys);
+      const details = await super.getFeatureFlagDetailsStateless(evaluationContext.distinctId, evaluationContext.groups, personProperties, groupProperties, disableGeoip, flagKeys);
       if (details) {
+        this._minimalFlagCalledEvents = details.minimalFlagCalledEvents === true;
         requestId = details.requestId;
         evaluatedAt = details.evaluatedAt;
         errorsWhileComputing = Boolean(details.errorsWhileComputingFlags);
@@ -4993,7 +6639,8 @@ class PostHogBackendClient extends PostHogCoreStateless {
             id: detail.metadata?.id,
             version: detail.metadata?.version,
             reason: detail.reason?.description ?? detail.reason?.code,
-            locallyEvaluated: false
+            locallyEvaluated: false,
+            hasExperiment: detail.metadata?.has_experiment
           };
         }
       }
@@ -5013,7 +6660,8 @@ class PostHogBackendClient extends PostHogCoreStateless {
           id: existing?.id,
           version: existing?.version,
           reason: existing?.reason,
-          locallyEvaluated: existing?.locallyEvaluated ?? false
+          locallyEvaluated: existing?.locallyEvaluated ?? false,
+          hasExperiment: existing?.hasExperiment
         };
       }
     if (this._payloadOverrides !== undefined)
@@ -5025,6 +6673,11 @@ class PostHogBackendClient extends PostHogCoreStateless {
             payload
           };
       }
+    if (requestedFlagKeys !== undefined) {
+      for (const key of Object.keys(records))
+        if (!requestedFlagKeys.has(key))
+          delete records[key];
+    }
     return new FeatureFlagEvaluations({
       host: this._getFeatureFlagEvaluationsHost(),
       distinctId: resolvedDistinctId,
@@ -5037,6 +6690,9 @@ class PostHogBackendClient extends PostHogCoreStateless {
       errorsWhileComputing,
       quotaLimited
     });
+  }
+  _shouldSendMinimalFlagCalledEvent(event, properties) {
+    return event === "$feature_flag_called" && this._minimalFlagCalledEvents && properties.$feature_flag_has_experiment === false;
   }
   _captureFlagCalledEventIfNeeded(params) {
     const { distinctId, key, response, groups, disableGeoip, properties } = params;
@@ -5072,9 +6728,32 @@ class PostHogBackendClient extends PostHogCoreStateless {
     return this._featureFlagEvaluationsHost;
   }
   groupIdentify({ groupType, groupKey, properties, distinctId, disableGeoip }) {
-    super.groupIdentifyStateless(groupType, groupKey, properties, {
+    this._sendPreparedEvent("capture", {
+      distinctId: distinctId || `$${groupType}_${groupKey}`,
+      event: "$groupidentify",
+      properties: {
+        $group_type: groupType,
+        $group_key: groupKey,
+        $group_set: properties || {}
+      },
       disableGeoip
-    }, distinctId);
+    }, false, {
+      includeContextProperties: false
+    });
+  }
+  async groupIdentifyImmediate({ groupType, groupKey, properties, distinctId, disableGeoip }) {
+    await this._sendPreparedEvent("capture", {
+      distinctId: distinctId || `$${groupType}_${groupKey}`,
+      event: "$groupidentify",
+      properties: {
+        $group_type: groupType,
+        $group_key: groupKey,
+        $group_set: properties || {}
+      },
+      disableGeoip
+    }, true, {
+      includeContextProperties: false
+    });
   }
   async reloadFeatureFlags() {
     await this.featureFlagsPoller?.loadFeatureFlags(true);
@@ -5146,12 +6825,18 @@ class PostHogBackendClient extends PostHogCoreStateless {
     this.context?.enter(data, options);
   }
   async _shutdown(shutdownTimeoutMs) {
+    const shutdownDeadlineMs = Date.now() + (shutdownTimeoutMs ?? 30000);
     const resolve = this._consumeWaitUntilCycle();
     await this.featureFlagsPoller?.stopPoller(shutdownTimeoutMs);
     this.errorTracking.shutdown();
+    if (this._metrics) {
+      await raceWithTimeout(this._metrics.flush().catch(() => {}), Math.max(0, shutdownDeadlineMs - Date.now()));
+      this._metrics.reset();
+    }
     try {
-      return await super._shutdown(shutdownTimeoutMs);
+      return await super._shutdown(Math.max(0, shutdownDeadlineMs - Date.now()));
     } finally {
+      this.distinctIdHasSentFlagCalls = {};
       resolve?.();
     }
   }
@@ -5246,7 +6931,6 @@ class PostHogBackendClient extends PostHogCoreStateless {
   }
   addLocalPersonAndGroupProperties(distinctId, groups, personProperties, groupProperties) {
     const allPersonProperties = {
-      distinct_id: distinctId,
       ...personProperties || {}
     };
     const allGroupProperties = {};
@@ -5261,6 +6945,12 @@ class PostHogBackendClient extends PostHogCoreStateless {
       allGroupProperties
     };
   }
+  personPropertiesForLocalEvaluation(distinctId, personProperties) {
+    return {
+      distinct_id: distinctId,
+      ...personProperties || {}
+    };
+  }
   createFeatureFlagEvaluationContext(distinctId, groups, personProperties, groupProperties) {
     return {
       distinctId,
@@ -5271,21 +6961,21 @@ class PostHogBackendClient extends PostHogCoreStateless {
     };
   }
   captureException(error, distinctId, additionalProperties, uuid, flags) {
-    if (!ErrorTracking.isPreviouslyCapturedError(error)) {
+    if (!error_tracking_ErrorTracking.isPreviouslyCapturedError(error)) {
       const syntheticException = new Error("PostHog syntheticException");
-      this.addPendingPromise(ErrorTracking.buildEventMessage(this.getErrorPropertiesBuilder(), error, {
+      this.addPendingPromise(error_tracking_ErrorTracking.buildEventMessage(this.getErrorPropertiesBuilder(), error, {
         syntheticException
-      }, distinctId, additionalProperties).then((msg) => this.capture({
+      }, distinctId, additionalProperties).then((msg) => this._capturePreparedEvent({
         ...msg,
         uuid,
         flags
-      })));
+      }, false)));
     }
   }
   async captureExceptionImmediate(error, distinctId, additionalProperties, flags) {
-    if (!ErrorTracking.isPreviouslyCapturedError(error)) {
+    if (!error_tracking_ErrorTracking.isPreviouslyCapturedError(error)) {
       const syntheticException = new Error("PostHog syntheticException");
-      return this.addPendingPromise(ErrorTracking.buildEventMessage(this.getErrorPropertiesBuilder(), error, {
+      return this.addPendingPromise(error_tracking_ErrorTracking.buildEventMessage(this.getErrorPropertiesBuilder(), error, {
         syntheticException
       }, distinctId, additionalProperties).then((msg) => this.captureImmediate({
         ...msg,
@@ -5294,24 +6984,31 @@ class PostHogBackendClient extends PostHogCoreStateless {
     }
   }
   async prepareEventMessage(props) {
+    return this._prepareEventMessage(props);
+  }
+  async _prepareEventMessage(props, options = {}) {
     const { distinctId, event, properties, groups, flags, sendFeatureFlags, timestamp, disableGeoip, uuid } = props;
     const contextData = this.context?.get();
+    const includeContextProperties = options.includeContextProperties ?? true;
     let mergedDistinctId = distinctId || contextData?.distinctId;
-    const mergedProperties = {
+    const mergedProperties = includeContextProperties ? {
       ...this.props,
       ...contextData?.properties || {},
+      ...properties || {}
+    } : {
       ...properties || {}
     };
     if (!mergedDistinctId) {
       mergedDistinctId = uuidv7();
       mergedProperties.$process_person_profile = false;
     }
-    if (contextData?.sessionId && !mergedProperties.$session_id)
+    if (includeContextProperties && contextData?.sessionId && !mergedProperties.$session_id)
       mergedProperties.$session_id = contextData.sessionId;
+    const finalProperties = this._shouldSendMinimalFlagCalledEvent(event, mergedProperties) ? minimizeFlagCalledEventProperties(mergedProperties) : mergedProperties;
     const eventMessage = this._runBeforeSend({
       distinctId: mergedDistinctId,
       event,
-      properties: mergedProperties,
+      properties: finalProperties,
       groups,
       flags,
       sendFeatureFlags,
@@ -5335,12 +7032,14 @@ class PostHogBackendClient extends PostHogCoreStateless {
       }
       return {};
     }).catch(() => ({})).then((additionalProperties) => {
-      const props2 = {
+      const resolvedGroups = eventMessage.groups || groups;
+      return {
         ...additionalProperties,
         ...eventMessage.properties || {},
-        $groups: eventMessage.groups || groups
+        ...resolvedGroups !== undefined && Object.keys(resolvedGroups).length > 0 ? {
+          $groups: resolvedGroups
+        } : {}
       };
-      return props2;
     });
     if (eventMessage.event === "$pageview" && this.options.__preview_capture_bot_pageviews && typeof eventProperties.$raw_user_agent == "string") {
       if (isBlockedUA(eventProperties.$raw_user_agent, this.options.custom_blocked_useragents || [])) {
@@ -5367,22 +7066,26 @@ class PostHogBackendClient extends PostHogCoreStateless {
       beforeSend
     ];
     let result = eventMessage;
-    for (const fn of fns) {
-      result = fn(result);
-      if (!result) {
-        this._logger.info(`Event '${eventMessage.event}' was rejected in beforeSend function`);
+    for (const fn of fns)
+      try {
+        result = fn(result);
+        if (!result) {
+          this._logger.info(`Event '${eventMessage.event}' was rejected in beforeSend function`);
+          return null;
+        }
+        if (!result.properties || Object.keys(result.properties).length === 0) {
+          const message = `Event '${result.event}' has no properties after beforeSend function, this is likely an error.`;
+          this._logger.warn(message);
+        }
+      } catch (error) {
+        this._logger.error(`Error in before_send function for event '${eventMessage.event}':`, error);
         return null;
       }
-      if (!result.properties || Object.keys(result.properties).length === 0) {
-        const message = `Event '${result.event}' has no properties after beforeSend function, this is likely an error.`;
-        this._logger.warn(message);
-      }
-    }
     return result;
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/extensions/context/context.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/context/context.mjs
 import { AsyncLocalStorage } from "node:async_hooks";
 
 class PostHogContext {
@@ -5413,7 +7116,22 @@ class PostHogContext {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/extensions/sentry-integration.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/gzip.node.mjs
+import { gzip } from "node:zlib";
+import { promisify } from "node:util";
+var gzipAsync = promisify(gzip);
+async function gzipCompress2(input, isDebug = true) {
+  try {
+    const compressed = await gzipAsync(input);
+    return new Uint8Array(compressed);
+  } catch (error) {
+    if (isDebug)
+      console.error("Failed to gzip compress data", error);
+    return null;
+  }
+}
+
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/sentry-integration.mjs
 var NAME = "posthog-node";
 function createEventProcessor(_posthog, { organization, projectId, prefix, severityAllowList = [
   "error"
@@ -5453,6 +7171,9 @@ function createEventProcessor(_posthog, { organization, projectId, prefix, sever
       $sentry_exception_type: exceptions[0]?.type,
       $sentry_tags: event.tags
     };
+    const injectedReleaseId = getInjectedReleaseId();
+    if (injectedReleaseId)
+      properties.$release_id = injectedReleaseId;
     if (organization && projectId)
       properties["$sentry_url"] = (prefix || "https://sentry.io/organizations/") + organization + "/issues/?project=" + projectId + "&query=" + event.event_id;
     if (sendExceptionsToPostHog)
@@ -5481,27 +7202,40 @@ class PostHogSentryIntegration {
     };
   }
 }
-// ../../../node_modules/.bun/posthog-node@5.35.12/node_modules/posthog-node/dist/entrypoints/index.node.mjs
+// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/entrypoints/index.node.mjs
 class PostHog extends PostHogBackendClient {
   getLibraryId() {
     return "posthog-node";
+  }
+  compressPayload(payload) {
+    return gzipCompress2(payload, this.isDebug);
   }
   initializeContext() {
     return new PostHogContext;
   }
   createErrorPropertiesBuilder() {
-    return new exports_error_tracking.ErrorPropertiesBuilder([
-      new exports_error_tracking.EventCoercer,
-      new exports_error_tracking.ErrorCoercer,
-      new exports_error_tracking.ObjectCoercer,
-      new exports_error_tracking.StringCoercer,
-      new exports_error_tracking.PrimitiveCoercer
-    ], exports_error_tracking.createStackParser("node:javascript", exports_error_tracking.nodeStackLineParser), [
+    return new ErrorPropertiesBuilder([
+      new EventCoercer,
+      new ErrorCoercer,
+      new ObjectCoercer,
+      new StringCoercer,
+      new PrimitiveCoercer
+    ], createStackParser("node:javascript", nodeStackLineParser), [
       createModulerModifier(),
-      addSourceContext,
+      (frames) => addSourceContext(frames, undefined, this._logger),
       createRelativePathModifier()
     ]);
   }
+}
+
+// ../../telemetry-core/src/machine-id.ts
+import { createHash } from "node:crypto";
+import os2 from "node:os";
+function getDefaultTelemetryOsProvider() {
+  return os2;
+}
+function getTelemetryDistinctId(machineIdPrefix, osProvider = getDefaultTelemetryOsProvider()) {
+  return createHash("sha256").update(`${machineIdPrefix}${osProvider.hostname()}`).digest("hex");
 }
 
 // ../../telemetry-core/src/posthog-client.ts
@@ -5538,7 +7272,7 @@ function createDefaultPostHogTransport(apiKey, options) {
 }
 function isTelemetryClientEnabled(input) {
   const env = input.env ?? process.env;
-  return !shouldDisableTelemetry({ env, productEnvPrefix: input.product.productEnvPrefix }) && getTelemetryApiKey(env, input.product.defaultApiKey).length > 0;
+  return !shouldDisableTelemetry({ env, productEnvPrefix: input.product.productEnvPrefix }) && hasTelemetryApiKey(env, input.product.defaultApiKey);
 }
 function createTelemetryClient(input) {
   if (!isTelemetryClientEnabled(input)) {
@@ -5604,7 +7338,8 @@ function createTransport(input) {
       flushAt: 1,
       flushInterval: 0,
       host: getTelemetryHost(env, input.product.defaultHost),
-      disableGeoip: false
+      disableGeoip: input.product.disableGeoip ?? false,
+      ...input.product.transportOptions
     });
   } catch (error) {
     input.diagnostics?.({
@@ -5872,12 +7607,12 @@ function parseHookInput(raw) {
   }
 }
 function isCodexSessionStartInput(value) {
-  return isRecord2(value) && value["hook_event_name"] === "SessionStart" && typeof value["session_id"] === "string" && isStringOrNull(value["transcript_path"]) && typeof value["cwd"] === "string" && typeof value["model"] === "string" && typeof value["permission_mode"] === "string" && typeof value["source"] === "string";
+  return isRecord3(value) && value["hook_event_name"] === "SessionStart" && typeof value["session_id"] === "string" && isStringOrNull(value["transcript_path"]) && typeof value["cwd"] === "string" && typeof value["model"] === "string" && typeof value["permission_mode"] === "string" && typeof value["source"] === "string";
 }
 function isStringOrNull(value) {
   return typeof value === "string" || value === null;
 }
-function isRecord2(value) {
+function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function readStdin() {

@@ -8,20 +8,22 @@ import { argv, execPath as execPath2, stderr } from "node:process";
 import { stdin as processStdin } from "node:process";
 
 // src/codex-hook.ts
-import { readFileSync as readFileSync9, realpathSync as realpathSync6 } from "node:fs";
+import { readFileSync as readFileSync9, realpathSync as realpathSync7 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { join as join11, resolve as resolve11 } from "node:path";
 
 // ../../../../lsp-daemon/dist/client.js
+import { statSync as statSync5 } from "node:fs";
+import { isAbsolute as isAbsolute6 } from "node:path";
 import { connect } from "node:net";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { spawn } from "node:child_process";
-import { closeSync as closeSync2, mkdirSync as mkdirSync2, openSync as openSync2 } from "node:fs";
+import { closeSync as closeSync2, existsSync as existsSync2, mkdirSync as mkdirSync2, openSync as openSync2, writeSync as writeSync2 } from "node:fs";
 import { Socket } from "node:net";
-import { dirname as dirname3 } from "node:path";
-import { execPath } from "node:process";
+import { dirname as dirname3, isAbsolute as isAbsolute3 } from "node:path";
+import { argv0, execPath } from "node:process";
 import {
   chmodSync,
   closeSync,
@@ -42,52 +44,52 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { statSync as statSync2 } from "node:fs";
 import { isAbsolute as isAbsolute2 } from "node:path";
-import { existsSync as existsSync9, statSync as statSync4 } from "node:fs";
-import { dirname as dirname8, join as join4, resolve as resolve7 } from "node:path";
+import { existsSync as existsSync11, realpathSync as realpathSync5, statSync as statSync4 } from "node:fs";
+import { basename as basename3, dirname as dirname10, join as join5, resolve as resolve8 } from "node:path";
 import { basename as basename2, extname } from "node:path";
 import { resolve as resolve6 } from "node:path";
 import { pathToFileURL as pathToFileURL3 } from "node:url";
 import { pathToFileURL } from "node:url";
 import { spawn as spawn2, spawnSync } from "node:child_process";
-import { existsSync as existsSync2, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync3, statSync as statSync3 } from "node:fs";
 import { delimiter as delimiter2, join as join2 } from "node:path";
 import { readFileSync as readFileSync2, realpathSync as realpathSync2 } from "node:fs";
 import { relative as relative2, resolve as resolve2 } from "node:path";
 import { pathToFileURL as pathToFileURL2 } from "node:url";
-import { existsSync as existsSync4, lstatSync as lstatSync3, renameSync, rmSync, writeFileSync } from "node:fs";
-import { existsSync as existsSync3, lstatSync as lstatSync2, readFileSync as readFileSync3, readdirSync, realpathSync as realpathSync3 } from "node:fs";
-import { dirname as dirname4, isAbsolute as isAbsolute3, relative as relative3, resolve as resolve3 } from "node:path";
+import { existsSync as existsSync5, lstatSync as lstatSync3, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync as existsSync4, lstatSync as lstatSync2, readFileSync as readFileSync3, readdirSync, realpathSync as realpathSync3 } from "node:fs";
+import { dirname as dirname4, isAbsolute as isAbsolute4, relative as relative3, resolve as resolve3 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { createHash as createHash2 } from "node:crypto";
 import { dirname as dirname5, relative as relative4, resolve as resolve4 } from "node:path";
-import { existsSync as existsSync5, lstatSync as lstatSync4, readdirSync as readdirSync2 } from "node:fs";
+import { existsSync as existsSync6, lstatSync as lstatSync4, readdirSync as readdirSync2 } from "node:fs";
 import { dirname as dirname6, resolve as resolve5 } from "node:path";
-import { existsSync as existsSync6, mkdirSync as mkdirSync3, readFileSync as readFileSync4, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { dirname as dirname7 } from "node:path";
-import { existsSync as existsSync7, readFileSync as readFileSync5 } from "node:fs";
-import { existsSync as existsSync8 } from "node:fs";
-import { delimiter as delimiter3, join as join3 } from "node:path";
-import { existsSync as existsSync10, lstatSync as lstatSync5, readdirSync as readdirSync3 } from "node:fs";
-import { join as join5, resolve as resolve8 } from "node:path";
+import { existsSync as existsSync7, realpathSync as realpathSync4 } from "node:fs";
+import { dirname as dirname7, join as join3 } from "node:path";
+import { existsSync as existsSync8, mkdirSync as mkdirSync3, readFileSync as readFileSync4, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname as dirname8 } from "node:path";
+import { existsSync as existsSync9, readFileSync as readFileSync5 } from "node:fs";
+import { existsSync as existsSync10 } from "node:fs";
+import { delimiter as delimiter3, dirname as dirname9, isAbsolute as isAbsolute5, join as join4, resolve as resolve7 } from "node:path";
+import { existsSync as existsSync12, lstatSync as lstatSync5, readdirSync as readdirSync3 } from "node:fs";
+import { join as join6, resolve as resolve9 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 import { lstatSync as lstatSync6, readdirSync as readdirSync4 } from "node:fs";
-import { join as join6 } from "node:path";
-import { statSync as statSync5 } from "node:fs";
-import { isAbsolute as isAbsolute4 } from "node:path";
+import { join as join7 } from "node:path";
+import { readFileSync as readFileSync6, renameSync as renameSync3, unlinkSync as unlinkSync2, writeFileSync as writeFileSync3 } from "node:fs";
 
 class LspRequestContextParseError extends Error {
-  code;
-  name = "LspRequestContextParseError";
   constructor(code, message) {
     super(message);
     this.code = code;
+    this.name = "LspRequestContextParseError";
   }
 }
 
 class LspRequestContextUnavailableError extends Error {
-  name = "LspRequestContextUnavailableError";
   constructor() {
     super("LSP request context is required. Standalone MCP startup must install one with runWithRequestContext(createStandaloneMcpRequestContext()).");
+    this.name = "LspRequestContextUnavailableError";
   }
 }
 var storage = new AsyncLocalStorage;
@@ -113,18 +115,18 @@ function parseLspRequestContext(value) {
   const installDecisionsPath = stringField(value, "installDecisionsPath");
   const capabilities = capabilitiesField(value["capabilities"]);
   const canonical = canonicalCwd(cwd);
-  for (const path2 of projectConfigPaths) {
-    requireAbsolutePath(path2, "projectConfigPaths");
-    const projectPath = canonicalizeExistingOrNearestAncestor(path2);
+  for (const path of projectConfigPaths) {
+    requireAbsolutePath(path, "projectConfigPaths");
+    const projectPath = canonicalizeExistingOrNearestAncestor(path);
     if (!isPathInside(canonical, projectPath)) {
-      throw new LspRequestContextParseError("project_config_outside_cwd", `Project LSP config path must be inside cwd: ${path2}`);
+      throw new LspRequestContextParseError("project_config_outside_cwd", `Project LSP config path must be inside cwd: ${path}`);
     }
   }
   requireAbsolutePath(userConfigPath, "userConfigPath");
   requireAbsolutePath(installDecisionsPath, "installDecisionsPath");
   return {
     cwd: canonical,
-    projectConfigPaths: projectConfigPaths.map((path2) => canonicalizeExistingOrNearestAncestor(path2)),
+    projectConfigPaths: projectConfigPaths.map((path) => canonicalizeExistingOrNearestAncestor(path)),
     userConfigPath,
     installDecisionsPath,
     capabilities
@@ -137,8 +139,8 @@ function canonicalCwd(cwd) {
   }
   return realpathSync(resolved);
 }
-function canonicalizeExistingOrNearestAncestor(path2) {
-  let current = resolve(path2);
+function canonicalizeExistingOrNearestAncestor(path) {
+  let current = resolve(path);
   const suffix = [];
   while (true) {
     try {
@@ -180,9 +182,9 @@ function stringArrayField(value, field) {
   }
   return fieldValue;
 }
-function requireAbsolutePath(path2, field) {
-  if (!isAbsolute(path2)) {
-    throw new LspRequestContextParseError("relative_path", `LSP request context.${field} must be absolute: ${path2}`);
+function requireAbsolutePath(path, field) {
+  if (!isAbsolute(path)) {
+    throw new LspRequestContextParseError("relative_path", `LSP request context.${field} must be absolute: ${path}`);
   }
 }
 function isPathInside(parent, child) {
@@ -214,7 +216,6 @@ function isPlainRecord(value) {
 }
 
 class DaemonRequestError extends Error {
-  requestWritten;
   constructor(message, requestWritten) {
     super(message);
     this.name = "DaemonRequestError";
@@ -237,7 +238,6 @@ class DaemonRequestCancelledError extends DaemonRequestError {
 }
 
 class DaemonRequestTimedOutError extends DaemonRequestError {
-  timeoutMs;
   constructor(requestWritten, timeoutMs) {
     super("daemon request timed out", requestWritten);
     this.name = "DaemonRequestTimedOutError";
@@ -314,20 +314,18 @@ var OMO_LSP_DAEMON_VERSION = "OMO_LSP_DAEMON_VERSION";
 var DAEMON_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
 
 class InvalidRuntimeOverrideError extends Error {
-  code = "invalid_runtime_override";
-  reason;
   constructor(reason, message) {
     super(message);
+    this.code = "invalid_runtime_override";
     this.name = "InvalidRuntimeOverrideError";
     this.reason = reason;
   }
 }
 
 class InvalidDaemonVersionError extends Error {
-  code = "invalid_daemon_version";
-  version;
   constructor(version) {
     super("LSP daemon version must match [A-Za-z0-9][A-Za-z0-9._+-]{0,127}");
+    this.code = "invalid_daemon_version";
     this.name = "InvalidDaemonVersionError";
     this.version = version;
   }
@@ -371,10 +369,9 @@ var requireFromHere = createRequire(import.meta.url);
 var MAX_SOCKET_PATH_LENGTH = 100;
 
 class InvalidDaemonDirectoryError extends Error {
-  code = "invalid_daemon_directory";
-  directory;
   constructor(directory) {
     super(`${OMO_LSP_DAEMON_DIR} must be an absolute path`);
+    this.code = "invalid_daemon_directory";
     this.name = "InvalidDaemonDirectoryError";
     this.directory = directory;
   }
@@ -524,7 +521,7 @@ async function probeDaemon(paths, timeoutMs = PROBE_TIMEOUT_MS, signal) {
   return await pingDaemon(paths, token, timeoutMs, signal) !== null;
 }
 function pingDaemon(paths, token, timeoutMs = PROBE_TIMEOUT_MS, signal) {
-  return new Promise((resolve22) => {
+  return new Promise((resolve) => {
     const socket = new Socket;
     let settled = false;
     let timer;
@@ -536,7 +533,7 @@ function pingDaemon(paths, token, timeoutMs = PROBE_TIMEOUT_MS, signal) {
         clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
       socket.destroy();
-      resolve22(value);
+      resolve(value);
     };
     const onAbort = () => finish(null);
     const decoder = createLineDecoder((message) => {
@@ -559,18 +556,36 @@ function pingDaemon(paths, token, timeoutMs = PROBE_TIMEOUT_MS, signal) {
     socket.connect(paths.socket);
   });
 }
-function spawnDaemonProcess(paths) {
+function spawnDaemonProcess(paths, deps = {}) {
   mkdirSync2(dirname3(paths.log), { recursive: true });
   const logFd = openSync2(paths.log, "a");
   try {
-    const child = spawn(execPath, [paths.cliPath, "daemon"], {
+    const spawnDaemonChild = deps.spawn ?? spawn;
+    const executable = deps.resolveExecutable?.() ?? resolveDaemonNodeExecutable();
+    const child = spawnDaemonChild(executable, [paths.cliPath, "daemon"], {
       detached: true,
-      stdio: ["ignore", logFd, logFd]
+      stdio: ["ignore", logFd, logFd],
+      windowsHide: true,
+      env: { ...process.env, BUN_BE_BUN: "1" }
+    });
+    child.once("spawn", () => closeSync2(logFd));
+    child.once("error", (error) => {
+      writeSync2(logFd, `[lsp-daemon] failed to spawn daemon: ${error.message}
+`);
+      closeSync2(logFd);
     });
     child.unref();
-  } finally {
+  } catch (error) {
     closeSync2(logFd);
+    throw error;
   }
+}
+function resolveDaemonNodeExecutable(cachedExecPath = execPath, originalArgv0 = argv0, pathExists = existsSync2) {
+  if (pathExists(cachedExecPath))
+    return cachedExecPath;
+  if (isAbsolute3(originalArgv0) && pathExists(originalArgv0))
+    return originalArgv0;
+  return "node";
 }
 function defaultEnsureDaemonDeps() {
   return {
@@ -581,7 +596,7 @@ function defaultEnsureDaemonDeps() {
   };
 }
 function sleepWithSignal(ms, signal) {
-  return new Promise((resolve22) => {
+  return new Promise((resolve) => {
     let settled = false;
     const finish = () => {
       if (settled)
@@ -589,7 +604,7 @@ function sleepWithSignal(ms, signal) {
       settled = true;
       clearTimeout(timer);
       signal?.removeEventListener("abort", finish);
-      resolve22();
+      resolve();
     };
     const timer = setTimeout(finish, ms);
     if (signal?.aborted) {
@@ -604,7 +619,7 @@ function awaitWithSignal(promise, signal) {
     return promise;
   if (signal.aborted)
     return Promise.reject(abortError(signal));
-  return new Promise((resolve22, reject) => {
+  return new Promise((resolve, reject) => {
     let settled = false;
     const finish = (run) => {
       if (settled)
@@ -615,7 +630,7 @@ function awaitWithSignal(promise, signal) {
     };
     const onAbort = () => finish(() => reject(abortError(signal)));
     signal.addEventListener("abort", onAbort, { once: true });
-    promise.then((value) => finish(() => resolve22(value)), (error) => finish(() => reject(error)));
+    promise.then((value) => finish(() => resolve(value)), (error) => finish(() => reject(error)));
   });
 }
 function throwIfAborted(signal) {
@@ -644,18 +659,18 @@ function parsePingResponse(message) {
     return null;
   if (!endpoint || typeof endpoint !== "object" || Array.isArray(endpoint))
     return null;
-  const path2 = Reflect.get(endpoint, "path");
+  const path = Reflect.get(endpoint, "path");
   const kind = Reflect.get(endpoint, "kind");
-  if (typeof path2 !== "string")
+  if (typeof path !== "string")
     return null;
   if (kind === "windows")
-    return { pid, nonce, startedAt, endpoint: { kind, path: path2 } };
+    return { pid, nonce, startedAt, endpoint: { kind, path } };
   if (kind === "missing")
-    return { pid, nonce, startedAt, endpoint: { kind, path: path2 } };
+    return { pid, nonce, startedAt, endpoint: { kind, path } };
   const dev = Reflect.get(endpoint, "dev");
   const ino = Reflect.get(endpoint, "ino");
   if (kind === "unix" && typeof dev === "number" && typeof ino === "number") {
-    return { pid, nonce, startedAt, endpoint: { kind, path: path2, dev, ino } };
+    return { pid, nonce, startedAt, endpoint: { kind, path, dev, ino } };
   }
   return null;
 }
@@ -672,22 +687,15 @@ function effectiveExtension(filePath) {
 }
 
 class LspConnectionClosedError extends Error {
-  serverId;
-  root;
-  name = "LspConnectionClosedError";
   constructor(serverId, root, message) {
     super(message ?? `LSP connection closed for ${serverId} at ${root}`);
     this.serverId = serverId;
     this.root = root;
+    this.name = "LspConnectionClosedError";
   }
 }
 
 class LspProcessExitedError extends Error {
-  serverId;
-  root;
-  exitCode;
-  stderrTail;
-  name = "LspProcessExitedError";
   constructor(serverId, root, exitCode, stderrTail) {
     const stderrSuffix = stderrTail ? `
 stderr tail: ${stderrTail}` : "";
@@ -696,46 +704,59 @@ stderr tail: ${stderrTail}` : "";
     this.root = root;
     this.exitCode = exitCode;
     this.stderrTail = stderrTail;
+    this.name = "LspProcessExitedError";
   }
 }
 
 class LspRequestTimeoutError extends Error {
-  method;
-  stderrTail;
-  name = "LspRequestTimeoutError";
   constructor(method, stderrTail) {
     const stderrSuffix = stderrTail ? `
 recent stderr: ${stderrTail}` : "";
     super(`LSP request timeout (method: ${method})${stderrSuffix}`);
     this.method = method;
     this.stderrTail = stderrTail;
+    this.name = "LspRequestTimeoutError";
   }
 }
 
 class LspInvalidPathError extends Error {
-  name = "LspInvalidPathError";
+  constructor() {
+    super(...arguments);
+    this.name = "LspInvalidPathError";
+  }
 }
 
 class LspServerLookupError extends Error {
-  lookup;
-  name = "LspServerLookupError";
   constructor(message, lookup) {
     super(message);
     this.lookup = lookup;
+    this.name = "LspServerLookupError";
   }
 }
 
 class LspServerInitializingError extends Error {
-  originalError;
-  name = "LspServerInitializingError";
   constructor(originalError) {
     super(`LSP server is still initializing. Please retry in a few seconds. Original error: ${originalError.message}`);
     this.originalError = originalError;
+    this.name = "LspServerInitializingError";
   }
 }
 
 class LspProcessSpawnError extends Error {
-  name = "LspProcessSpawnError";
+  constructor() {
+    super(...arguments);
+    this.name = "LspProcessSpawnError";
+  }
+}
+
+class LspClientRespawnBudgetExceededError extends Error {
+  constructor(serverId, root, retryLimit) {
+    super(`LSP server ${serverId} at ${root} failed to stay alive; respawn budget exhausted ` + `(${retryLimit} consecutive dead generations). Retrying after the cooldown may succeed.`);
+    this.serverId = serverId;
+    this.root = root;
+    this.retryLimit = retryLimit;
+    this.name = "LspClientRespawnBudgetExceededError";
+  }
 }
 function isLspDeadConnectionError(err) {
   return err instanceof LspConnectionClosedError || err instanceof LspProcessExitedError;
@@ -748,6 +769,11 @@ function reportBestEffortCleanupError(operation, error, logger = writeCleanupErr
   const message = error instanceof Error ? error.message : String(error);
   logger(`[lsp] ignored ${operation} failure during cleanup: ${message}`);
 }
+var realTimerProvider = {
+  now: () => Date.now(),
+  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearTimeout: (handle) => clearTimeout(handle)
+};
 var DEFAULT_MAX_REFERENCES = 200;
 var DEFAULT_MAX_SYMBOLS = 200;
 var DEFAULT_MAX_DIAGNOSTICS = 200;
@@ -755,9 +781,12 @@ var DEFAULT_MAX_DIRECTORY_FILES = 50;
 var REQUEST_TIMEOUT_MS = 15000;
 var INIT_TIMEOUT_MS = 60000;
 var IDLE_TIMEOUT_MS = 5 * 60000;
+var MAX_RESIDENT_CLIENTS = 6;
 var REAPER_INTERVAL_MS = 60000;
 var STOP_HARD_KILL_TIMEOUT_MS = 5000;
 var STOP_SIGKILL_GRACE_MS = 1000;
+var CLIENT_RESPAWN_RETRY_LIMIT = 2;
+var CLIENT_RESPAWN_COOLDOWN_MS = 60000;
 var HEADER_SEPARATOR2 = `\r
 \r
 `;
@@ -767,20 +796,31 @@ var METHOD_NOT_FOUND = -32601;
 var INTERNAL_ERROR = -32603;
 
 class JsonRpcConnection {
-  reader;
-  writer;
-  pendingRequests = new Map;
-  notificationHandlers = new Map;
-  requestHandlers = new Map;
-  closeHandlers = [];
-  errorHandlers = [];
-  inputBuffer = Buffer.alloc(0);
-  nextRequestId = 1;
-  listening = false;
-  disposed = false;
   constructor(reader, writer) {
     this.reader = reader;
     this.writer = writer;
+    this.pendingRequests = new Map;
+    this.notificationHandlers = new Map;
+    this.requestHandlers = new Map;
+    this.closeHandlers = [];
+    this.errorHandlers = [];
+    this.inputBuffer = Buffer.alloc(0);
+    this.nextRequestId = 1;
+    this.listening = false;
+    this.disposed = false;
+    this.handleData = (chunk) => {
+      const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, "utf8");
+      this.inputBuffer = Buffer.concat([this.inputBuffer, chunkBuffer]);
+      this.drainInputBuffer();
+    };
+    this.handleClose = () => {
+      for (const handler of this.closeHandlers) {
+        handler();
+      }
+    };
+    this.handleStreamError = (error) => {
+      this.emitError(error);
+    };
   }
   listen() {
     if (this.listening)
@@ -815,7 +855,8 @@ class JsonRpcConnection {
     let cancelAfterWrite = false;
     let settled = false;
     const writeCancel = () => this.writeMessage({ jsonrpc: "2.0", method: "$/cancelRequest", params: { id } });
-    const responsePromise = new Promise((resolve22, reject) => {
+    let rejectAfterCancelWrite;
+    const responsePromise = new Promise((resolve, reject) => {
       const cleanup = () => {
         options.signal?.removeEventListener("abort", onAbort);
       };
@@ -826,22 +867,26 @@ class JsonRpcConnection {
         this.pendingRequests.delete(key);
         cleanup();
         const rejectCancelled = () => reject(abortError2(options.signal));
+        rejectAfterCancelWrite = async () => {
+          try {
+            await writeCancel();
+          } catch (error) {
+            this.emitError(toError(error));
+          }
+          rejectCancelled();
+        };
         if (!requestWritten) {
           cancelAfterWrite = true;
-          rejectCancelled();
           return;
         }
-        writeCancel().then(rejectCancelled, (error) => {
-          this.emitError(toError(error));
-          rejectCancelled();
-        });
+        rejectAfterCancelWrite();
       };
       const onAbort = () => settleCancel();
       this.pendingRequests.set(key, {
         resolve(result) {
           settled = true;
           cleanup();
-          resolve22(result);
+          resolve(result);
         },
         reject(error) {
           settled = true;
@@ -862,7 +907,7 @@ class JsonRpcConnection {
       await this.writeMessage(message);
       requestWritten = true;
       if (cancelAfterWrite)
-        await writeCancel();
+        await rejectAfterCancelWrite?.();
     } catch (error) {
       if (settled)
         return responsePromise;
@@ -901,19 +946,6 @@ class JsonRpcConnection {
     this.notificationHandlers.clear();
     this.requestHandlers.clear();
   }
-  handleData = (chunk) => {
-    const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, "utf8");
-    this.inputBuffer = Buffer.concat([this.inputBuffer, chunkBuffer]);
-    this.drainInputBuffer();
-  };
-  handleClose = () => {
-    for (const handler of this.closeHandlers) {
-      handler();
-    }
-  };
-  handleStreamError = (error) => {
-    this.emitError(error);
-  };
   drainInputBuffer() {
     while (true) {
       const headerEnd = this.inputBuffer.indexOf(HEADER_SEPARATOR2);
@@ -1013,13 +1045,13 @@ class JsonRpcConnection {
     const payload = `Content-Length: ${Buffer.byteLength(body, "utf8")}\r
 \r
 ${body}`;
-    return new Promise((resolve22, reject) => {
+    return new Promise((resolve, reject) => {
       this.writer.write(payload, (error) => {
         if (error) {
           reject(error);
           return;
         }
-        resolve22();
+        resolve();
       });
     });
   }
@@ -1085,7 +1117,7 @@ function reportKillError(context, error) {
 }
 function validateCwd(cwd) {
   try {
-    if (!existsSync2(cwd)) {
+    if (!existsSync3(cwd)) {
       return { valid: false, error: `Working directory does not exist: ${cwd}` };
     }
     const stats = statSync3(cwd);
@@ -1101,9 +1133,9 @@ function validateCwd(cwd) {
   }
 }
 function wrap(proc) {
-  const exitedPromise = new Promise((resolve22) => {
-    proc.once("close", (code) => resolve22(code ?? 0));
-    proc.once("error", () => resolve22(1));
+  const exitedPromise = new Promise((resolve) => {
+    proc.once("close", (code) => resolve(code ?? 0));
+    proc.once("error", () => resolve(1));
   });
   if (!proc.stdin || !proc.stdout || !proc.stderr) {
     throw new LspProcessSpawnError("Spawned process is missing one of stdin/stdout/stderr pipes");
@@ -1173,7 +1205,7 @@ function resolveWindowsCommand(command, env) {
   for (const baseDirectory of baseDirectories) {
     for (const extension of extensions) {
       const candidate = baseDirectory ? join2(baseDirectory, `${command}${extension}`) : `${command}${extension}`;
-      if (existsSync2(candidate))
+      if (existsSync3(candidate))
         return candidate;
     }
   }
@@ -1253,33 +1285,29 @@ function isPosition(value) {
 }
 
 class LspClientNotStartedError extends Error {
-  serverId;
-  root;
-  name = "LspClientNotStartedError";
   constructor(serverId, root) {
     super("LSP client not started");
     this.serverId = serverId;
     this.root = root;
+    this.name = "LspClientNotStartedError";
   }
 }
 
 class LspClientTransport {
-  root;
-  server;
-  proc = null;
-  connection = null;
-  stderrBuffer = [];
-  processExited = false;
-  diagnosticsStore = new Map;
-  requestTimeoutMs;
-  initializeTimeoutMs;
-  workspaceApplyEditHandler = null;
-  diagnosticPullSupported = false;
-  constructor(root, server2, timeouts = {}) {
+  constructor(root, server, timeouts = {}) {
     this.root = root;
-    this.server = server2;
+    this.server = server;
+    this.proc = null;
+    this.connection = null;
+    this.stderrBuffer = [];
+    this.processExited = false;
+    this.diagnosticsStore = new Map;
+    this.workspaceApplyEditHandler = null;
+    this.diagnosticPullSupported = false;
+    this.documentFormattingSupported = false;
     this.requestTimeoutMs = timeouts.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
     this.initializeTimeoutMs = timeouts.initializeTimeoutMs ?? INIT_TIMEOUT_MS;
+    this.timerProvider = timeouts.timerProvider ?? realTimerProvider;
   }
   pid() {
     return this.proc?.pid;
@@ -1298,6 +1326,12 @@ class LspClientTransport {
   }
   isDiagnosticPullSupported() {
     return this.diagnosticPullSupported;
+  }
+  setDocumentFormattingSupported(supported) {
+    this.documentFormattingSupported = supported;
+  }
+  isDocumentFormattingSupported() {
+    return this.documentFormattingSupported;
   }
   handlePublishDiagnostics(params) {
     this.diagnosticsStore.set(params.uri, [...params.diagnostics]);
@@ -1374,7 +1408,7 @@ class LspClientTransport {
     const options = args[1];
     const timeoutMs = options?.timeoutMs ?? this.requestTimeoutMs;
     const timeoutController = new AbortController;
-    const timeoutHandle = setTimeout(() => {
+    const timeoutHandle = this.timerProvider.setTimeout(() => {
       const stderrTail = this.stderrBuffer.slice(-5).join(`
 `);
       timeoutController.abort(new LspRequestTimeoutError(method, stderrTail || undefined));
@@ -1393,7 +1427,7 @@ class LspClientTransport {
       }
       throw error;
     } finally {
-      clearTimeout(timeoutHandle);
+      this.timerProvider.clearTimeout(timeoutHandle);
       combinedSignal.dispose();
     }
   }
@@ -1444,8 +1478,8 @@ class LspClientTransport {
       try {
         proc.kill();
         let timeoutId;
-        const timeoutPromise = new Promise((resolve22) => {
-          timeoutId = setTimeout(resolve22, STOP_HARD_KILL_TIMEOUT_MS);
+        const timeoutPromise = new Promise((resolve) => {
+          timeoutId = setTimeout(resolve, STOP_HARD_KILL_TIMEOUT_MS);
         });
         await Promise.race([
           proc.exited.then(() => {
@@ -1461,7 +1495,7 @@ class LspClientTransport {
             proc.kill("SIGKILL");
             await Promise.race([
               proc.exited,
-              new Promise((resolve22) => setTimeout(resolve22, STOP_SIGKILL_GRACE_MS))
+              new Promise((resolve) => setTimeout(resolve, STOP_SIGKILL_GRACE_MS))
             ]);
           } catch (error) {
             reportBestEffortCleanupError("hard process kill", error instanceof Error ? error : String(error));
@@ -1510,6 +1544,14 @@ function supportsDiagnosticPull(capabilities) {
     return false;
   return Object.hasOwn(capabilities, "diagnosticProvider");
 }
+function supportsDocumentFormatting(capabilities) {
+  if (capabilities === undefined)
+    return false;
+  const provider = capabilities.documentFormattingProvider;
+  if (provider === undefined || provider === null || provider === false)
+    return false;
+  return provider === true || typeof provider === "object";
+}
 
 class LspClientConnection extends LspClientTransport {
   async initialize() {
@@ -1526,6 +1568,7 @@ class LspClientConnection extends LspClientTransport {
           references: {},
           documentSymbol: { hierarchicalDocumentSymbolSupport: true },
           publishDiagnostics: {},
+          formatting: { dynamicRegistration: false },
           rename: {
             prepareSupport: true,
             prepareSupportDefaultBehavior: 1
@@ -1567,7 +1610,8 @@ class LspClientConnection extends LspClientTransport {
       initializationOptions: this.server.initialization
     }, { timeoutMs: this.initializeTimeoutMs });
     this.setDiagnosticPullSupported(supportsDiagnosticPull(result?.capabilities));
-    await this.sendNotification("initialized");
+    this.setDocumentFormattingSupported(supportsDocumentFormatting(result?.capabilities));
+    await this.sendNotification("initialized", {});
     await this.sendNotification("workspace/didChangeConfiguration", {
       settings: { json: { validate: { enable: true } } }
     });
@@ -1753,6 +1797,17 @@ function canonicalPath(filePath) {
     return absolute;
   }
 }
+function normalizeDocumentUri(uri) {
+  let decoded = uri;
+  try {
+    decoded = decodeURIComponent(uri);
+  } catch {
+    decoded = uri;
+  }
+  if (process.platform !== "win32")
+    return decoded;
+  return decoded.replace(/^(file:\/\/\/)([a-z]):/, (_match, prefix, drive) => `${prefix}${drive.toUpperCase()}:`);
+}
 function isSameOrDescendant(candidate, parent) {
   const suffix = relative2(parent, candidate);
   return suffix === "" || !suffix.startsWith("..") && suffix !== "..";
@@ -1763,30 +1818,31 @@ function movedPath(candidate, oldPath, newPath) {
 }
 
 class WorkspaceDocumentState {
-  sendNotification;
-  clearDiagnostics;
-  openDocuments = new Map;
-  openByUri = new Map;
-  openPromises = new Map;
-  now;
-  versionlessPublishQuiescenceMs;
   constructor(sendNotification, clearDiagnostics, options = {}) {
     this.sendNotification = sendNotification;
     this.clearDiagnostics = clearDiagnostics;
-    this.now = options.now ?? (() => Date.now());
+    this.openDocuments = new Map;
+    this.openByUri = new Map;
+    this.openPromises = new Map;
+    this.timerProvider = options.timerProvider ?? {
+      now: options.now ?? (() => Date.now()),
+      setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+      clearTimeout: (handle) => clearTimeout(handle)
+    };
+    this.now = () => this.timerProvider.now();
     this.versionlessPublishQuiescenceMs = options.versionlessPublishQuiescenceMs ?? DEFAULT_VERSIONLESS_PUBLISH_QUIESCENCE_MS;
   }
   async openFile(filePath) {
-    const path2 = canonicalPath(filePath);
-    const existingOpen = this.openPromises.get(path2);
+    const path = canonicalPath(filePath);
+    const existingOpen = this.openPromises.get(path);
     if (existingOpen) {
       await existingOpen;
-      return this.openFile(path2);
+      return this.openFile(path);
     }
-    const text = readFileSync2(path2, "utf-8");
-    const existing = this.openDocuments.get(path2);
+    const text = readFileSync2(path, "utf-8");
+    const existing = this.openDocuments.get(path);
     if (!existing)
-      return this.openDocumentSingleFlight(path2, text);
+      return this.openDocumentSingleFlight(path, text);
     if (existing.text === text)
       return;
     await this.changeDocument(existing, text);
@@ -1795,7 +1851,7 @@ class WorkspaceDocumentState {
     return this.openDocuments.get(canonicalPath(filePath))?.version;
   }
   getStoredDiagnostics(uri) {
-    const state = this.openByUri.get(uri);
+    const state = this.openByUri.get(normalizeDocumentUri(uri));
     if (!state)
       return [];
     return state.lastPublish?.diagnostics ?? state.pullCache?.diagnostics ?? [];
@@ -1817,13 +1873,13 @@ class WorkspaceDocumentState {
     return state !== undefined && state.uri === snapshot.uri && state.version === snapshot.version && state.generation === snapshot.documentGeneration;
   }
   getPullCache(snapshot) {
-    const state = this.openByUri.get(snapshot.uri);
+    const state = this.openByUri.get(normalizeDocumentUri(snapshot.uri));
     if (!state?.pullCache || state.pullCache.documentVersion !== snapshot.version)
       return null;
     return state.pullCache;
   }
   recordPullDiagnostics(snapshot, report) {
-    const state = this.openByUri.get(snapshot.uri);
+    const state = this.openByUri.get(normalizeDocumentUri(snapshot.uri));
     if (!state)
       return;
     state.pullCache = {
@@ -1833,7 +1889,7 @@ class WorkspaceDocumentState {
     };
   }
   recordPublishedDiagnostics(params) {
-    const state = this.openByUri.get(params.uri);
+    const state = this.openByUri.get(normalizeDocumentUri(params.uri));
     if (!state)
       return;
     state.publishGeneration += 1;
@@ -1847,7 +1903,7 @@ class WorkspaceDocumentState {
     this.notifyWaiters(state);
   }
   resolvePushDiagnostics(snapshot) {
-    const state = this.openByUri.get(snapshot.uri);
+    const state = this.openByUri.get(normalizeDocumentUri(snapshot.uri));
     if (!state?.lastPublish)
       return { status: "missing" };
     const publish = state.lastPublish;
@@ -1861,7 +1917,7 @@ class WorkspaceDocumentState {
     return waitMs === 0 ? { status: "ready", diagnostics: publish.diagnostics } : { status: "wait", waitMs };
   }
   waitForDiagnosticsActivity(snapshot, timeoutMs) {
-    const state = this.openByUri.get(snapshot.uri);
+    const state = this.openByUri.get(normalizeDocumentUri(snapshot.uri));
     if (!state || timeoutMs <= 0)
       return Promise.resolve();
     return new Promise((resolveActivity) => {
@@ -1870,18 +1926,18 @@ class WorkspaceDocumentState {
         if (settled)
           return;
         settled = true;
-        clearTimeout(timer);
+        this.timerProvider.clearTimeout(timer);
         state.waiters.delete(finish);
         resolveActivity();
       };
-      const timer = setTimeout(finish, timeoutMs);
+      const timer = this.timerProvider.setTimeout(finish, timeoutMs);
       if (typeof timer.unref === "function")
         timer.unref();
       state.waiters.add(finish);
     });
   }
   validateVersions(operations) {
-    const versions = new Map([...this.openDocuments].map(([path2, state]) => [path2, state.version]));
+    const versions = new Map([...this.openDocuments].map(([path, state]) => [path, state.version]));
     for (const operation of operations) {
       if (operation.kind === "text") {
         const current = versions.get(operation.path);
@@ -1897,17 +1953,17 @@ class WorkspaceDocumentState {
         continue;
       }
       if (operation.kind === "rename") {
-        const moved = [...versions].filter(([path2]) => isSameOrDescendant(path2, operation.oldPath));
-        for (const [path2] of moved)
-          versions.delete(path2);
-        for (const [path2] of moved)
-          versions.set(movedPath(path2, operation.oldPath, operation.newPath), 1);
+        const moved = [...versions].filter(([path]) => isSameOrDescendant(path, operation.oldPath));
+        for (const [path] of moved)
+          versions.delete(path);
+        for (const [path] of moved)
+          versions.set(movedPath(path, operation.oldPath, operation.newPath), 1);
         continue;
       }
       if (operation.kind === "delete") {
-        for (const path2 of [...versions.keys()]) {
-          if (isSameOrDescendant(path2, operation.path))
-            versions.delete(path2);
+        for (const path of [...versions.keys()]) {
+          if (isSameOrDescendant(path, operation.path))
+            versions.delete(path);
         }
         continue;
       }
@@ -1951,8 +2007,8 @@ class WorkspaceDocumentState {
       for (const state of moved)
         await this.closeDocument(state);
       for (const state of moved) {
-        const path2 = movedPath(state.path, mutation.oldPath, mutation.newPath);
-        await this.openDocumentSingleFlight(path2, readFileSync2(path2, "utf-8"));
+        const path = movedPath(state.path, mutation.oldPath, mutation.newPath);
+        await this.openDocumentSingleFlight(path, readFileSync2(path, "utf-8"));
       }
       if (moved.length === 0) {
         watched.push({ uri: pathToFileURL2(mutation.oldPath).href, type: 3 });
@@ -1966,31 +2022,31 @@ class WorkspaceDocumentState {
     if (removed.length === 0)
       watched.push({ uri: pathToFileURL2(mutation.path).href, type: 3 });
   }
-  async openDocumentSingleFlight(path2, text) {
-    const existing = this.openPromises.get(path2);
+  async openDocumentSingleFlight(path, text) {
+    const existing = this.openPromises.get(path);
     if (existing)
       return existing;
     const open = (async () => {
       const state = {
-        path: path2,
-        uri: pathToFileURL2(path2).href,
-        languageId: getLanguageId(effectiveExtension(path2)),
+        path,
+        uri: pathToFileURL2(path).href,
+        languageId: getLanguageId(effectiveExtension(path)),
         text,
         version: 1,
         generation: 1,
         publishGeneration: 0,
         waiters: new Set
       };
-      this.openDocuments.set(path2, state);
-      this.openByUri.set(state.uri, state);
+      this.openDocuments.set(path, state);
+      this.openByUri.set(normalizeDocumentUri(state.uri), state);
       this.notifyWaiters(state);
       await this.sendNotification("textDocument/didOpen", {
         textDocument: { uri: state.uri, languageId: state.languageId, version: state.version, text }
       });
     })().finally(() => {
-      this.openPromises.delete(path2);
+      this.openPromises.delete(path);
     });
-    this.openPromises.set(path2, open);
+    this.openPromises.set(path, open);
     return open;
   }
   async changeDocument(state, text) {
@@ -2007,7 +2063,7 @@ class WorkspaceDocumentState {
   }
   async closeDocument(state) {
     this.openDocuments.delete(state.path);
-    this.openByUri.delete(state.uri);
+    this.openByUri.delete(normalizeDocumentUri(state.uri));
     this.clearDiagnostics(state.uri);
     this.notifyWaiters(state);
     await this.sendNotification("textDocument/didClose", { textDocument: { uri: state.uri } });
@@ -2026,22 +2082,20 @@ function workspaceApplyEditConcurrentFailureReason(phase) {
 }
 
 class WorkspaceEditPathError extends Error {
-  path;
-  detail;
-  name = "WorkspaceEditPathError";
-  constructor(path2, detail) {
-    super(`${detail}: ${path2}`);
-    this.path = path2;
+  constructor(path, detail) {
+    super(`${detail}: ${path}`);
+    this.path = path;
     this.detail = detail;
+    this.name = "WorkspaceEditPathError";
   }
 }
 function isPathInsideWorkspace(filePath, workspaceRoot) {
   const relativePath = relative3(workspaceRoot, filePath);
-  return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute3(relativePath);
+  return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute4(relativePath);
 }
 function canonicalizeMissingPath(filePath) {
   let ancestor = filePath;
-  while (!existsSync3(ancestor)) {
+  while (!existsSync4(ancestor)) {
     const parent = dirname4(ancestor);
     if (parent === ancestor)
       throw new WorkspaceEditPathError(filePath, "no existing ancestor");
@@ -2059,7 +2113,7 @@ function canonicalWorkspaceRoot(workspaceRoot) {
       success: true,
       path: canonical,
       requestedPath: resolve3(workspaceRoot),
-      followedSymbolicLink: existsSync3(resolve3(workspaceRoot)) && lstatSync2(resolve3(workspaceRoot)).isSymbolicLink()
+      followedSymbolicLink: existsSync4(resolve3(workspaceRoot)) && lstatSync2(resolve3(workspaceRoot)).isSymbolicLink()
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -2079,7 +2133,7 @@ function uriToCanonicalWorkspacePath(uri, workspaceRoot) {
     return { success: false, error: `non-file URI ${uri}: ${detail}` };
   }
   try {
-    const canonical = existsSync3(requestedPath) ? realpathSync3(requestedPath) : canonicalizeMissingPath(requestedPath);
+    const canonical = existsSync4(requestedPath) ? realpathSync3(requestedPath) : canonicalizeMissingPath(requestedPath);
     if (!isPathInsideWorkspace(canonical, workspaceRoot)) {
       return { success: false, error: `${requestedPath}: outside workspace ${workspaceRoot}` };
     }
@@ -2087,33 +2141,33 @@ function uriToCanonicalWorkspacePath(uri, workspaceRoot) {
       success: true,
       path: canonical,
       requestedPath,
-      followedSymbolicLink: existsSync3(requestedPath) && lstatSync2(requestedPath).isSymbolicLink()
+      followedSymbolicLink: existsSync4(requestedPath) && lstatSync2(requestedPath).isSymbolicLink()
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     return { success: false, error: `${requestedPath}: ${detail}` };
   }
 }
-function snapshotPath(path2, includeChildren) {
-  if (!existsSync3(path2))
+function snapshotPath(path, includeChildren) {
+  if (!existsSync4(path))
     return { kind: "missing" };
-  const stats = lstatSync2(path2);
+  const stats = lstatSync2(path);
   if (stats.isFile())
-    return { kind: "file", content: readFileSync3(path2, "utf-8") };
+    return { kind: "file", content: readFileSync3(path, "utf-8") };
   if (stats.isDirectory()) {
-    return includeChildren ? { kind: "directory", children: readdirSync(path2).sort() } : { kind: "directory" };
+    return includeChildren ? { kind: "directory", children: readdirSync(path).sort() } : { kind: "directory" };
   }
-  throw new WorkspaceEditPathError(path2, "unsupported filesystem entry");
+  throw new WorkspaceEditPathError(path, "unsupported filesystem entry");
 }
 var DEFAULT_IO = {
-  writeFile(path2, content) {
-    writeFileSync(path2, content, "utf-8");
+  writeFile(path, content) {
+    writeFileSync(path, content, "utf-8");
   },
   rename(oldPath, newPath) {
     renameSync(oldPath, newPath);
   },
-  remove(path2, recursive) {
-    rmSync(path2, { recursive, force: false });
+  remove(path, recursive) {
+    rmSync(path, { recursive, force: false });
   }
 };
 function snapshotsEqual(expected, actual) {
@@ -2126,8 +2180,8 @@ function snapshotsEqual(expected, actual) {
   }
   return true;
 }
-function liveSnapshot(path2, expected) {
-  return snapshotPath(path2, expected.kind === "directory" && expected.children !== undefined);
+function liveSnapshot(path, expected) {
+  return snapshotPath(path, expected.kind === "directory" && expected.children !== undefined);
 }
 function firstOperationIndex(plan) {
   return plan.operations[0]?.changeIndex ?? 0;
@@ -2148,28 +2202,28 @@ function failedCommit(plan, failure) {
   };
 }
 function verifySnapshots(plan) {
-  for (const [path2, expected] of plan.snapshots) {
+  for (const [path, expected] of plan.snapshots) {
     let actual;
     try {
-      actual = liveSnapshot(path2, expected);
+      actual = liveSnapshot(path, expected);
     } catch (error) {
-      const changeIndex = plan.firstChangeByPath.get(path2) ?? firstOperationIndex(plan);
+      const changeIndex = plan.firstChangeByPath.get(path) ?? firstOperationIndex(plan);
       const detail = error instanceof Error ? error.message : String(error);
-      return failedCommit(plan, { message: `cannot verify snapshot for ${path2}: ${detail}`, changeIndex });
+      return failedCommit(plan, { message: `cannot verify snapshot for ${path}: ${detail}`, changeIndex });
     }
     if (!snapshotsEqual(expected, actual)) {
-      const changeIndex = plan.firstChangeByPath.get(path2) ?? firstOperationIndex(plan);
-      return failedCommit(plan, { message: `workspace state changed before commit: ${path2}`, changeIndex });
+      const changeIndex = plan.firstChangeByPath.get(path) ?? firstOperationIndex(plan);
+      return failedCommit(plan, { message: `workspace state changed before commit: ${path}`, changeIndex });
     }
   }
   return null;
 }
-function addModifiedPath(paths, path2) {
-  if (!paths.includes(path2))
-    paths.push(path2);
+function addModifiedPath(paths, path) {
+  if (!paths.includes(path))
+    paths.push(path);
 }
-function reportedPath(plan, path2) {
-  return plan.reportedPathByCanonical.get(path2) ?? path2;
+function reportedPath(plan, path) {
+  return plan.reportedPathByCanonical.get(path) ?? path;
 }
 function changedPathsForMutation(mutation) {
   return mutation.kind === "rename" ? [mutation.oldPath, mutation.newPath] : [mutation.path];
@@ -2177,8 +2231,8 @@ function changedPathsForMutation(mutation) {
 function mutationDelta(operations) {
   const changedPaths = new Set;
   for (const operation of operations) {
-    for (const path2 of changedPathsForMutation(operation))
-      changedPaths.add(path2);
+    for (const path of changedPathsForMutation(operation))
+      changedPaths.add(path);
   }
   return { operations, changedPaths: [...changedPaths].sort() };
 }
@@ -2213,7 +2267,7 @@ function commitOperation(context, operation) {
   }
   if (operation.kind === "rename") {
     if (operation.replaceDestination) {
-      const targetKind = existsSync4(operation.newPath) && lstatSync3(operation.newPath).isDirectory() ? "directory" : "file";
+      const targetKind = existsSync5(operation.newPath) && lstatSync3(operation.newPath).isDirectory() ? "directory" : "file";
       io.remove(operation.newPath, targetKind === "directory");
       accumulator.mutations.push({ kind: "delete", path: operation.newPath, targetKind });
       addModifiedPath(accumulator.filesModified, reportedPath(plan, operation.newPath));
@@ -2318,13 +2372,11 @@ function canonicalFingerprint(operations) {
 }
 
 class WorkspaceEditValidationError extends Error {
-  changeIndex;
-  detail;
-  name = "WorkspaceEditValidationError";
   constructor(changeIndex, detail) {
     super(`change ${changeIndex}: ${detail}`);
     this.changeIndex = changeIndex;
     this.detail = detail;
+    this.name = "WorkspaceEditValidationError";
   }
 }
 function isRecord3(value) {
@@ -2406,14 +2458,14 @@ function parseSinglePathResource(input, kind) {
     return;
   }
   if (kind === "create") {
-    const options2 = parseOptions(change["options"], ["overwrite", "ignoreIfExists"], changeIndex);
+    const options = parseOptions(change["options"], ["overwrite", "ignoreIfExists"], changeIndex);
     target.operations.push({
       kind,
       changeIndex,
       path: resolvedPath.path,
       reportedPath: resolvedPath.requestedPath,
-      overwrite: options2["overwrite"] ?? false,
-      ignoreIfExists: options2["ignoreIfExists"] ?? false,
+      overwrite: options["overwrite"] ?? false,
+      ignoreIfExists: options["ignoreIfExists"] ?? false,
       followedSymbolicLink: resolvedPath.followedSymbolicLink
     });
     return;
@@ -2662,12 +2714,12 @@ function isSameOrDescendant2(candidate, parent) {
   const relativePath = relative4(parent, candidate);
   return relativePath === "" || !relativePath.startsWith("..") && relativePath !== "..";
 }
-function removeVirtualSubtree(virtual, path2) {
+function removeVirtualSubtree(virtual, path) {
   for (const candidate of [...virtual.keys()]) {
-    if (isSameOrDescendant2(candidate, path2))
+    if (isSameOrDescendant2(candidate, path))
       virtual.delete(candidate);
   }
-  virtual.set(path2, { kind: "missing" });
+  virtual.set(path, { kind: "missing" });
 }
 function moveVirtualSubtree(virtual, oldPath, newPath) {
   const moved = [...virtual.entries()].filter(([candidate]) => isSameOrDescendant2(candidate, oldPath));
@@ -2678,16 +2730,16 @@ function moveVirtualSubtree(virtual, oldPath, newPath) {
     virtual.set(suffix === "" ? newPath : resolve4(newPath, suffix), entry);
   }
 }
-function virtualDirectoryHasChildren(virtual, path2) {
+function virtualDirectoryHasChildren(virtual, path) {
   for (const [candidate, entry] of virtual) {
-    if (candidate !== path2 && entry.kind !== "missing" && isSameOrDescendant2(candidate, path2))
+    if (candidate !== path && entry.kind !== "missing" && isSameOrDescendant2(candidate, path))
       return true;
   }
   return false;
 }
-function requireVirtualParent(virtual, path2, changeIndex) {
-  if (virtual.get(dirname5(path2))?.kind !== "directory") {
-    throw new WorkspaceEditValidationError(changeIndex, `parent directory does not exist for ${path2}`);
+function requireVirtualParent(virtual, path, changeIndex) {
+  if (virtual.get(dirname5(path))?.kind !== "directory") {
+    throw new WorkspaceEditValidationError(changeIndex, `parent directory does not exist for ${path}`);
   }
 }
 function simulateOperations(parsed, snapshots) {
@@ -2806,10 +2858,9 @@ function simulateDelete(operation, virtual) {
 }
 
 class WorkspaceSnapshotBuilder {
-  workspaceRoot;
-  snapshots = new Map;
   constructor(workspaceRoot) {
     this.workspaceRoot = workspaceRoot;
+    this.snapshots = new Map;
   }
   build(operations) {
     this.add(this.workspaceRoot, false);
@@ -2830,21 +2881,21 @@ class WorkspaceSnapshotBuilder {
     }
     return this.snapshots;
   }
-  add(path2, includeChildren) {
-    let candidate = path2;
+  add(path, includeChildren) {
+    let candidate = path;
     while (true) {
       const existing = this.snapshots.get(candidate);
       if (existing === undefined || includeChildren && existing.kind === "directory" && existing.children === undefined) {
-        this.snapshots.set(candidate, snapshotPath(candidate, includeChildren && candidate === path2));
+        this.snapshots.set(candidate, snapshotPath(candidate, includeChildren && candidate === path));
       }
       if (candidate === this.workspaceRoot)
         break;
       candidate = dirname6(candidate);
     }
-    if (!includeChildren || !existsSync5(path2) || !lstatSync4(path2).isDirectory())
+    if (!includeChildren || !existsSync6(path) || !lstatSync4(path).isDirectory())
       return;
-    for (const child of readdirSync2(path2))
-      this.add(resolve5(path2, child), true);
+    for (const child of readdirSync2(path))
+      this.add(resolve5(path, child), true);
   }
 }
 function snapshotOperations(operations, workspaceRoot) {
@@ -2852,8 +2903,10 @@ function snapshotOperations(operations, workspaceRoot) {
 }
 
 class PlanPathIndex {
-  firstChangeByPath = new Map;
-  reportedPathByCanonical = new Map;
+  constructor() {
+    this.firstChangeByPath = new Map;
+    this.reportedPathByCanonical = new Map;
+  }
   build(operations) {
     for (const operation of operations) {
       switch (operation.kind) {
@@ -2869,11 +2922,11 @@ class PlanPathIndex {
       }
     }
   }
-  add(path2, reportedPath2, changeIndex) {
-    if (!this.firstChangeByPath.has(path2))
-      this.firstChangeByPath.set(path2, changeIndex);
-    if (!this.reportedPathByCanonical.has(path2))
-      this.reportedPathByCanonical.set(path2, reportedPath2);
+  add(path, reportedPath, changeIndex) {
+    if (!this.firstChangeByPath.has(path))
+      this.firstChangeByPath.set(path, changeIndex);
+    if (!this.reportedPathByCanonical.has(path))
+      this.reportedPathByCanonical.set(path, reportedPath);
   }
 }
 function fingerprintWorkspaceEdit(edit, workspaceRoot) {
@@ -2940,14 +2993,11 @@ function isRecord4(value) {
 }
 
 class WorkspaceMutationController {
-  workspaceRoot;
-  documents;
-  activeLease = null;
-  nextLeaseId = 1;
-  io;
   constructor(workspaceRoot, documents) {
     this.workspaceRoot = workspaceRoot;
     this.documents = documents;
+    this.activeLease = null;
+    this.nextLeaseId = 1;
   }
   setIo(io) {
     this.io = io;
@@ -2986,15 +3036,15 @@ class WorkspaceMutationController {
       };
     }
     lease.phase = "applying";
-    lease.applyCompletion = new Promise((resolve62) => {
-      lease.resolveApply = resolve62;
+    lease.applyCompletion = new Promise((resolve) => {
+      lease.resolveApply = resolve;
     });
     const edit = isRecord4(params) ? params["edit"] : undefined;
-    const record2 = edit === undefined ? { fingerprint: null, result: failure("workspace/applyEdit params.edit is required", 0) } : await this.applyEdit(edit, lease);
-    lease.serverApply = record2;
+    const record = edit === undefined ? { fingerprint: null, result: failure("workspace/applyEdit params.edit is required", 0) } : await this.applyEdit(edit, lease);
+    lease.serverApply = record;
     lease.phase = "settled";
     lease.resolveApply?.();
-    return responseFor(record2.result);
+    return responseFor(record.result);
   }
   async reconcileRename(leaseToken, edit) {
     const lease = this.requireActiveLease(leaseToken);
@@ -3010,16 +3060,16 @@ class WorkspaceMutationController {
     const applied = await this.applyEdit(edit, lease);
     return { edit, apply: applied.result };
   }
-  reconcileServerApply(record2, edit) {
+  reconcileServerApply(record, edit) {
     if (!edit)
-      return { edit, apply: record2.result };
+      return { edit, apply: record.result };
     const fingerprint = fingerprintWorkspaceEdit(edit, this.workspaceRoot);
-    if (fingerprint.success && record2.fingerprint !== null && fingerprint.fingerprint === record2.fingerprint) {
-      return { edit, apply: record2.result };
+    if (fingerprint.success && record.fingerprint !== null && fingerprint.fingerprint === record.fingerprint) {
+      return { edit, apply: record.result };
     }
     return {
       edit,
-      apply: failure("rename result conflicts with server-applied workspace edit", 0, record2.result)
+      apply: failure("rename result conflicts with server-applied workspace edit", 0, record.result)
     };
   }
   async applyEdit(edit, lease) {
@@ -3058,14 +3108,12 @@ var DIAGNOSTICS_FRESHNESS_TIMEOUT_MS = 3000;
 var VERSIONLESS_PUBLISH_QUIESCENCE_MS = 250;
 
 class LspClient extends LspClientConnection {
-  diagnosticPullErrors = [];
-  documents;
-  workspaceMutations;
-  diagnosticsFreshnessTimeoutMs;
-  constructor(root, server2, options = {}) {
-    super(root, server2, options);
+  constructor(root, server, options = {}) {
+    super(root, server, options);
+    this.diagnosticPullErrors = [];
     this.diagnosticsFreshnessTimeoutMs = options.diagnosticsFreshnessTimeoutMs ?? DIAGNOSTICS_FRESHNESS_TIMEOUT_MS;
     this.documents = new WorkspaceDocumentState((method, params) => this.sendNotification(method, params), (uri) => this.diagnosticsStore.delete(uri), {
+      timerProvider: this.timerProvider,
       versionlessPublishQuiescenceMs: options.versionlessPublishQuiescenceMs ?? VERSIONLESS_PUBLISH_QUIESCENCE_MS
     });
     this.workspaceMutations = new WorkspaceMutationController(root, this.documents);
@@ -3118,6 +3166,18 @@ class LspClient extends LspClientConnection {
       textDocument: { uri: pathToFileURL3(absPath).href }
     }, options);
   }
+  async formatDocument(filePath, options, signal) {
+    if (!this.isDocumentFormattingSupported())
+      return null;
+    const absPath = this.resolveWorkspacePath(filePath);
+    await this.openFile(absPath);
+    const requestOptions = signal === undefined ? {} : { signal };
+    const edits = await this.sendRequest("textDocument/formatting", {
+      textDocument: { uri: pathToFileURL3(absPath).href },
+      options
+    }, requestOptions);
+    return edits ?? [];
+  }
   async workspaceSymbols(query, signal) {
     const options = signal === undefined ? {} : { signal };
     return this.sendRequest("workspace/symbol", { query }, options);
@@ -3157,7 +3217,7 @@ class LspClient extends LspClientConnection {
     const absPath = this.resolveWorkspacePath(filePath);
     const uri = pathToFileURL3(absPath).href;
     await this.openFile(absPath);
-    const deadlineAt = Date.now() + this.diagnosticsFreshnessTimeoutMs;
+    const deadlineAt = this.timerProvider.now() + this.diagnosticsFreshnessTimeoutMs;
     for (;; ) {
       signal?.throwIfAborted();
       const snapshot = this.documents.captureDiagnosticSnapshot(absPath);
@@ -3170,13 +3230,13 @@ class LspClient extends LspClientConnection {
       if (!pushFallbackOnly) {
         const cached = this.documents.getPullCache(snapshot);
         try {
-          const remainingMs2 = deadlineAt - Date.now();
-          if (remainingMs2 <= 0)
+          const remainingMs = deadlineAt - this.timerProvider.now();
+          if (remainingMs <= 0)
             return this.freshnessTimeout(absPath);
           const result = await this.sendRequest("textDocument/diagnostic", {
             textDocument: { uri },
             ...cached?.resultId === undefined ? {} : { previousResultId: cached.resultId }
-          }, { timeoutMs: remainingMs2, ...signal === undefined ? {} : { signal } });
+          }, { timeoutMs: remainingMs, ...signal === undefined ? {} : { signal } });
           if (!this.documents.isCurrentSnapshot(snapshot))
             continue;
           const report = this.parseDiagnosticPullReport(result);
@@ -3205,7 +3265,7 @@ class LspClient extends LspClientConnection {
       }
       if (!pushFallbackOnly)
         continue;
-      const remainingMs = deadlineAt - Date.now();
+      const remainingMs = deadlineAt - this.timerProvider.now();
       if (remainingMs <= 0) {
         if (!this.isDiagnosticPullSupported() && snapshot.publishGeneration === 0) {
           const cached = this.documents.getPullCache(snapshot);
@@ -3257,7 +3317,7 @@ function waitForDiagnosticsActivity(wait, signal) {
     return wait;
   if (signal.aborted)
     return Promise.reject(abortError3(signal));
-  return new Promise((resolve72, reject) => {
+  return new Promise((resolve, reject) => {
     const onAbort = () => {
       signal.removeEventListener("abort", onAbort);
       reject(abortError3(signal));
@@ -3265,7 +3325,7 @@ function waitForDiagnosticsActivity(wait, signal) {
     signal.addEventListener("abort", onAbort, { once: true });
     wait.then(() => {
       signal.removeEventListener("abort", onAbort);
-      resolve72();
+      resolve();
     }, (error) => {
       signal.removeEventListener("abort", onAbort);
       reject(error);
@@ -3329,7 +3389,7 @@ async function stopClientBestEffort(client) {
 function awaitWithSignal2(promise, signal) {
   if (!signal)
     return promise;
-  return new Promise((resolve72, reject) => {
+  return new Promise((resolve, reject) => {
     let settled = false;
     const onAbort = () => {
       if (settled)
@@ -3347,7 +3407,7 @@ function awaitWithSignal2(promise, signal) {
         return;
       settled = true;
       signal.removeEventListener("abort", onAbort);
-      resolve72(value);
+      resolve(value);
     }, (err) => {
       if (settled)
         return;
@@ -3359,20 +3419,18 @@ function awaitWithSignal2(promise, signal) {
 }
 
 class LspManager {
-  clients = new Map;
-  reaperHandle = null;
-  signalDisposer = null;
-  disposed = false;
-  idleTimeoutMs;
-  initTimeoutMs;
-  reaperIntervalMs;
-  clientFactory;
-  now;
   constructor(options = {}) {
+    this.clients = new Map;
+    this.pendingStops = new Map;
+    this.respawnBudgets = new Map;
+    this.reaperHandle = null;
+    this.signalDisposer = null;
+    this.disposed = false;
     this.idleTimeoutMs = options.idleTimeoutMs ?? IDLE_TIMEOUT_MS;
     this.initTimeoutMs = options.initTimeoutMs ?? INIT_TIMEOUT_MS;
+    this.maxResidentClients = options.maxResidentClients ?? MAX_RESIDENT_CLIENTS;
     this.reaperIntervalMs = options.reaperIntervalMs ?? REAPER_INTERVAL_MS;
-    this.clientFactory = options.clientFactory ?? ((root, server2) => new LspClient(root, server2));
+    this.clientFactory = options.clientFactory ?? ((root, server) => new LspClient(root, server));
     this.now = options.now ?? (() => Date.now());
     this.startReaper();
     this.signalDisposer = installProcessSignalCleanup(() => this.stopAll());
@@ -3390,38 +3448,103 @@ class LspManager {
   getKey(root, serverId) {
     return `${root}::${serverId}`;
   }
+  tombstoneStop(key, client) {
+    const stop = stopClientBestEffort(client);
+    this.pendingStops.set(key, stop);
+    stop.finally(() => {
+      if (this.pendingStops.get(key) === stop) {
+        this.pendingStops.delete(key);
+      }
+    });
+    return stop;
+  }
+  recordDeadGeneration(key) {
+    let budget = this.respawnBudgets.get(key);
+    if (budget === undefined) {
+      budget = { deadGenerations: 0, exhaustedAt: null };
+      this.respawnBudgets.set(key, budget);
+    }
+    budget.deadGenerations += 1;
+  }
+  markHealthyGeneration(key) {
+    this.respawnBudgets.delete(key);
+  }
+  ensureRespawnAllowed(key, root, serverId) {
+    const budget = this.respawnBudgets.get(key);
+    if (budget === undefined || budget.deadGenerations < CLIENT_RESPAWN_RETRY_LIMIT)
+      return;
+    if (budget.exhaustedAt === null) {
+      budget.exhaustedAt = this.now();
+      throw new LspClientRespawnBudgetExceededError(serverId, root, CLIENT_RESPAWN_RETRY_LIMIT);
+    }
+    if (this.now() - budget.exhaustedAt < CLIENT_RESPAWN_COOLDOWN_MS) {
+      throw new LspClientRespawnBudgetExceededError(serverId, root, CLIENT_RESPAWN_RETRY_LIMIT);
+    }
+    budget.deadGenerations = 0;
+    budget.exhaustedAt = null;
+  }
   reapStale() {
     const t = this.now();
     for (const [key, managed] of this.clients) {
       if (managed.isInitializing && managed.initializingSince !== null && t - managed.initializingSince > this.initTimeoutMs) {
-        stopClientBestEffort(managed.client);
         this.clients.delete(key);
+        this.tombstoneStop(key, managed.client);
         continue;
       }
       if (!managed.isInitializing && managed.refCount === 0 && managed.pendingWaiters === 0 && t - managed.lastUsedAt > this.idleTimeoutMs) {
-        stopClientBestEffort(managed.client);
         this.clients.delete(key);
+        this.tombstoneStop(key, managed.client);
       }
     }
+  }
+  evictForAdmission() {
+    while (this.clients.size >= this.maxResidentClients) {
+      const victim = this.leastRecentlyUsedIdleClient();
+      if (!victim)
+        return;
+      this.clients.delete(victim.key);
+      this.tombstoneStop(victim.key, victim.managed.client);
+    }
+  }
+  leastRecentlyUsedIdleClient() {
+    let candidate = null;
+    for (const [key, managed] of this.clients) {
+      if (managed.refCount > 0 || managed.pendingWaiters > 0 || managed.isInitializing)
+        continue;
+      if (candidate === null || managed.lastUsedAt < candidate.managed.lastUsedAt) {
+        candidate = { key, managed };
+      }
+    }
+    return candidate;
   }
   async tryDeleteIfOrphaned(key, managed) {
     if (managed.refCount === 0 && managed.pendingWaiters === 0 && !managed.isInitializing && this.clients.get(key) === managed) {
       this.clients.delete(key);
-      await stopClientBestEffort(managed.client);
+      await this.tombstoneStop(key, managed.client);
     }
   }
-  async getClient(root, server2, signal) {
+  async getClient(root, server, signal) {
     if (this.disposed) {
       throw new Error("LspManager has been disposed");
     }
     signal?.throwIfAborted();
-    const key = this.getKey(root, server2.id);
+    const key = this.getKey(root, server.id);
+    for (;; ) {
+      const pendingStop = this.pendingStops.get(key);
+      if (pendingStop === undefined)
+        break;
+      await awaitWithSignal2(pendingStop, signal);
+      signal?.throwIfAborted();
+    }
+    if (this.disposed) {
+      throw new Error("LspManager has been disposed");
+    }
     let managed = this.clients.get(key);
     if (managed) {
       const t = this.now();
       if (managed.isInitializing && managed.initializingSince !== null && t - managed.initializingSince > this.initTimeoutMs) {
-        await stopClientBestEffort(managed.client);
         this.clients.delete(key);
+        await this.tombstoneStop(key, managed.client);
         managed = undefined;
       }
     }
@@ -3442,15 +3565,21 @@ class LspManager {
         signal.throwIfAborted();
       }
       if (!managed.client.isAlive()) {
-        await stopClientBestEffort(managed.client);
-        this.clients.delete(key);
-        return this.getClient(root, server2, signal);
+        this.recordDeadGeneration(key);
+        if (this.clients.get(key) === managed) {
+          this.clients.delete(key);
+        }
+        await this.tombstoneStop(key, managed.client);
+        return this.getClient(root, server, signal);
       }
+      this.markHealthyGeneration(key);
       managed.refCount++;
       managed.lastUsedAt = this.now();
       return managed.client;
     }
-    const client = this.clientFactory(root, server2);
+    this.evictForAdmission();
+    this.ensureRespawnAllowed(key, root, server.id);
+    const client = this.clientFactory(root, server);
     const initStartedAt = this.now();
     const initPromise = (async () => {
       await client.start();
@@ -3473,7 +3602,7 @@ class LspManager {
       if (this.clients.get(key) === newManaged) {
         this.clients.delete(key);
       }
-      await stopClientBestEffort(client);
+      await this.tombstoneStop(key, client);
       throw err;
     }
     newManaged.pendingWaiters--;
@@ -3484,6 +3613,15 @@ class LspManager {
       await this.tryDeleteIfOrphaned(key, newManaged);
       signal.throwIfAborted();
     }
+    if (!client.isAlive()) {
+      this.recordDeadGeneration(key);
+      if (this.clients.get(key) === newManaged) {
+        this.clients.delete(key);
+      }
+      await this.tombstoneStop(key, client);
+      return this.getClient(root, server, signal);
+    }
+    this.markHealthyGeneration(key);
     newManaged.refCount++;
     newManaged.lastUsedAt = this.now();
     return client;
@@ -3504,15 +3642,21 @@ class LspManager {
     if (client && managed.client !== client)
       return;
     this.clients.delete(key);
-    stopClientBestEffort(managed.client);
+    this.tombstoneStop(key, managed.client);
   }
-  warmupClient(root, server2) {
+  warmupClient(root, server) {
     if (this.disposed)
       return;
-    const key = this.getKey(root, server2.id);
-    if (this.clients.has(key))
+    const key = this.getKey(root, server.id);
+    if (this.clients.has(key) || this.pendingStops.has(key))
       return;
-    const client = this.clientFactory(root, server2);
+    this.evictForAdmission();
+    try {
+      this.ensureRespawnAllowed(key, root, server.id);
+    } catch {
+      return;
+    }
+    const client = this.clientFactory(root, server);
     const initStartedAt = this.now();
     const initPromise = (async () => {
       await client.start();
@@ -3537,7 +3681,7 @@ class LspManager {
       if (this.clients.get(key) === managed) {
         this.clients.delete(key);
       }
-      stopClientBestEffort(client);
+      this.tombstoneStop(key, client);
     });
   }
   isServerInitializing(root, serverId) {
@@ -3581,8 +3725,11 @@ class LspManager {
     for (const managed of this.clients.values()) {
       stopPromises.push(stopClientBestEffort(managed.client));
     }
+    const tombstonedStops = [...this.pendingStops.values()];
     this.clients.clear();
-    await Promise.allSettled(stopPromises);
+    this.respawnBudgets.clear();
+    await Promise.allSettled([...stopPromises, ...tombstonedStops]);
+    this.pendingStops.clear();
   }
 }
 var _defaultInstance = null;
@@ -3592,49 +3739,43 @@ function getLspManager() {
   }
   return _defaultInstance;
 }
-function getInstallDecisionsPath() {
-  return lspRequestContext().installDecisionsPath;
+var GIT_WORKSPACE_MARKER = ".git";
+var PROJECT_WORKSPACE_MARKERS = [
+  "package.json",
+  "pyproject.toml",
+  "Cargo.toml",
+  "go.mod",
+  "pom.xml",
+  "build.gradle"
+];
+var WORKSPACE_MARKERS = [GIT_WORKSPACE_MARKER, ...PROJECT_WORKSPACE_MARKERS];
+function findWorkspaceRootOutsideContext(directory) {
+  const marked = nearestMarkedAncestor(directory);
+  if (marked !== undefined)
+    return marked;
+  return realpathSync4(nearestExistingAncestor(directory));
 }
-function loadInstallDecisions() {
-  const path2 = getInstallDecisionsPath();
-  if (!existsSync6(path2))
-    return {};
-  try {
-    const parsed = JSON.parse(readFileSync4(path2, "utf8"));
-    return isInstallDecisions(parsed) ? parsed : {};
-  } catch {
-    return {};
+function nearestMarkedAncestor(directory) {
+  let current = directory;
+  for (;; ) {
+    if (existsSync7(current) && WORKSPACE_MARKERS.some((marker) => existsSync7(join3(current, marker)))) {
+      return realpathSync4(current);
+    }
+    const parent = dirname7(current);
+    if (parent === current)
+      return;
+    current = parent;
   }
 }
-function loadInstallDecision(serverId) {
-  return loadInstallDecisions()[serverId];
-}
-function recordInstallDecision(serverId, decision, decidedAt = new Date().toISOString()) {
-  const decisions = loadInstallDecisions();
-  decisions[serverId] = { decision, decidedAt };
-  writeInstallDecisions(decisions);
-}
-function isInstallDecision(value) {
-  return value === "declined" || value === "allowed";
-}
-function writeInstallDecisions(decisions) {
-  const path2 = getInstallDecisionsPath();
-  mkdirSync3(dirname7(path2), { recursive: true });
-  const tmpPath = `${path2}.tmp`;
-  writeFileSync2(tmpPath, `${JSON.stringify(decisions, null, 2)}
-`, "utf8");
-  renameSync2(tmpPath, path2);
-}
-function isInstallDecisions(value) {
-  return isRecord5(value) && Object.values(value).every(isInstallDecisionRecord);
-}
-function isInstallDecisionRecord(value) {
-  if (!isRecord5(value))
-    return false;
-  return isInstallDecision(value["decision"]) && typeof value["decidedAt"] === "string";
-}
-function isRecord5(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function nearestExistingAncestor(directory) {
+  let current = directory;
+  while (!existsSync7(current)) {
+    const parent = dirname7(current);
+    if (parent === current)
+      return current;
+    current = parent;
+  }
+  return current;
 }
 var LSP_INSTALL_HINTS = {
   typescript: "npm install -g typescript-language-server typescript",
@@ -3679,6 +3820,26 @@ var LSP_INSTALL_HINTS = {
   "kotlin-ls": "See https://github.com/Kotlin/kotlin-lsp",
   julials: `julia -e 'using Pkg; Pkg.add("LanguageServer")'`,
   razor: "Razor runs through the Roslyn language server (cohosting). " + "Install: dotnet tool install -g roslyn-language-server --prerelease (requires v5.8.0+). See https://github.com/dotnet/razor"
+};
+var LSP_LOCAL_INSTALL_HINTS = {
+  typescript: "bun add -d typescript-language-server typescript",
+  vue: "bun add -d @vue/language-server",
+  eslint: "bun add -d vscode-langservers-extracted",
+  oxlint: "bun add -d oxlint",
+  biome: "bun add -d @biomejs/biome",
+  svelte: "bun add -d svelte-language-server",
+  astro: "bun add -d @astrojs/language-server",
+  bash: "bun add -d bash-language-server",
+  "bash-ls": "bun add -d bash-language-server",
+  "yaml-ls": "bun add -d yaml-language-server",
+  php: "bun add -d intelephense",
+  prisma: "bun add -d prisma",
+  dockerfile: "bun add -d dockerfile-language-server-nodejs",
+  pyright: "uv add --dev pyright",
+  basedpyright: "uv add --dev basedpyright",
+  ruff: "uv add --dev ruff",
+  ty: "uv add --dev ty",
+  "ruby-lsp": "bundle add ruby-lsp --group development"
 };
 var BUILTIN_SERVERS = {
   typescript: {
@@ -3781,17 +3942,61 @@ var BUILTIN_SERVERS = {
     extensions: [".razor", ".cshtml"]
   }
 };
+function getInstallDecisionsPath() {
+  return lspRequestContext().installDecisionsPath;
+}
+function loadInstallDecisions() {
+  const path = getInstallDecisionsPath();
+  if (!existsSync8(path))
+    return {};
+  try {
+    const parsed = JSON.parse(readFileSync4(path, "utf8"));
+    return isInstallDecisions(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function loadInstallDecision(serverId) {
+  return loadInstallDecisions()[serverId];
+}
+function recordInstallDecision(serverId, decision, decidedAt = new Date().toISOString()) {
+  const decisions = loadInstallDecisions();
+  decisions[serverId] = { decision, decidedAt };
+  writeInstallDecisions(decisions);
+}
+function isInstallDecision(value) {
+  return value === "declined" || value === "allowed";
+}
+function writeInstallDecisions(decisions) {
+  const path = getInstallDecisionsPath();
+  mkdirSync3(dirname8(path), { recursive: true });
+  const tmpPath = `${path}.tmp`;
+  writeFileSync2(tmpPath, `${JSON.stringify(decisions, null, 2)}
+`, "utf8");
+  renameSync2(tmpPath, path);
+}
+function isInstallDecisions(value) {
+  return isRecord5(value) && Object.values(value).every(isInstallDecisionRecord);
+}
+function isInstallDecisionRecord(value) {
+  if (!isRecord5(value))
+    return false;
+  return isInstallDecision(value["decision"]) && typeof value["decidedAt"] === "string";
+}
+function isRecord5(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 function getProjectConfigPaths() {
   return lspRequestContext().projectConfigPaths;
 }
 function getUserConfigPath() {
   return lspRequestContext().userConfigPath;
 }
-function loadJsonFile(path2) {
-  if (!existsSync7(path2))
+function loadJsonFile(path) {
+  if (!existsSync9(path))
     return null;
   try {
-    const parsed = JSON.parse(readFileSync5(path2, "utf-8"));
+    const parsed = JSON.parse(readFileSync5(path, "utf-8"));
     return isConfigJson(parsed) ? parsed : null;
   } catch {
     return null;
@@ -3808,8 +4013,8 @@ function loadAllConfigs() {
   return configs;
 }
 function loadFirstJsonFile(paths) {
-  for (const path2 of paths) {
-    const config = loadJsonFile(path2);
+  for (const path of paths) {
+    const config = loadJsonFile(path);
     if (config)
       return config;
   }
@@ -3835,10 +4040,10 @@ function getMergedServers() {
       }
       if (seen.has(id))
         continue;
-      const server2 = createServerFromEntry(id, entry, source);
-      if (!server2)
+      const server = createServerFromEntry(id, entry, source);
+      if (!server)
         continue;
-      servers.push(server2);
+      servers.push(server);
       seen.add(id);
     }
   }
@@ -3870,7 +4075,7 @@ function createServerFromEntry(id, entry, source) {
   if (source === "project") {
     if (!builtin)
       return null;
-    const server3 = createServer({
+    const server = createServer({
       id,
       command: builtin.command,
       extensions: entry.extensions ?? builtin.extensions,
@@ -3878,35 +4083,35 @@ function createServerFromEntry(id, entry, source) {
       source
     });
     if (entry.initialization !== undefined) {
-      server3.initialization = entry.initialization;
+      server.initialization = entry.initialization;
     }
-    return server3;
+    return server;
   }
   if (entry.command && entry.extensions) {
-    const server3 = createServer({
+    const server = createServer({
       id,
       command: entry.command,
       extensions: entry.extensions,
       priority: entry.priority ?? 0,
       source
     });
-    applyOptionalServerFields(server3, entry);
-    return server3;
+    applyOptionalServerFields(server, entry);
+    return server;
   }
   if (!builtin)
     return null;
-  const server2 = createServer({
+  const server = createServer({
     id,
     command: entry.command ?? builtin.command,
     extensions: entry.extensions ?? builtin.extensions,
     priority: entry.priority ?? 0,
     source
   });
-  applyOptionalServerFields(server2, entry);
-  return server2;
+  applyOptionalServerFields(server, entry);
+  return server;
 }
 function createServer(input) {
-  const server2 = {
+  const server = {
     id: input.id,
     command: input.command,
     extensions: input.extensions,
@@ -3914,19 +4119,19 @@ function createServer(input) {
     source: input.source
   };
   if (input.env !== undefined) {
-    server2.env = input.env;
+    server.env = input.env;
   }
   if (input.initialization !== undefined) {
-    server2.initialization = input.initialization;
+    server.initialization = input.initialization;
   }
-  return server2;
+  return server;
 }
-function applyOptionalServerFields(server2, entry) {
+function applyOptionalServerFields(server, entry) {
   if (entry.env !== undefined) {
-    server2.env = entry.env;
+    server.env = entry.env;
   }
   if (entry.initialization !== undefined) {
-    server2.initialization = entry.initialization;
+    server.initialization = entry.initialization;
   }
 }
 function isConfigJson(value) {
@@ -3974,60 +4179,161 @@ function getDisabledServerIds() {
   }
   return disabled;
 }
-function isServerInstalled(command, _workingDirectory) {
-  if (command.length === 0)
-    return false;
-  const [cmd] = command;
-  if (!cmd)
-    return false;
-  if (cmd.includes("/") || cmd.includes("\\")) {
-    if (existsSync8(cmd))
-      return true;
+var LOCAL_BIN_RULES = [
+  {
+    markers: ["package.json", "bun.lock", "bun.lockb", "package-lock.json", "yarn.lock", "pnpm-lock.yaml"],
+    binDirs: [join4("node_modules", ".bin")]
+  },
+  {
+    markers: [
+      "pyproject.toml",
+      "ty.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile",
+      "pyrightconfig.json",
+      "ruff.toml",
+      ".ruff.toml"
+    ],
+    binDirs: [
+      join4(".venv", "bin"),
+      join4(".venv", "Scripts"),
+      join4("venv", "bin"),
+      join4("venv", "Scripts"),
+      join4(".env", "bin"),
+      join4(".env", "Scripts")
+    ]
+  },
+  {
+    markers: ["Gemfile", "Gemfile.lock"],
+    binDirs: [join4("vendor", "bundle", "bin"), "bin"]
+  },
+  {
+    markers: ["go.mod", "go.sum", "go.work"],
+    binDirs: ["bin"]
   }
-  const isWindows = process.platform === "win32";
-  let exts = [""];
-  if (isWindows) {
-    const pathExt = process.env["PATHEXT"] ?? "";
-    if (pathExt) {
-      const systemExts = pathExt.split(";").filter(Boolean);
-      exts = [...new Set([...exts, ...systemExts, ".exe", ".cmd", ".bat", ".ps1"])];
-    } else {
-      exts = ["", ".exe", ".cmd", ".bat", ".ps1"];
-    }
+];
+var resolutionCache = new Map;
+var probeCount = 0;
+function probe(path) {
+  probeCount += 1;
+  return existsSync10(path);
+}
+function executableSuffixes(platform, pathExt) {
+  if (platform !== "win32")
+    return [""];
+  const configured = pathExt ?? process.env["PATHEXT"] ?? "";
+  const systemExts = configured.split(";").filter((entry) => entry.length > 0).map((entry) => entry.toLowerCase());
+  return [...new Set(["", ...systemExts, ".exe", ".cmd", ".bat", ".ps1"])];
+}
+function probeWithSuffixes(directory, command, suffixes) {
+  for (const suffix of suffixes) {
+    const candidate = join4(directory, command + suffix);
+    if (probe(candidate))
+      return candidate;
   }
-  let pathEnv = process.env["PATH"] ?? "";
-  if (isWindows && !pathEnv) {
-    pathEnv = process.env["Path"] ?? "";
-  }
-  const paths = pathEnv.split(delimiter3);
-  for (const p of paths) {
-    for (const suffix of exts) {
-      if (existsSync8(join3(p, cmd + suffix))) {
-        return true;
+  return null;
+}
+function resolveLocal(command, workingDirectory, suffixes, stopAt) {
+  const boundary = stopAt === undefined ? undefined : resolve7(stopAt);
+  let current = resolve7(workingDirectory);
+  while (true) {
+    for (const rule of LOCAL_BIN_RULES) {
+      if (!rule.markers.some((marker) => probe(join4(current, marker))))
+        continue;
+      for (const binDir of rule.binDirs) {
+        const found = probeWithSuffixes(join4(current, binDir), command, suffixes);
+        if (found !== null)
+          return found;
       }
     }
+    if (probe(join4(current, ".git")))
+      return null;
+    if (boundary !== undefined && current === boundary)
+      return null;
+    const parent = dirname9(current);
+    if (parent === current)
+      return null;
+    current = parent;
   }
-  if (cmd === "node")
-    return true;
-  return false;
+}
+function resolveFromPath(command, suffixes, platform, pathEnvOverride) {
+  let pathEnv = pathEnvOverride ?? process.env["PATH"] ?? "";
+  if (platform === "win32" && !pathEnv) {
+    pathEnv = process.env["Path"] ?? "";
+  }
+  for (const entry of pathEnv.split(delimiter3)) {
+    if (entry.length === 0)
+      continue;
+    const found = probeWithSuffixes(entry, command, suffixes);
+    if (found !== null)
+      return found;
+  }
+  return null;
+}
+function resolveServerBinary(command, workingDirectory, options = {}) {
+  if (command.length === 0)
+    return null;
+  const [cmd] = command;
+  if (cmd === undefined || cmd.length === 0)
+    return null;
+  const platform = options.platform ?? process.platform;
+  const suffixes = executableSuffixes(platform, options.pathExt);
+  if (cmd.includes("/") || cmd.includes("\\")) {
+    const explicit = isAbsolute5(cmd) ? cmd : resolve7(workingDirectory ?? process.cwd(), cmd);
+    return probe(explicit) ? explicit : null;
+  }
+  const cacheKey = JSON.stringify([
+    workingDirectory ?? "",
+    cmd,
+    platform,
+    options.stopAt ?? "",
+    options.pathExt ?? "",
+    options.pathEnv ?? process.env["PATH"] ?? ""
+  ]);
+  const cached = resolutionCache.get(cacheKey);
+  if (cached !== undefined)
+    return cached;
+  let resolved = null;
+  if (workingDirectory !== undefined && workingDirectory.length > 0) {
+    resolved = resolveLocal(cmd, workingDirectory, suffixes, options.stopAt);
+  }
+  resolved ??= resolveFromPath(cmd, suffixes, platform, options.pathEnv);
+  if (resolved === null && cmd === "node")
+    resolved = cmd;
+  resolutionCache.set(cacheKey, resolved);
+  return resolved;
+}
+function isServerInstalled(command, workingDirectory, options = {}) {
+  if (command.length === 0)
+    return false;
+  return resolveServerBinary(command, workingDirectory, options) !== null;
+}
+function withResolvedCommand(command, binaryPath) {
+  return [binaryPath, ...command.slice(1)];
 }
 function findServerForExtension(ext) {
   const servers = getMergedServers();
-  for (const server2 of servers) {
-    if (server2.extensions.includes(ext) && isServerInstalled(server2.command)) {
+  const workingDirectory = contextCwd();
+  for (const server of servers) {
+    if (!server.extensions.includes(ext))
+      continue;
+    const binaryPath = resolveServerBinary(server.command, workingDirectory);
+    if (binaryPath !== null) {
       const resolvedServer = {
-        id: server2.id,
-        command: server2.command,
-        extensions: server2.extensions,
-        priority: server2.priority
+        id: server.id,
+        command: withResolvedCommand(server.command, binaryPath),
+        extensions: server.extensions,
+        priority: server.priority
       };
-      if (server2.env !== undefined) {
+      if (server.env !== undefined) {
         return {
           status: "found",
           server: {
             ...resolvedServer,
-            env: server2.env,
-            ...server2.initialization === undefined ? {} : { initialization: server2.initialization }
+            env: server.env,
+            ...server.initialization === undefined ? {} : { initialization: server.initialization }
           }
         };
       }
@@ -4035,20 +4341,20 @@ function findServerForExtension(ext) {
         status: "found",
         server: {
           ...resolvedServer,
-          ...server2.initialization === undefined ? {} : { initialization: server2.initialization }
+          ...server.initialization === undefined ? {} : { initialization: server.initialization }
         }
       };
     }
   }
-  for (const server2 of servers) {
-    if (server2.extensions.includes(ext)) {
-      const installHint = LSP_INSTALL_HINTS[server2.id] ?? `Install '${server2.command[0]}' and ensure it's in your PATH`;
+  for (const server of servers) {
+    if (server.extensions.includes(ext)) {
+      const installHint = LSP_INSTALL_HINTS[server.id] ?? `Install '${server.command[0]}' and ensure it's in your PATH`;
       return {
         status: "not_installed",
         server: {
-          id: server2.id,
-          command: server2.command,
-          extensions: server2.extensions
+          id: server.id,
+          command: server.command,
+          extensions: server.extensions
         },
         installHint
       };
@@ -4064,20 +4370,21 @@ function findServerForExtension(ext) {
 function getAllServers() {
   const servers = getMergedServers();
   const disabled = getDisabledServerIds();
+  const workingDirectory = contextCwd();
   const result = [];
   const seen = new Set;
-  for (const server2 of servers) {
-    if (seen.has(server2.id))
+  for (const server of servers) {
+    if (seen.has(server.id))
       continue;
     result.push({
-      id: server2.id,
-      installed: isServerInstalled(server2.command),
-      extensions: server2.extensions,
+      id: server.id,
+      installed: isServerInstalled(server.command, workingDirectory),
+      extensions: server.extensions,
       disabled: false,
-      source: server2.source,
-      priority: server2.priority
+      source: server.source,
+      priority: server.priority
     });
-    seen.add(server2.id);
+    seen.add(server.id);
   }
   for (const id of disabled) {
     if (seen.has(id))
@@ -4085,7 +4392,7 @@ function getAllServers() {
     const builtin = BUILTIN_SERVERS[id];
     result.push({
       id,
-      installed: builtin ? isServerInstalled(builtin.command) : false,
+      installed: builtin ? isServerInstalled(builtin.command, workingDirectory) : false,
       extensions: builtin?.extensions ?? [],
       disabled: true,
       source: "disabled",
@@ -4094,7 +4401,6 @@ function getAllServers() {
   }
   return result;
 }
-var WORKSPACE_MARKERS = [".git", "package.json", "pyproject.toml", "Cargo.toml", "go.mod", "pom.xml", "build.gradle"];
 function isDirectoryPath(filePath) {
   try {
     return statSync4(filePath).isDirectory();
@@ -4103,31 +4409,89 @@ function isDirectoryPath(filePath) {
   }
 }
 function findWorkspaceRoot(filePath) {
-  const abs = resolvePathInsideContext(filePath);
+  const cwd = contextCwd();
+  const abs = resolveReadablePathInsideContext(filePath);
   let dir = abs;
   if (!isDirectoryPath(dir)) {
-    dir = dirname8(dir);
+    dir = dirname10(dir);
   }
-  let prevDir = "";
-  while (dir !== prevDir) {
-    for (const marker of WORKSPACE_MARKERS) {
-      if (existsSync9(join4(dir, marker))) {
-        return dir;
+  if (!isPathInside(cwd, abs))
+    return findWorkspaceRootOutsideContext(dir);
+  const fallbackRoot = nearestExistingDirectoryInsideContext(dir, cwd) ?? cwd;
+  let nearestPackageRoot;
+  while (isPathInside(cwd, dir)) {
+    const canonicalDir = existingDirectoryInsideContext(dir, cwd);
+    if (canonicalDir !== undefined) {
+      if (existsSync11(join5(dir, GIT_WORKSPACE_MARKER))) {
+        return canonicalDir;
+      }
+      if (nearestPackageRoot === undefined && hasProjectWorkspaceMarker(dir)) {
+        nearestPackageRoot = canonicalDir;
       }
     }
-    prevDir = dir;
-    dir = dirname8(dir);
+    if (dir === cwd)
+      break;
+    dir = dirname10(dir);
   }
-  return dirname8(abs);
+  return nearestPackageRoot ?? fallbackRoot;
+}
+function hasProjectWorkspaceMarker(directory) {
+  return PROJECT_WORKSPACE_MARKERS.some((marker) => existsSync11(join5(directory, marker)));
+}
+function resolveReadablePathInsideContext(filePath) {
+  const cwd = contextCwd();
+  const abs = resolve8(cwd, filePath);
+  if (isPathInside(cwd, abs))
+    return abs;
+  const rebased = rebaseThroughCanonicalAncestor(abs, cwd);
+  if (rebased !== undefined)
+    return rebased;
+  return canonicalizeExistingOrNearestAncestor(abs);
 }
 function resolvePathInsideContext(filePath) {
   const cwd = contextCwd();
-  const abs = resolve7(cwd, filePath);
+  const abs = resolveReadablePathInsideContext(filePath);
   const canonical = canonicalizeExistingOrNearestAncestor(abs);
   if (!isPathInside(cwd, canonical)) {
     throw new LspInvalidPathError(`LSP file path must be inside request cwd: ${filePath}`);
   }
   return canonical;
+}
+function rebaseThroughCanonicalAncestor(path, cwd) {
+  let current = path;
+  const suffix = [];
+  while (true) {
+    if (existsSync11(current)) {
+      const canonical = realpathSync5(current);
+      if (isPathInside(cwd, canonical))
+        return suffix.length === 0 ? canonical : join5(canonical, ...suffix);
+    }
+    const parent = dirname10(current);
+    if (parent === current)
+      return;
+    suffix.unshift(basename3(current));
+    current = parent;
+  }
+}
+function existingDirectoryInsideContext(directory, cwd) {
+  if (!existsSync11(directory))
+    return;
+  const canonical = realpathSync5(directory);
+  if (!statSync4(canonical).isDirectory())
+    return;
+  return isPathInside(cwd, canonical) ? canonical : undefined;
+}
+function nearestExistingDirectoryInsideContext(directory, cwd) {
+  let current = directory;
+  while (isPathInside(cwd, current)) {
+    const canonical = existingDirectoryInsideContext(current, cwd);
+    if (canonical !== undefined)
+      return canonical;
+    if (current === cwd)
+      return;
+    current = dirname10(current);
+  }
+  return;
 }
 function formatServerLookupError(result) {
   if (result.status === "not_installed") {
@@ -4152,33 +4516,46 @@ function formatServerLookupError(result) {
   ].join(`
 `);
 }
+function formatInstallOptions(serverId, installHint) {
+  const localHint = LSP_LOCAL_INSTALL_HINTS[serverId];
+  if (localHint === undefined) {
+    return ["To install, run:", `  ${installHint}`];
+  }
+  return [
+    "To install in THIS repository (preferred — no global install needed):",
+    `  ${localHint}`,
+    "",
+    "Or install it globally:",
+    `  ${installHint}`
+  ];
+}
 function formatNotInstalled(result) {
-  const { server: server2, installHint } = result;
-  const extensions = server2.extensions.join(", ");
-  const decision = loadInstallDecision(server2.id)?.decision;
+  const { server, installHint } = result;
+  const extensions = server.extensions.join(", ");
+  const decision = loadInstallDecision(server.id)?.decision;
   const context = lspRequestContext();
   if (decision === "declined") {
-    return `LSP server '${server2.id}' (${extensions}) is NOT INSTALLED; user previously declined installation — proceed without LSP.`;
+    return `LSP server '${server.id}' (${extensions}) is NOT INSTALLED; user previously declined installation — proceed without LSP.`;
   }
   const header = [
-    `LSP server '${server2.id}' for ${extensions} is NOT INSTALLED.`,
+    `LSP server '${server.id}' for ${extensions} is NOT INSTALLED.`,
     "",
-    `Command not found: ${server2.command[0]}`,
+    `Command not found: ${server.command[0]}`,
     ""
   ];
+  const installOptions = formatInstallOptions(server.id, installHint);
   if (decision === "allowed") {
     return [
       ...header,
       "The user has pre-authorized LSP installation. Run the install command, then retry this tool:",
-      `  ${installHint}`
+      ...installOptions.slice(1)
     ].join(`
 `);
   }
   if (!context.capabilities.installDecisionTool) {
     return [
       ...header,
-      "To install, run:",
-      `  ${installHint}`,
+      ...installOptions,
       "",
       "ACTION REQUIRED — ASK THE USER whether to install this LSP server.",
       "Install-decision recording is unavailable in this harness; proceed without LSP if the user declines."
@@ -4187,19 +4564,18 @@ function formatNotInstalled(result) {
   }
   return [
     ...header,
-    "To install, run:",
-    `  ${installHint}`,
+    ...installOptions,
     "",
     "ACTION REQUIRED — ASK THE USER whether to install this LSP server.",
     "- If the user agrees: run the install command above, then retry this tool.",
     "- If the user declines, OR has NOT explicitly asked for LSP installation:",
-    `    call lsp_install_decision { server_id: "${server2.id}", decision: "declined" },`,
+    `    call lsp_install_decision { server_id: "${server.id}", decision: "declined" },`,
     `    which writes to ${context.installDecisionsPath},`,
     "    then ignore this message and proceed WITHOUT LSP."
   ].join(`
 `);
 }
-var READ_ONLY_RETRY_TOOLS = new Set([
+var READ_ONLY_TOOLS = new Set([
   "diagnostics",
   "definition",
   "references",
@@ -4208,7 +4584,7 @@ var READ_ONLY_RETRY_TOOLS = new Set([
   "prepareRename"
 ]);
 async function withLspClient(filePath, fn, toolName, options = {}) {
-  const absPath = resolvePathInsideContext(filePath);
+  const absPath = READ_ONLY_TOOLS.has(toolName) ? resolveReadablePathInsideContext(filePath) : resolvePathInsideContext(filePath);
   if (isDirectoryPath(absPath)) {
     throw new LspInvalidPathError("Directory paths are not supported by this LSP tool. " + "Use lsp.diagnostics with a directory path for directory diagnostics.");
   }
@@ -4217,26 +4593,26 @@ async function withLspClient(filePath, fn, toolName, options = {}) {
   if (result.status !== "found") {
     throw new LspServerLookupError(formatServerLookupError(result), result);
   }
-  const server2 = result.server;
+  const server = result.server;
   const root = findWorkspaceRoot(absPath);
   const manager = options.manager ?? getLspManager();
   const acquireAndCall = async (allowRetry) => {
-    const client = await manager.getClient(root, server2, options.signal);
+    const client = await manager.getClient(root, server, options.signal);
     try {
-      return await fn(client, root);
+      return await fn(client, root, absPath);
     } catch (err) {
-      if (allowRetry && READ_ONLY_RETRY_TOOLS.has(toolName) && isLspDeadConnectionError(err)) {
-        manager.invalidateClient(root, server2.id, client);
+      if (allowRetry && READ_ONLY_TOOLS.has(toolName) && isLspDeadConnectionError(err)) {
+        manager.invalidateClient(root, server.id, client);
         return acquireAndCall(false);
       }
       if (err instanceof LspRequestTimeoutError) {
-        if (manager.isServerInitializing(root, server2.id)) {
+        if (manager.isServerInitializing(root, server.id)) {
           throw new LspServerInitializingError(err);
         }
       }
       throw err;
     } finally {
-      manager.releaseClient(root, server2.id);
+      manager.releaseClient(root, server.id);
     }
   };
   return acquireAndCall(true);
@@ -4252,10 +4628,10 @@ function uriToPath(uri) {
 }
 function formatLocation(loc) {
   if ("targetUri" in loc) {
-    const uri2 = uriToPath(loc.targetUri);
-    const line2 = loc.targetRange.start.line + 1;
-    const char2 = loc.targetRange.start.character;
-    return `${uri2}:${line2}:${char2}`;
+    const uri = uriToPath(loc.targetUri);
+    const line = loc.targetRange.start.line + 1;
+    const char = loc.targetRange.start.character;
+    return `${uri}:${line}:${char}`;
   }
   const uri = uriToPath(loc.uri);
   const line = loc.range.start.line + 1;
@@ -4365,7 +4741,7 @@ function collectFilesWithExtension(dir, extension, maxFiles) {
     for (const entry of entries) {
       if (files.length >= maxFiles)
         return;
-      const fullPath = join5(currentDir, entry);
+      const fullPath = join6(currentDir, entry);
       let stat;
       try {
         stat = lstatSync5(fullPath);
@@ -4390,15 +4766,15 @@ async function aggregateDiagnosticsForDirectory(directory, extension, severity, 
   if (!extension.startsWith(".")) {
     throw new LspInvalidPathError(`Extension must start with a dot (e.g., ".ts", not "${extension}"). Use ".${extension}" instead.`);
   }
-  const absDir = resolve8(options.workspaceRoot ?? contextCwd(), directory);
-  if (!existsSync10(absDir)) {
+  const absDir = resolve9(options.workspaceRoot ?? contextCwd(), directory);
+  if (!existsSync12(absDir)) {
     throw new LspInvalidPathError(`Directory does not exist: ${absDir}`);
   }
   const serverResult = options.server === undefined ? findServerForExtension(extension) : { status: "found", server: options.server };
   if (serverResult.status !== "found") {
     throw new LspServerLookupError(formatServerLookupError(serverResult));
   }
-  const server2 = serverResult.server;
+  const server = serverResult.server;
   const allFiles = (options.listFiles ?? collectFilesWithExtension)(absDir, extension, maxFiles + 1);
   const wasCapped = allFiles.length > maxFiles;
   const filesToProcess = allFiles.slice(0, maxFiles);
@@ -4418,7 +4794,7 @@ async function aggregateDiagnosticsForDirectory(directory, extension, severity, 
   const fileErrors = [];
   const maxConcurrency = Math.max(1, options.maxConcurrency ?? DIRECTORY_DIAGNOSTICS_MAX_CONCURRENCY);
   options.signal?.throwIfAborted();
-  const client = await manager.getClient(root, server2, options.signal);
+  const client = await manager.getClient(root, server, options.signal);
   try {
     let nextIndex = 0;
     const workers = Array.from({ length: Math.min(maxConcurrency, filesToProcess.length) }, async () => {
@@ -4446,7 +4822,7 @@ async function aggregateDiagnosticsForDirectory(directory, extension, severity, 
     });
     await Promise.all(workers);
   } finally {
-    manager.releaseClient(root, server2.id);
+    manager.releaseClient(root, server.id);
   }
   const displayDiagnostics = allDiagnostics.slice(0, DEFAULT_MAX_DIAGNOSTICS);
   const wasDiagCapped = allDiagnostics.length > DEFAULT_MAX_DIAGNOSTICS;
@@ -4492,7 +4868,7 @@ function inferExtensionFromDirectory(directory) {
     for (const entry of entries) {
       if (scanned >= MAX_SCAN_ENTRIES)
         return;
-      const fullPath = join6(dir, entry);
+      const fullPath = join7(dir, entry);
       let stat;
       try {
         stat = lstatSync6(fullPath);
@@ -4641,8 +5017,8 @@ function severityFilter(params) {
 function clientOptions(signal) {
   return signal === undefined ? {} : { signal };
 }
-function text(text2, details, isError = false) {
-  return { content: [{ type: "text", text: text2 }], details, isError };
+function text(text, details, isError = false) {
+  return { content: [{ type: "text", text }], details, isError };
 }
 function asDiagnosticArray(result) {
   if (!result)
@@ -4655,12 +5031,12 @@ async function executeLspDiagnostics(params, signal) {
   const filePath = requireString(params, "filePath");
   const severity = severityFilter(params);
   try {
-    const absPath = resolvePathInsideContext(filePath);
+    const absPath = resolveReadablePathInsideContext(filePath);
     if (isDirectoryPath(absPath)) {
       const extension = inferExtensionFromDirectory(absPath);
       if (!extension) {
         const message = `No supported source files found in directory: ${absPath}`;
-        const details3 = {
+        const details = {
           filePath,
           severity,
           mode: "directory",
@@ -4670,24 +5046,24 @@ async function executeLspDiagnostics(params, signal) {
           error: message,
           errorKind: "no_files"
         };
-        return text(message, details3);
+        return text(message, details);
       }
-      const output2 = await aggregateDiagnosticsForDirectory(absPath, extension, severity, undefined, signal === undefined ? {} : { signal });
-      const details2 = {
+      const output = await aggregateDiagnosticsForDirectory(absPath, extension, severity, undefined, signal === undefined ? {} : { signal });
+      const details = {
         filePath,
         severity,
         mode: "directory",
         diagnostics: [],
-        totalDiagnostics: output2.totalDiagnostics,
+        totalDiagnostics: output.totalDiagnostics,
         truncated: false,
-        fileFailures: [...output2.fileFailures]
+        fileFailures: [...output.fileFailures]
       };
-      return text(output2.output, details2);
+      return text(output.output, details);
     }
-    const result = await withLspClient(filePath, async (client) => client.diagnostics(filePath, signal), "diagnostics", clientOptions(signal));
+    const result = await withLspClient(filePath, async (client, _workspaceRoot, resolvedFilePath) => client.diagnostics(resolvedFilePath, signal), "diagnostics", clientOptions(signal));
     if (result.transientError) {
       const message = result.transientError.message;
-      const details2 = {
+      const details = {
         filePath,
         severity,
         mode: "file",
@@ -4697,7 +5073,7 @@ async function executeLspDiagnostics(params, signal) {
         error: message,
         errorKind: result.transientError.kind
       };
-      return text(message, details2, true);
+      return text(message, details, true);
     }
     const diagnostics = filterDiagnosticsBySeverity(asDiagnosticArray(result), severity);
     const total = diagnostics.length;
@@ -4731,13 +5107,98 @@ async function executeLspDiagnostics(params, signal) {
     throw error;
   }
 }
+var DEFAULT_FORMATTING_OPTIONS = {
+  tabSize: 4,
+  insertSpaces: false,
+  trimTrailingWhitespace: true,
+  insertFinalNewline: true,
+  trimFinalNewlines: true
+};
+var UNCHANGED = { status: "unchanged", linesAdded: 0, linesRemoved: 0 };
+async function formatDocumentWithClient(client, filePath, options = {}) {
+  const edits = await client.formatDocument(filePath, options.formattingOptions ?? DEFAULT_FORMATTING_OPTIONS, options.signal);
+  if (edits === null)
+    return { status: "unavailable", reason: "capability_not_advertised" };
+  if (edits.length === 0)
+    return UNCHANGED;
+  const before = readFileSync6(filePath, "utf-8");
+  const normalized = normalizeTextEdits(before, edits, 0);
+  if (normalized.text === before)
+    return UNCHANGED;
+  writeAtomically(filePath, normalized.text);
+  await client.openFile(filePath);
+  return {
+    status: "formatted",
+    ...lineDelta(normalized.edits)
+  };
+}
+function lineDelta(edits) {
+  let linesAdded = 0;
+  let linesRemoved = 0;
+  for (const edit of edits) {
+    linesRemoved += edit.range.end.line - edit.range.start.line + 1;
+    linesAdded += edit.newText.split(`
+`).length;
+  }
+  return { linesAdded, linesRemoved };
+}
+function writeAtomically(filePath, content) {
+  const tempPath = `${filePath}.omo-format.tmp`;
+  writeFileSync3(tempPath, content, "utf-8");
+  try {
+    renameSync3(tempPath, filePath);
+  } catch (error) {
+    try {
+      unlinkSync2(tempPath);
+    } catch {}
+    throw error;
+  }
+}
+async function executeLspFormat(params, signal) {
+  const filePath = requireString(params, "filePath");
+  try {
+    const result = await withLspClient(filePath, async (client, _workspaceRoot, resolvedFilePath) => formatDocumentWithClient(client, resolvedFilePath, signal === undefined ? {} : { signal }), "format", clientOptions(signal));
+    return text(describeResult(filePath, result), formatDetails(filePath, result));
+  } catch (error) {
+    const missingDependency = missingDependencyResult(error, {
+      filePath,
+      status: "unavailable",
+      reason: "server_unavailable",
+      linesAdded: 0,
+      linesRemoved: 0
+    });
+    if (missingDependency)
+      return missingDependency;
+    throw error;
+  }
+}
+function formatDetails(filePath, result) {
+  if (result.status === "unavailable") {
+    return { filePath, status: "unavailable", reason: result.reason, linesAdded: 0, linesRemoved: 0 };
+  }
+  return {
+    filePath,
+    status: result.status,
+    linesAdded: result.linesAdded,
+    linesRemoved: result.linesRemoved
+  };
+}
+function describeResult(filePath, result) {
+  if (result.status === "unavailable") {
+    return `Formatting unavailable for ${filePath}: the language server does not advertise documentFormattingProvider.`;
+  }
+  if (result.status === "unchanged") {
+    return `Already formatted: ${filePath}`;
+  }
+  return `Formatted ${filePath} (+${result.linesAdded}/-${result.linesRemoved} lines)`;
+}
 async function executeLspInstallDecision(params) {
   const serverId = requireString(params, "server_id");
   const decision = params["decision"];
   if (!isInstallDecision(decision)) {
     return text(`Invalid decision '${String(decision)}'. Expected "declined" or "allowed".`, { serverId, errorKind: "invalid_decision" }, true);
   }
-  const serverIds = [...new Set(getMergedServers().map((server2) => server2.id))];
+  const serverIds = [...new Set(getMergedServers().map((server) => server.id))];
   if (!serverIds.includes(serverId)) {
     const preview = serverIds.slice(0, 20).join(", ");
     return text(`Unknown LSP server '${serverId}'. Known servers: ${preview}${serverIds.length > 20 ? "..." : ""}`, { serverId, errorKind: "unknown_server" }, true);
@@ -4756,7 +5217,7 @@ async function executeLspGotoDefinition(params, signal) {
   const line = requireNumber(params, "line");
   const character = requireNumber(params, "character");
   try {
-    const result = await withLspClient(filePath, async (client) => client.definition(filePath, line, character, signal), "definition", clientOptions(signal));
+    const result = await withLspClient(filePath, async (client, _workspaceRoot, resolvedFilePath) => client.definition(resolvedFilePath, line, character, signal), "definition", clientOptions(signal));
     const locations = !result ? [] : Array.isArray(result) ? result : [result];
     const details = { filePath, line, character, locations };
     if (locations.length === 0)
@@ -4781,7 +5242,7 @@ async function executeLspFindReferences(params, signal) {
   const character = requireNumber(params, "character");
   const includeDeclaration = optionalBoolean(params, "includeDeclaration") ?? true;
   try {
-    const result = await withLspClient(filePath, async (client) => client.references(filePath, line, character, includeDeclaration, signal), "references", clientOptions(signal));
+    const result = await withLspClient(filePath, async (client, _workspaceRoot, resolvedFilePath) => client.references(resolvedFilePath, line, character, includeDeclaration, signal), "references", clientOptions(signal));
     const references = Array.isArray(result) ? result : [];
     const total = references.length;
     const truncated = total > DEFAULT_MAX_REFERENCES;
@@ -4821,7 +5282,7 @@ async function executeLspPrepareRename(params, signal) {
   const line = requireNumber(params, "line");
   const character = requireNumber(params, "character");
   try {
-    const result = await withLspClient(filePath, async (client) => client.prepareRename(filePath, line, character, signal), "prepareRename", clientOptions(signal));
+    const result = await withLspClient(filePath, async (client, _workspaceRoot, resolvedFilePath) => client.prepareRename(resolvedFilePath, line, character, signal), "prepareRename", clientOptions(signal));
     const details = { filePath, line, character, result };
     return text(formatPrepareRenameResult(result), details);
   } catch (error) {
@@ -4842,7 +5303,7 @@ async function executeLspRename(params, signal) {
   const character = requireNumber(params, "character");
   const newName = requireString(params, "newName");
   try {
-    const result = await withLspClient(filePath, async (client) => client.rename(filePath, line, character, newName, signal), "rename", clientOptions(signal));
+    const result = await withLspClient(filePath, async (client, _workspaceRoot, resolvedFilePath) => client.rename(resolvedFilePath, line, character, newName, signal), "rename", clientOptions(signal));
     const details = { filePath, line, character, newName, apply: result.apply, edit: result.edit };
     return text(formatApplyResult(result.apply), details, !result.apply.success);
   } catch (error) {
@@ -4869,10 +5330,10 @@ function objectSchema(properties, required = []) {
 async function executeLspStatus() {
   const servers = getAllServers();
   const snapshots = getLspManager().getSnapshot();
-  const installed = servers.filter((server2) => server2.installed && !server2.disabled);
-  const configuredLines = servers.map((server2) => {
-    const state = server2.disabled ? "disabled" : server2.installed ? "installed" : "missing";
-    return `- ${server2.id}: ${state}; source=${server2.source}; extensions=${server2.extensions.join(", ")}`;
+  const installed = servers.filter((server) => server.installed && !server.disabled);
+  const configuredLines = servers.map((server) => {
+    const state = server.disabled ? "disabled" : server.installed ? "installed" : "missing";
+    return `- ${server.id}: ${state}; source=${server.source}; extensions=${server.extensions.join(", ")}`;
   });
   const activeLines = snapshots.map((snapshot) => {
     const state = snapshot.alive ? snapshot.isInitializing ? "initializing" : "alive" : "dead";
@@ -4913,10 +5374,10 @@ async function executeLspSymbols(params, signal) {
           errorKind: "missing_query"
         });
       }
-      const symbols2 = await withLspClient(filePath, async (client) => client.workspaceSymbols(query, signal), "workspaceSymbols", clientOptions(signal));
-      return formatSymbolsResult(filePath, scope, symbols2, limit, query);
+      const symbols = await withLspClient(filePath, async (client) => client.workspaceSymbols(query, signal), "workspaceSymbols", clientOptions(signal));
+      return formatSymbolsResult(filePath, scope, symbols, limit, query);
     }
-    const symbols = await withLspClient(filePath, async (client) => client.documentSymbols(filePath, signal), "documentSymbols", clientOptions(signal));
+    const symbols = await withLspClient(filePath, async (client, _workspaceRoot, resolvedFilePath) => client.documentSymbols(resolvedFilePath, signal), "documentSymbols", clientOptions(signal));
     return formatSymbolsResult(filePath, scope, symbols, limit);
   } catch (error) {
     const query = optionalString(params, "query");
@@ -5051,6 +5512,16 @@ var LSP_MCP_TOOLS = [
     execute: executeLspRename
   },
   {
+    name: "format",
+    aliases: ["lsp_format"],
+    title: "LSP Format",
+    description: "Format a source file with its language server and write the returned edits to disk.",
+    inputSchema: objectSchema({
+      filePath: { type: "string", description: "Source file path to format." }
+    }, ["filePath"]),
+    execute: executeLspFormat
+  },
+  {
     name: "install_decision",
     aliases: ["lsp_install_decision"],
     title: "LSP Install Decision",
@@ -5116,7 +5587,7 @@ function withContext(args, context) {
 function ensureDaemonAvailable(paths, ensure, signal) {
   if (!signal)
     return ensure(paths);
-  return new Promise((resolve9, reject) => {
+  return new Promise((resolve, reject) => {
     let settled = false;
     const finish = (run) => {
       if (settled)
@@ -5131,11 +5602,11 @@ function ensureDaemonAvailable(paths, ensure, signal) {
       return;
     }
     signal.addEventListener("abort", onAbort, { once: true });
-    Promise.resolve().then(() => ensure(paths, signal)).then(() => finish(() => resolve9()), (error) => finish(() => reject(signal.aborted ? new DaemonRequestCancelledError(false) : error)));
+    Promise.resolve().then(() => ensure(paths, signal)).then(() => finish(() => resolve()), (error) => finish(() => reject(signal.aborted ? new DaemonRequestCancelledError(false) : error)));
   });
 }
 function sendToolCall(paths, token, name, args, options) {
-  return new Promise((resolve9, reject) => {
+  return new Promise((resolve, reject) => {
     const socket = connect(paths.socket);
     const requestId = allocateProxyRequestId();
     let settled = false;
@@ -5188,7 +5659,7 @@ function sendToolCall(paths, token, name, args, options) {
       }
       const result = toToolResult(message, requestId);
       if (result)
-        finish(() => resolve9(result));
+        finish(() => resolve(result));
       else
         finish(() => reject(new DaemonRequestError("invalid daemon response", requestWritten)));
     });
@@ -5237,10 +5708,9 @@ var OMO_LSP_DAEMON_VERSION2 = "OMO_LSP_DAEMON_VERSION";
 var DAEMON_VERSION_PATTERN2 = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
 
 class InvalidRuntimeOverrideError2 extends Error {
-  code = "invalid_runtime_override";
-  reason;
   constructor(reason, message) {
     super(message);
+    this.code = "invalid_runtime_override";
     this.name = "InvalidRuntimeOverrideError";
     this.reason = reason;
   }
@@ -5260,12 +5730,12 @@ function resolveDaemonRuntime2(env, defaults) {
     throw new InvalidRuntimeOverrideError2("paired_values_required", `${OMO_LSP_DAEMON_CLI2} and ${OMO_LSP_DAEMON_VERSION2} must be set together`);
   }
   if (!hasCliOverride || !hasVersionOverride) {
-    if (!isAbsolute4(defaults.cliPath)) {
+    if (!isAbsolute6(defaults.cliPath)) {
       throw new InvalidRuntimeOverrideError2("packaged_cli_must_be_absolute", "Packaged LSP daemon CLI path must be absolute");
     }
     return { cliPath: defaults.cliPath, version: validateDaemonVersion2(defaults.version) };
   }
-  if (!isAbsolute4(cliOverride)) {
+  if (!isAbsolute6(cliOverride)) {
     throw new InvalidRuntimeOverrideError2("cli_must_be_absolute", `${OMO_LSP_DAEMON_CLI2} must be an absolute path to an existing regular file`);
   }
   const stat = statSync5(cliOverride, { throwIfNoEntry: false });
@@ -5364,8 +5834,8 @@ function normalizeDiagnosticsOutcome(outcome) {
     return normalizeDiagnosticsText(outcome);
   return outcome;
 }
-function normalizeDiagnosticsText(text2) {
-  return text2.trim();
+function normalizeDiagnosticsText(text) {
+  return text.trim();
 }
 function formatDiagnosticsError(error) {
   const message = normalizeDiagnosticsText(error.message);
@@ -5386,15 +5856,14 @@ function extensionKey(filePath) {
 }
 // ../../../../lsp-core/src/request-context.ts
 import { AsyncLocalStorage as AsyncLocalStorage2 } from "node:async_hooks";
-import { existsSync as existsSync11, realpathSync as realpathSync4, statSync as statSync6 } from "node:fs";
-import { basename as basename3, delimiter as delimiter4, dirname as dirname2, isAbsolute as isAbsolute5, join as join7, relative as relative5, resolve as resolve9 } from "node:path";
+import { existsSync as existsSync13, realpathSync as realpathSync6, statSync as statSync6 } from "node:fs";
+import { basename as basename4, delimiter as delimiter4, dirname as dirname2, isAbsolute as isAbsolute7, join as join8, relative as relative5, resolve as resolve10 } from "node:path";
 
 class LspRequestContextParseError2 extends Error {
-  code;
-  name = "LspRequestContextParseError";
   constructor(code, message) {
     super(message);
     this.code = code;
+    this.name = "LspRequestContextParseError";
   }
 }
 var storage2 = new AsyncLocalStorage2;
@@ -5411,44 +5880,44 @@ function parseLspRequestContext2(value) {
   const installDecisionsPath = stringField2(value, "installDecisionsPath");
   const capabilities = capabilitiesField2(value["capabilities"]);
   const canonical = canonicalCwd2(cwd);
-  for (const path2 of projectConfigPaths) {
-    requireAbsolutePath2(path2, "projectConfigPaths");
-    const projectPath = canonicalizeExistingOrNearestAncestor2(path2);
+  for (const path of projectConfigPaths) {
+    requireAbsolutePath2(path, "projectConfigPaths");
+    const projectPath = canonicalizeExistingOrNearestAncestor2(path);
     if (!isPathInside2(canonical, projectPath)) {
-      throw new LspRequestContextParseError2("project_config_outside_cwd", `Project LSP config path must be inside cwd: ${path2}`);
+      throw new LspRequestContextParseError2("project_config_outside_cwd", `Project LSP config path must be inside cwd: ${path}`);
     }
   }
   requireAbsolutePath2(userConfigPath, "userConfigPath");
   requireAbsolutePath2(installDecisionsPath, "installDecisionsPath");
   return {
     cwd: canonical,
-    projectConfigPaths: projectConfigPaths.map((path2) => canonicalizeExistingOrNearestAncestor2(path2)),
+    projectConfigPaths: projectConfigPaths.map((path) => canonicalizeExistingOrNearestAncestor2(path)),
     userConfigPath,
     installDecisionsPath,
     capabilities
   };
 }
 function canonicalCwd2(cwd) {
-  const resolved = resolve9(cwd);
-  if (!existsSync11(resolved) || !statSync6(resolved).isDirectory()) {
+  const resolved = resolve10(cwd);
+  if (!existsSync13(resolved) || !statSync6(resolved).isDirectory()) {
     throw new LspRequestContextParseError2("invalid_cwd", `LSP request cwd must be an existing directory: ${cwd}`);
   }
-  return realpathSync4(resolved);
+  return realpathSync6(resolved);
 }
-function canonicalizeExistingOrNearestAncestor2(path2) {
-  let current = resolve9(path2);
+function canonicalizeExistingOrNearestAncestor2(path) {
+  let current = resolve10(path);
   const suffix = [];
   while (true) {
     try {
-      const existing = realpathSync4(current);
-      return suffix.length === 0 ? existing : join7(existing, ...suffix);
+      const existing = realpathSync6(current);
+      return suffix.length === 0 ? existing : join8(existing, ...suffix);
     } catch (error) {
       if (!isMissingPathError2(error))
         throw error;
       const parent = dirname2(current);
       if (parent === current)
         throw error;
-      suffix.unshift(basename3(current));
+      suffix.unshift(basename4(current));
       current = parent;
     }
   }
@@ -5478,15 +5947,15 @@ function stringArrayField2(value, field) {
   }
   return fieldValue;
 }
-function requireAbsolutePath2(path2, field) {
-  if (!isAbsolute5(path2)) {
-    throw new LspRequestContextParseError2("relative_path", `LSP request context.${field} must be absolute: ${path2}`);
+function requireAbsolutePath2(path, field) {
+  if (!isAbsolute7(path)) {
+    throw new LspRequestContextParseError2("relative_path", `LSP request context.${field} must be absolute: ${path}`);
   }
 }
 function isPathInside2(parent, child) {
-  const childPath = resolve9(child);
+  const childPath = resolve10(child);
   const relativePath = relative5(parent, childPath);
-  return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute5(relativePath);
+  return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute7(relativePath);
 }
 function isMissingPathError2(error) {
   const code = errorCode2(error);
@@ -5509,9 +5978,9 @@ function errorCode2(error) {
 }
 
 // src/daemon-cli-path.ts
-import { existsSync as existsSync13, readFileSync as readFileSync6 } from "node:fs";
+import { existsSync as existsSync14, readFileSync as readFileSync7 } from "node:fs";
 import { createRequire as createRequire2 } from "node:module";
-import { dirname as dirname9, join as join9 } from "node:path";
+import { dirname as dirname11, join as join9 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 var requireFromHere2 = createRequire2(import.meta.url);
 var PACKAGE_LSP_DAEMON_CLI = "@code-yeongyu/lsp-daemon/cli";
@@ -5533,7 +6002,7 @@ function resolveLspDaemonCli() {
   if (packageCli !== null)
     return resolveConfiguredLspDaemonCli(packageCli);
   const bundledCli = fileURLToPath4(new URL("../../lsp-daemon/dist/cli.js", import.meta.url));
-  if (existsSync13(bundledCli))
+  if (existsSync14(bundledCli))
     return resolveConfiguredLspDaemonCli(bundledCli);
   return resolveConfiguredLspDaemonCli(bundledCli);
 }
@@ -5558,8 +6027,8 @@ function resolveConfiguredLspDaemonCli(cliPath) {
 }
 function readDaemonPackageVersion(cliPath) {
   try {
-    const parsed = JSON.parse(readFileSync6(join9(dirname9(cliPath), "package.json"), "utf8"));
-    if (isRecord9(parsed) && typeof parsed["version"] === "string" && parsed["version"].length > 0) {
+    const parsed = JSON.parse(readFileSync7(join9(dirname11(cliPath), "package.json"), "utf8"));
+    if (isRecord8(parsed) && typeof parsed["version"] === "string" && parsed["version"].length > 0) {
       return parsed["version"];
     }
   } catch (error) {
@@ -5568,14 +6037,14 @@ function readDaemonPackageVersion(cliPath) {
   }
   return null;
 }
-function isRecord9(value) {
+function isRecord8(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // src/lsp-session-state.ts
-import { mkdirSync as mkdirSync4, readFileSync as readFileSync8, writeFileSync as writeFileSync3 } from "node:fs";
+import { mkdirSync as mkdirSync4, readFileSync as readFileSync8, writeFileSync as writeFileSync4 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname as dirname11, join as join10 } from "node:path";
+import { dirname as dirname12, join as join10 } from "node:path";
 function sessionIdFrom(input) {
   return typeof input.session_id === "string" && input.session_id.length > 0 ? input.session_id : undefined;
 }
@@ -5604,21 +6073,21 @@ function sessionStatePath(sessionId) {
   const root = process.env["PLUGIN_DATA"] ?? join10(homedir(), ".codex", "codex-lsp");
   return join10(root, "sessions", `${safePathSegment(sessionId)}.json`);
 }
-function readSessionState(path2) {
+function readSessionState(path) {
   try {
-    const parsed = JSON.parse(readFileSync8(path2, "utf8"));
-    if (isRecord10(parsed) && isLspSessionState(parsed))
+    const parsed = JSON.parse(readFileSync8(path, "utf8"));
+    if (isRecord9(parsed) && isLspSessionState(parsed))
       return normalizeSessionState(parsed);
     return emptyState();
   } catch (error) {
-    if (error instanceof SyntaxError || isRecord10(error) && error["code"] === "ENOENT")
+    if (error instanceof SyntaxError || isRecord9(error) && error["code"] === "ENOENT")
       return emptyState();
     throw error;
   }
 }
-function writeSessionState(path2, state) {
-  mkdirSync4(dirname11(path2), { recursive: true });
-  writeFileSync3(path2, `${JSON.stringify(state)}
+function writeSessionState(path, state) {
+  mkdirSync4(dirname12(path), { recursive: true });
+  writeFileSync4(path, `${JSON.stringify(state)}
 `);
 }
 function emptyState() {
@@ -5637,7 +6106,7 @@ function normalizeSessionState(value) {
     notConfiguredExtensions: Array.isArray(notConfiguredExtensions) ? notConfiguredExtensions.filter((item) => typeof item === "string").sort() : []
   };
 }
-function isRecord10(value) {
+function isRecord9(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -5648,7 +6117,7 @@ function extractMutatedFilePaths(input) {
     return [];
   if (isFailedToolResponse(input.tool_response))
     return [];
-  const toolInput = isRecord11(input.tool_input) ? input.tool_input : {};
+  const toolInput = isRecord10(input.tool_input) ? input.tool_input : {};
   const paths = new Set;
   addStringValue(paths, toolInput["path"]);
   addStringValue(paths, toolInput["filePath"]);
@@ -5667,7 +6136,7 @@ function isMutationTool(value) {
   return MUTATION_TOOL_NAMES.has(value.toLowerCase());
 }
 function isFailedToolResponse(value) {
-  if (!isRecord11(value))
+  if (!isRecord10(value))
     return false;
   return value["isError"] === true || value["is_error"] === true || value["error"] === true || value["status"] === "error";
 }
@@ -5693,9 +6162,9 @@ function addPatchInput(paths, value) {
     return;
   for (const line of value.split(`
 `)) {
-    const path2 = extractPatchHeaderPath(line);
-    if (path2 !== undefined)
-      paths.add(path2);
+    const path = extractPatchHeaderPath(line);
+    if (path !== undefined)
+      paths.add(path);
   }
 }
 function extractPatchHeaderPath(line) {
@@ -5710,7 +6179,7 @@ function addPatchFiles(paths, value) {
   if (!Array.isArray(value))
     return;
   for (const item of value) {
-    if (!isRecord11(item))
+    if (!isRecord10(item))
       continue;
     addStringValue(paths, item["path"]);
     addStringValue(paths, item["filePath"]);
@@ -5719,7 +6188,7 @@ function addPatchFiles(paths, value) {
     addStringValue(paths, item["move_path"]);
   }
 }
-function isRecord11(value) {
+function isRecord10(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -5750,10 +6219,10 @@ function postEditOutcomeFromDaemonResult(result) {
 `);
 }
 function notConfiguredAvailability(details) {
-  if (!isRecord12(details))
+  if (!isRecord11(details))
     return;
   const availability = details["availability"];
-  if (!isRecord12(availability))
+  if (!isRecord11(availability))
     return;
   if (availability["kind"] !== "not_configured")
     return;
@@ -5761,11 +6230,11 @@ function notConfiguredAvailability(details) {
   return typeof extension === "string" && extension.length > 0 ? { extension } : undefined;
 }
 function codexLspRequestContext(env = process.env, cwd = process.cwd()) {
-  const canonicalCwd3 = realpathSync6(resolve11(cwd));
+  const canonicalCwd = realpathSync7(resolve11(cwd));
   const codexHome = resolve11(env["CODEX_HOME"]?.trim() || join11(homedir3(), ".codex"));
   return parseLspRequestContext2({
-    cwd: canonicalCwd3,
-    projectConfigPaths: [join11(canonicalCwd3, ".codex", "lsp-client.json")],
+    cwd: canonicalCwd,
+    projectConfigPaths: [join11(canonicalCwd, ".codex", "lsp-client.json")],
     userConfigPath: join11(codexHome, "lsp-client.json"),
     installDecisionsPath: join11(codexHome, "lsp-install-decisions.json"),
     capabilities: { installDecisionTool: true }
@@ -5868,22 +6337,22 @@ function isContextPressureTranscript(transcriptPath) {
     throw error;
   }
 }
-function hasContextPressureMarker(text2) {
-  const normalizedText = text2.toLowerCase();
+function hasContextPressureMarker(text) {
+  const normalizedText = text.toLowerCase();
   return CONTEXT_PRESSURE_MARKERS.some((marker) => normalizedText.includes(marker));
 }
-function limitHookText(text2, maxChars) {
-  if (text2.length <= maxChars)
-    return text2;
+function limitHookText(text, maxChars) {
+  if (text.length <= maxChars)
+    return text;
   const marker = `
 
 [Truncated hook output to ${maxChars} chars to avoid Codex context overflow.]`;
   if (marker.length >= maxChars)
     return marker.slice(0, maxChars);
-  const head = text2.slice(0, maxChars - marker.length).replace(/[ \t\r\n]+$/, "");
+  const head = text.slice(0, maxChars - marker.length).replace(/[ \t\r\n]+$/, "");
   return `${head}${marker}`;
 }
-function isRecord12(value) {
+function isRecord11(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -5900,7 +6369,7 @@ async function runHookCli(runHook, stdin) {
     if (!raw.trim())
       return;
     const parsed = JSON.parse(raw);
-    const input = isRecord12(parsed) ? parsed : {};
+    const input = isRecord11(parsed) ? parsed : {};
     const output = await runHook(input);
     if (output)
       process.stdout.write(output);
@@ -5943,15 +6412,15 @@ main().catch((error) => {
 });
 async function runPackageLspMcpCli() {
   const cliPath = resolveLspDaemonCliPath();
-  const child = spawn3(execPath2, [cliPath, "mcp"], { stdio: "inherit" });
-  await new Promise((resolve10, reject) => {
+  const child = spawn3(execPath2, [cliPath, "mcp"], { stdio: "inherit", windowsHide: true });
+  await new Promise((resolve, reject) => {
     child.once("error", reject);
     child.once("exit", (code, signal) => {
       if (code !== null && code !== 0)
         process.exitCode = code;
       if (code === null && signal !== null)
         process.exitCode = 1;
-      resolve10();
+      resolve();
     });
   });
 }

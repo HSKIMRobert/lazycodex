@@ -1,4 +1,5 @@
 import { checkpointUlwLoop } from "./checkpoint.js";
+import { checkpointTemplate } from "./checkpoint-template.js";
 import { hasFlag, parseCodexGoalJson, readValue } from "./cli-arg-parser.js";
 import { blockedDecisionHandoff, printJson } from "./cli-output.js";
 import { buildCodexGoalInstruction } from "./codex-goal-instruction.js";
@@ -15,13 +16,18 @@ export async function checkpointAndContinue(repoRoot, args, scope) {
     return { ...result, plan: next.plan, next: { resumed: next.resumed, goal: next.goal, instruction } };
 }
 export async function checkpoint(repoRoot, argv, json, scope) {
+    if (hasFlag(argv, "--print-template")) {
+        const template = await checkpointTemplate(repoRoot, scope, readValue(argv, "--goal-id"));
+        if (json)
+            printJson({ ok: true, ...template });
+        else
+            printJson(template);
+        return 0;
+    }
     const goalId = required(argv, "--goal-id");
     const statusValue = checkpointStatus(required(argv, "--status"));
     const evidence = required(argv, "--evidence");
-    const codexGoalJson = await parseCodexGoalJson(statusValue === "complete" ? required(argv, "--codex-goal-json") : readValue(argv, "--codex-goal-json"));
-    if (statusValue === "complete" && codexGoalJson === undefined) {
-        throw new UlwLoopError("Missing --codex-goal-json.", "ULW_LOOP_CODEX_GOAL_JSON_REQUIRED");
-    }
+    const codexGoalJson = await parseCodexGoalJson(readValue(argv, "--codex-goal-json"));
     const qualityGateJson = readValue(argv, "--quality-gate-json");
     const args = {
         goalId,

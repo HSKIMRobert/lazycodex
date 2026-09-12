@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 const BASH_TOOL_NAME = "Bash";
-const REMINDER = "On Windows, prefer the OMO git_bash MCP for shell commands before using built-in exec_command. Use exec_command only when git_bash is unavailable or for non-shell operations.";
+const REMINDER = "On Windows, prefer the OMO git_bash MCP for shell commands before using built-in exec_command. Use exec_command only when git_bash is unavailable or for non-shell operations. " +
+    "In code mode, these tools may be deferred: inspect ALL_TOOLS with exec to discover the actual git_bash run, diagnose, and which_bash tool names, then invoke the matching entries through the tools object inside exec before treating git_bash as unavailable. Do not issue deferred names as top-level tool calls.";
 export function parsePreToolUsePayload(raw) {
     if (raw.trim().length === 0)
         return null;

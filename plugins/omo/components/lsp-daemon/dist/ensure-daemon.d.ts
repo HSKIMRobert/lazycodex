@@ -1,3 +1,4 @@
+import { type ChildProcess, type SpawnOptions } from "node:child_process";
 import type { OwnerPing } from "./ownership.js";
 import { type DaemonPaths } from "./paths.js";
 import { type DaemonRuntimeDefaults } from "./runtime-contract.js";
@@ -19,6 +20,11 @@ export interface EnsureDaemonOptions {
 export declare function ensureDaemonRunning(paths: DaemonPaths, deps?: EnsureDaemonDeps, options?: EnsureDaemonOptions): Promise<void>;
 export declare function probeDaemon(paths: DaemonPaths, timeoutMs?: number, signal?: AbortSignal): Promise<boolean>;
 export declare function pingDaemon(paths: DaemonPaths, token: string, timeoutMs?: number, signal?: AbortSignal): Promise<OwnerPing | null>;
-export declare function spawnDaemonProcess(paths: DaemonPaths): void;
+export interface SpawnDaemonProcessDeps {
+    spawn: (executable: string, args: readonly string[], options: SpawnOptions) => ChildProcess;
+    resolveExecutable: () => string;
+}
+export declare function spawnDaemonProcess(paths: DaemonPaths, deps?: Partial<SpawnDaemonProcessDeps>): void;
+export declare function resolveDaemonNodeExecutable(cachedExecPath?: string, originalArgv0?: string, pathExists?: (path: string) => boolean): string;
 export declare function resolveDaemonCliPath(env?: NodeJS.ProcessEnv, defaults?: DaemonRuntimeDefaults): string;
 export declare function defaultEnsureDaemonDeps(): EnsureDaemonDeps;

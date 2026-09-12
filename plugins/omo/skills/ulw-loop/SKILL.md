@@ -1,9 +1,33 @@
 ---
 name: ulw-loop
-description: Goal-like loop that uses ultrawork mode to decompose work into systematic, evidence-bound steps.
+description: "A goal-like loop that decomposes work into systematic, evidence-bound ultrawork steps. Use when the user wants a goal loop or durable, checkpointed execution."
 metadata:
   short-description: Goal-like ultrawork loop for systematic decomposition
 ---
+
+## Codex Harness Tool Compatibility
+
+This skill may include examples copied from the OpenCode harness. In Codex, do not call OpenCode-only tools such as `call_omo_agent(...)`, `task(...)`, `background_output(...)`, or `team_*(...)` literally. Translate those examples to Codex native tools:
+
+| OpenCode example | Codex tool to use |
+| --- | --- |
+| `call_omo_agent(subagent_type="explore", ...)` | `multi_agent_v1.spawn_agent({"message":"TASK: act as an explorer. ...","agent_type":"explorer","fork_context":false})` |
+| `call_omo_agent(subagent_type="librarian", ...)` | `multi_agent_v1.spawn_agent({"message":"TASK: act as a librarian. ...","agent_type":"librarian","fork_context":false})` |
+| `task(subagent_type="plan", ...)` | `multi_agent_v1.spawn_agent({"message":"TASK: act as a planning agent. ...","agent_type":"plan","fork_context":false})` |
+| `task(subagent_type="oracle", ...)` for final verification | By default, record a self-review in the notepad: re-read the diff, run diagnostics, and capture evidence for every acceptance criterion. Only when the user demanded strict, rigorous, or high-accuracy review, use `multi_agent_v1.spawn_agent({"message":"TASK: act as a rigorous reviewer. ...","agent_type":"lazycodex-gate-reviewer","fork_context":false})`; include `fork_context: false`. |
+| `task(category="...", ...)` for implementation or QA | `multi_agent_v1.spawn_agent({"message":"TASK: act as an implementation or QA worker. ...","fork_context":false})` |
+| `background_output(task_id="...")` | `multi_agent_v1.wait_agent(...)` for mailbox signals |
+| `team_*(...)` | Use Codex native subagents via `multi_agent_v1.spawn_agent` and `multi_agent_v1.wait_agent`; use `multi_agent_v1.send_input` and `multi_agent_v1.close_agent` only when exposed in the active tools list |
+
+Role-specific behavior must be described in a self-contained `message`. Use `fork_context: false` to start the child with only the initial prompt (no parent history); use `fork_context: true` only when full parent history is truly required. Include any required conversation context, files, diffs, constraints, and requested skill names directly in the spawned agent's `message`. OMO installs these selectable agent roles into `~/.codex/agents/`: `explorer`, `librarian`, `plan`, `momus`, `metis`, `lazycodex-code-reviewer`, `lazycodex-qa-executor`, and `lazycodex-gate-reviewer` - pass the matching name as `agent_type` so the child gets that role's model and instructions. If the spawn tool exposes no `agent_type` parameter, omit it and describe the role inside `message`. If a code block below conflicts with this section, this section wins.
+
+Codex exposes ONE of two subagent tool surfaces per session; check your own tool list and route accordingly. If `multi_agent_v1.*` tools exist, use the table above as written. If instead a flat `spawn_agent` with a required `task_name` exists (`multi_agent_v2`), rewrite every `multi_agent_v1.*` example: `multi_agent_v1.spawn_agent({...,"fork_context":false})` becomes `spawn_agent({"task_name":"<lowercase_digits_underscores>","message":...,"agent_type":...,"fork_turns":"none"})` (`"all"` only when full parent history is truly required); `send_input` becomes `send_message`; do not call `close_agent`/`resume_agent` (finished agents end on their own; `followup_task` re-tasks one, `interrupt_agent` stops one); `wait_agent` takes only `timeout_ms` and returns on any child mailbox activity. On the v2 surface `agent_type` may be ABSENT from the spawn schema (verified 2026-07-11: only `fork_turns`/`message`/`task_name`) — when absent, omit it and describe the role inside `message`; installed role TOMLs cannot be selected on that surface. If a code block below conflicts with this section, this section wins. `fork_context` is rejected on `multi_agent_v2` (`fork_context is not supported in MultiAgentV2; use fork_turns instead`).
+
+When translating `load_skills=[...]`, include the requested skill names in the spawned agent's `message`. If a code block below conflicts with this section, this section wins.
+
+Omit optional keys you do not set. Never send `items: []`, `message: ""`, `model: ""`, `reasoning_effort: ""`, or `service_tier: ""` — Codex rejects them (`Items can't be empty`, `reasoning_effort must not be empty`).
+
+For work likely to exceed one wait cycle, require the child to send `WORKING: <task> - <current phase>` before long passes and `BLOCKED: <reason>` only when progress stops. A `multi_agent_v1.wait_agent` timeout only means no new mailbox update arrived; back off between waits (double the timeout up to ~5 minutes) instead of spinning short cycles. Treat a running child as alive. Fallback only when the child is completed without the deliverable, ack-only after followup, explicitly `BLOCKED:`, or no longer running.
 
 # ulw-loop
 
@@ -15,14 +39,16 @@ This skill is intentionally compact. The full workflow lives in `references/full
 
 1. Open `references/full-workflow.md`.
 2. Read through **Bootstrap** (including its tier triage), **Execution Loop**, the **Manual-QA channels** table, and the **Stop Rules** before running any ULW command or recording evidence.
-3. If the task has code edits, tests, QA, or commit work, follow the full workflow's delegation and evidence rules. Tests alone never prove done.
+3. Open `references/define-goal.md` and register the run's goal by it. Goal creation is NEVER skipped: shape the objective and every success criterion by that reference before any implementation.
+4. If the task has code edits, tests, QA, or commit work, follow the full workflow's delegation and evidence rules. Tests alone never prove done.
 
 ## Non-Negotiables
 
 - Use the ulw-loop CLI state under `.omo/ulw-loop`; do not hand-edit goal state.
-- Register goals up front (`omo ulw-loop create-goals`, then `create_goal` from the printed handoff) and mirror every atomic step into the live `update_plan` checklist: one ultra-granular step per action, exactly one in_progress, transitions marked the instant they happen.
-- After any compaction or context loss, re-read brief + goals + ledger FIRST plus `omo ulw-loop status --json`, then resume; never re-plan from scratch.
-- If `omo ulw-loop create-goals` says the existing aggregate is already complete, start unrelated new work with a fresh `--session-id <new-id>` instead of steering or forcing the completed default state. Use `--force` only to intentionally overwrite completed evidence.
+- Register goals up front, shaped by `references/define-goal.md` (`omo-agent-toolkit ulw-loop create-goals`, then `create_goal` from the printed handoff), and mirror every atomic step into the live `update_plan` checklist: one ultra-granular step per action, exactly one in_progress, transitions marked the instant they happen.
+- After any compaction or context loss, re-read brief + goals + ledger FIRST plus `omo-agent-toolkit ulw-loop status --json`, then resume; never re-plan from scratch.
+- Every ulw-loop command needs the session scope: pass `--session-id <id>` (the printed handoff and resume directive carry it; `CODEX_THREAD_ID` in the environment also resolves it). The CLI refuses unscoped state (`ULW_LOOP_SESSION_SCOPE_REQUIRED`) instead of touching the shared `.omo/ulw-loop` root.
+- If `omo-agent-toolkit ulw-loop create-goals` says this session's aggregate is already complete, start unrelated new work with a fresh `--session-id <new-id>` (passed on every later call) instead of steering or forcing the completed state. Use `--force` only to intentionally overwrite completed evidence.
 - Every success criterion needs observable evidence from a real surface: a channel (terminal/TUI via the xterm.js web terminal, HTTP, browser, computer-use) or, for CLI- or data-shaped criteria, an auxiliary surface (CLI stdout, DB diff, parsed config dump).
 - Evidence is bound to the tree it was captured at (`git rev-parse --short "HEAD^{tree}"`); it goes stale only when tracked content changes — a rebase or amend that keeps the tree identical keeps it valid. When the tree differs, re-run at the current HEAD and re-record, never relabel or regenerate. Record only after cleanup receipts exist.
 - Delegate code edits, test writes, fixes, and QA execution to right-sized Codex subagents when the workflow requires it.

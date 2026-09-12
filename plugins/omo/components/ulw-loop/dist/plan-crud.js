@@ -59,7 +59,7 @@ export async function createUlwLoopPlan(repoRoot, args, scope) {
 function completedPlanExistsError(scope) {
     return new UlwLoopError([
         `Existing ulw-loop aggregate is already complete at ${ulwLoopGoalsRelativePath(scope)}.`,
-        "Start a new run with `omo ulw-loop create-goals --session-id <new-id> ...` to isolate fresh state.",
+        "Start a new run with `omo-agent-toolkit ulw-loop create-goals --session-id <new-id> ...` to isolate fresh state.",
         "Use --force only when you intentionally want to overwrite the completed evidence.",
     ].join(" "), "ULW_LOOP_PLAN_EXISTS_COMPLETE");
 }

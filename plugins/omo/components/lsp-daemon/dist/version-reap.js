@@ -149,7 +149,7 @@ function defaultReadProcFile(path) {
 }
 function defaultExecuteForStdout(file, args) {
     return new Promise((resolve) => {
-        execFile(file, [...args], { encoding: "utf8", maxBuffer: 1024 * 1024, timeout: 1_000 }, (error, stdout) => {
+        execFile(file, [...args], { encoding: "utf8", maxBuffer: 1024 * 1024, timeout: 1_000, windowsHide: true }, (error, stdout) => {
             if (error !== null) {
                 resolve(null);
                 return;

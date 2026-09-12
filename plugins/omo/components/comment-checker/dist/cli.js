@@ -416,7 +416,8 @@ function spawnProcess(command, args, stdin, maxOutputBytes = MAX_PROCESS_OUTPUT_
   return new Promise((resolve) => {
     const outputByteLimit = Number.isFinite(maxOutputBytes) && maxOutputBytes > 0 ? Math.floor(maxOutputBytes) : 0;
     const proc = spawn(command, args, {
-      stdio: ["pipe", "pipe", "pipe"]
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true
     });
     const stdout = { text: "", bytes: 0, truncated: false };
     const stderr = { text: "", bytes: 0, truncated: false };

@@ -180,6 +180,7 @@ async function runJsonRpcStdioServer(config) {
   const idleTimer = createIdleTimer(idleTimeoutMs, log, () => {
     isClosed = true;
     config.onIdleTimeout?.();
+    config.input.destroy();
   });
   const watchdog = createParentWatchdog(config.parentWatchdog, (parentPid, pollIntervalMs) => {
     isClosed = true;
@@ -276,7 +277,11 @@ function createParentWatchdog(config, onDeadParent) {
   const probeAlive = config.probeAlive ?? isProcessAlive;
   let fired = false;
   const timer = setInterval(() => {
-    if (fired || probeAlive(parentPid))
+    if (fired)
+      return;
+    const alive = probeAlive(parentPid);
+    config.onPoll?.(alive);
+    if (alive)
       return;
     fired = true;
     onDeadParent(parentPid, pollIntervalMs);

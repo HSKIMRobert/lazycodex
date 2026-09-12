@@ -1,12 +1,19 @@
-import { createReadStream } from "node:fs";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { createReadStream, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import { aggregateCodexObjectiveForScope } from "./goal-status.js";
-import { repoRelative, ulwLoopDir, ulwLoopGoalsPath, ulwLoopLedgerPath, ulwLoopRelativeDir, } from "./paths.js";
+import { repoRelative, ulwLoopDir, ulwLoopGoalsPath, ulwLoopLedgerPath, ulwLoopRelativeDir, ulwLoopStateLockPath, } from "./paths.js";
+import { planMissingRecovery } from "./plan-missing-recovery.js";
+import { withStateLock } from "./state-lock.js";
 import { iso, ULW_LOOP_DIR, ULW_LOOP_GOALS, ULW_LOOP_LEDGER, UlwLoopError } from "./types.js";
 const LEGACY_OBJECTIVE_PREFIX = `Complete all ulw-loop stories in ${ULW_LOOP_DIR}/${ULW_LOOP_GOALS}: `;
 const LEGACY_OBJECTIVE = `Complete all ulw-loop stories listed in ${ULW_LOOP_DIR}/${ULW_LOOP_GOALS}. Use ${ULW_LOOP_DIR}/${ULW_LOOP_LEDGER} as the durable audit trail.`;
 const locks = new Map();
+// Tracks which state dirs the CURRENT async continuation holds, so a read nested
+// inside a locked mutation can tell itself apart from an unlocked read elsewhere
+// in the same process.
+const heldLocks = new AsyncLocalStorage();
 function hasCode(error, code) {
     return error instanceof Error && "code" in error && error.code === code;
 }
@@ -25,8 +32,12 @@ export async function withUlwLoopMutationLock(repoRoot, scopeOrFn, maybeFn) {
     if (fn === undefined)
         throw new UlwLoopError("Missing ulw-loop mutation body.", "ULW_LOOP_LOCK_BODY_MISSING");
     const lockKey = `${repoRoot}\0${ulwLoopRelativeDir(scope)}`;
+    const lockPath = ulwLoopStateLockPath(repoRoot, scope);
+    // The promise chain orders callers inside this process; the file lock is what
+    // excludes every other process (each CLI invocation) touching the same state dir.
+    const locked = () => withStateLock(lockPath, () => heldLocks.run(new Set([...(heldLocks.getStore() ?? []), lockKey]), fn));
     const prior = locks.get(lockKey) ?? Promise.resolve(undefined);
-    const run = prior.then(fn, fn);
+    const run = prior.then(locked, locked);
     // The stored gate resolves to undefined so the map never retains fn's result
     // (plans/audits), and it removes itself once no newer waiter replaced it —
     // otherwise a long-lived host leaks one entry per (repo, scope) forever.
@@ -47,7 +58,8 @@ export async function readUlwLoopPlan(repoRoot, scope) {
     catch (error) {
         if (!hasCode(error, "ENOENT"))
             throw error;
-        throw new UlwLoopError(`No ulw-loop plan found at ${repoRelative(path, repoRoot)}. Run \`omo ulw-loop create-goals ...\` first.`, "ULW_LOOP_PLAN_MISSING", { cause: error });
+        const recovery = planMissingRecovery(listUlwLoopSessionIds(repoRoot));
+        throw new UlwLoopError(`No ulw-loop plan found at ${repoRelative(path, repoRoot)}.\n${recovery.message}`, "ULW_LOOP_PLAN_MISSING", { cause: error, ...(recovery.details === undefined ? {} : { details: recovery.details }) });
     }
     const parsed = JSON.parse(raw);
     if (parsed.version !== 1 || !Array.isArray(parsed.goals)) {
@@ -56,6 +68,11 @@ export async function readUlwLoopPlan(repoRoot, scope) {
     const previousObjective = parsed.codexObjective;
     if ((parsed.codexGoalMode ?? "per_story") === "aggregate" &&
         isLegacyEnumeratedAggregateObjective(previousObjective)) {
+        if (!(heldLocks.getStore()?.has(`${repoRoot}\0${ulwLoopRelativeDir(scope)}`) ?? false)) {
+            // A read path (status/criteria) must not mutate state: mutating here runs
+            // unlocked and a second reader could write a partially-migrated plan.
+            throw new UlwLoopError(`The ulw-loop plan at ${repoRelative(path, repoRoot)} carries a legacy enumerated aggregate objective that must be migrated before reads continue. Run any state-mutating ulw-loop command once (e.g. \`record-evidence\`, \`steer\`, \`checkpoint\`) to migrate it under the state lock, then retry.`, "ULW_LOOP_MIGRATION_REQUIRED");
+        }
         const now = iso();
         parsed.codexObjective = aggregateCodexObjectiveForScope(scope);
         parsed.codexObjectiveAliases = [...new Set([...(parsed.codexObjectiveAliases ?? []), previousObjective])];
@@ -70,6 +87,19 @@ export async function readUlwLoopPlan(repoRoot, scope) {
         }, scope);
     }
     return parsed;
+}
+// Session dirs are the only recovery hint that matters when a plan or a scope is
+// missing: the caller is almost always meant to target one of these siblings.
+export function listUlwLoopSessionIds(repoRoot) {
+    try {
+        return readdirSync(ulwLoopDir(repoRoot), { withFileTypes: true })
+            .filter((entry) => entry.isDirectory())
+            .map((entry) => entry.name)
+            .sort();
+    }
+    catch {
+        return [];
+    }
 }
 export async function writePlan(repoRoot, plan, scope) {
     await mkdir(ulwLoopDir(repoRoot, scope), { recursive: true });

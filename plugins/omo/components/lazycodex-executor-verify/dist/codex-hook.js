@@ -3,11 +3,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { renderDirective } from "./directive.js";
 import { clearAttemptState, MAX_ATTEMPTS, readAttemptState, writeAttemptState } from "./state.js";
 import { SUBAGENT_STOP_EVENT } from "./types.js";
-const RECEIPT_ENFORCED_AGENTS = new Set([
-    "lazycodex-worker-low",
-    "lazycodex-worker-medium",
-    "lazycodex-worker-high",
-]);
+const RECEIPT_ENFORCED_AGENTS = new Set(["lazycodex-worker-low", "lazycodex-worker-medium", "lazycodex-worker-high"]);
 export function runSubagentStopHook(input, fs) {
     if (!isSubagentStopInput(input))
         return "";
@@ -15,7 +11,8 @@ export function runSubagentStopHook(input, fs) {
         return "";
     if (transcriptHasContextPressureMarker(input.transcript_path, fs))
         return "";
-    if (hasValidEvidenceReceipt(input, fs)) {
+    const receiptFailure = getEvidenceReceiptFailure(input, fs);
+    if (receiptFailure === null) {
         clearAttemptState(input.cwd, input.session_id, input.agent_id, fs);
         return "";
     }
@@ -28,7 +25,7 @@ export function runSubagentStopHook(input, fs) {
     writeAttemptState(input.cwd, input.session_id, input.agent_id, { attempts }, fs);
     return JSON.stringify({
         decision: "block",
-        reason: renderDirective(attempts, input.last_assistant_message),
+        reason: `Evidence receipt rejected: ${receiptFailure}.\n\n${renderDirective(attempts, input.last_assistant_message)}`,
     });
 }
 const CONTEXT_PRESSURE_MARKERS = [
@@ -51,20 +48,20 @@ function transcriptHasContextPressureMarker(transcriptPath, fs) {
         throw error;
     }
 }
-function hasValidEvidenceReceipt(input, fs) {
+function getEvidenceReceiptFailure(input, fs) {
     const receiptPath = extractEvidencePath(input.last_assistant_message);
     if (receiptPath === null)
-        return false;
+        return "invalid";
     const evidenceRoot = resolve(input.cwd, ".omo", "evidence");
     const resolvedPath = isAbsolute(receiptPath) ? resolve(receiptPath) : resolve(input.cwd, receiptPath);
     if (!isPathInsideDirectory(resolvedPath, evidenceRoot))
-        return false;
+        return "invalid";
     try {
-        return isNonEmptyFileInsideEvidenceRoot(resolvedPath, evidenceRoot, input.cwd, fs);
+        return getEvidenceFileFailure(resolvedPath, evidenceRoot, input, fs);
     }
     catch (error) {
         if (error instanceof Error)
-            return false;
+            return "invalid";
         throw error;
     }
 }
@@ -72,28 +69,37 @@ function isPathInsideDirectory(filePath, directoryPath) {
     const relativePath = relative(directoryPath, filePath);
     return relativePath !== "" && !relativePath.startsWith("..") && !isAbsolute(relativePath);
 }
-function isNonEmptyFileInsideEvidenceRoot(filePath, evidenceRoot, cwd, fs) {
+function getEvidenceFileFailure(filePath, evidenceRoot, input, fs) {
     if (!fs.existsSync(filePath))
-        return false;
-    const realCwd = realPath(cwd, fs);
+        return "invalid";
+    const realCwd = realPath(input.cwd, fs);
     const realEvidenceRoot = realPath(evidenceRoot, fs);
     const realFilePath = realPath(filePath, fs);
     if (!isPathInsideDirectory(realEvidenceRoot, realCwd))
-        return false;
+        return "invalid";
     if (!isPathInsideDirectory(realFilePath, realEvidenceRoot))
-        return false;
-    return isNonEmptyFile(filePath, fs);
-}
-function isNonEmptyFile(filePath, fs) {
-    if (!fs.existsSync(filePath))
-        return false;
+        return "invalid";
     const linkStat = fs.lstatSync?.(filePath) ?? nodeLstatSync(filePath);
     if (linkStat.isSymbolicLink?.() === true)
-        return false;
+        return "invalid";
     const stat = fs.statSync(filePath);
-    if (stat.size <= 0)
-        return false;
-    return stat.isFile?.() ?? true;
+    if (stat.isFile?.() === false)
+        return "invalid";
+    if (stat.size <= 0 || fs.readFileSync(filePath, "utf8").trim().length < 40)
+        return "placeholder";
+    let transcriptStat;
+    try {
+        transcriptStat = fs.statSync(input.transcript_path);
+    }
+    catch (error) {
+        if (error instanceof Error)
+            return null;
+        throw error;
+    }
+    const transcriptStart = transcriptStat.birthtimeMs ?? transcriptStat.ctimeMs;
+    if (transcriptStart !== undefined && (stat.mtimeMs === undefined || stat.mtimeMs < transcriptStart))
+        return "stale";
+    return null;
 }
 function realPath(path, fs) {
     return fs.realpathSync?.(path) ?? nodeRealpathSync(path);

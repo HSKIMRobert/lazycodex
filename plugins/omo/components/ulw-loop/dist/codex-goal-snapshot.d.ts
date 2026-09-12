@@ -1,4 +1,4 @@
-export type CodexGoalSnapshotStatus = "active" | "complete" | "cancelled" | "failed" | "unknown";
+export type CodexGoalSnapshotStatus = "active" | "complete" | "paused" | "usage_limited" | "budget_limited" | "cancelled" | "failed" | "unknown";
 export interface CodexGoalSnapshot {
     available: boolean;
     objective?: string;
@@ -13,10 +13,7 @@ export interface CodexGoalReconciliation {
 }
 export interface ReconcileCodexGoalOptions {
     expectedObjective: string;
-    acceptedObjectives?: readonly string[];
-    allowedStatuses?: readonly CodexGoalSnapshotStatus[];
-    requireSnapshot?: boolean;
-    requireComplete?: boolean;
+    readonly acceptedObjectives?: readonly string[];
 }
 export declare class CodexGoalSnapshotError extends Error {
 }

@@ -11,4 +11,5 @@ export interface CallToolOptions {
 }
 export declare function callToolViaDaemon(name: string, args: Record<string, unknown>, options: CallToolOptions): Promise<ToolExecutionResult>;
 export declare function callDiagnosticsViaDaemon(filePath: string, options: CallToolOptions): Promise<ToolExecutionResult>;
+export declare function callFormatViaDaemon(filePath: string, options: CallToolOptions): Promise<ToolExecutionResult>;
 export declare function currentRequestContext(env?: NodeJS.ProcessEnv): DaemonToolContext;

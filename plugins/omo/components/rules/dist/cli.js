@@ -18,21 +18,23 @@ var __toESM = (mod, isNodeMode, target) => {
       return cached;
   }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
-  const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
-  for (let key of __getOwnPropNames(mod))
-    if (!__hasOwnProp.call(to, key))
-      __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
-        enumerable: true
-      });
+  const to = isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
+  if (mod && typeof mod === "object" || typeof mod === "function") {
+    for (let key of __getOwnPropNames(mod))
+      if (!__hasOwnProp.call(to, key))
+        __defProp(to, key, {
+          get: __accessProp.bind(mod, key),
+          enumerable: true
+        });
+  }
   if (canCache)
     cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 
-// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/lib/constants.js
-var require_constants = __commonJS((exports, module) => {
+// ../../../node_modules/.bun/picomatch@4.0.7/node_modules/picomatch/lib/constants.js
+var require_constants = __commonJS(function(exports, module) {
   var WIN_SLASH = "\\\\/";
   var WIN_NO_SLASH = `[^${WIN_SLASH}]`;
   var DEFAULT_MAX_EXTGLOB_RECURSION = 0;
@@ -176,8 +178,8 @@ var require_constants = __commonJS((exports, module) => {
   };
 });
 
-// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/lib/utils.js
-var require_utils = __commonJS((exports) => {
+// ../../../node_modules/.bun/picomatch@4.0.7/node_modules/picomatch/lib/utils.js
+var require_utils = __commonJS(function(exports) {
   var {
     REGEX_BACKSLASH,
     REGEX_REMOVE_BACKSLASH,
@@ -239,8 +241,8 @@ var require_utils = __commonJS((exports) => {
   };
 });
 
-// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/lib/scan.js
-var require_scan = __commonJS((exports, module) => {
+// ../../../node_modules/.bun/picomatch@4.0.7/node_modules/picomatch/lib/scan.js
+var require_scan = __commonJS(function(exports, module) {
   var utils = require_utils();
   var {
     CHAR_ASTERISK,
@@ -270,7 +272,7 @@ var require_scan = __commonJS((exports, module) => {
   var scan = (input, options) => {
     const opts = options || {};
     const length = input.length - 1;
-    const scanToEnd = opts.parts === true || opts.scanToEnd === true;
+    const scanToEnd = opts.parts === true || opts.tokens === true || opts.scanToEnd === true;
     const slashes = [];
     const tokens = [];
     const parts = [];
@@ -377,14 +379,18 @@ var require_scan = __commonJS((exports, module) => {
             negatedExtglob = true;
           }
           if (scanToEnd === true) {
+            let parens = 0;
             while (eos() !== true && (code = advance())) {
               if (code === CHAR_BACKWARD_SLASH) {
                 backslashes = token.backslashes = true;
-                code = advance();
+                advance();
                 continue;
               }
-              if (code === CHAR_RIGHT_PARENTHESES) {
-                isGlob = token.isGlob = true;
+              if (code === CHAR_LEFT_PARENTHESES) {
+                parens++;
+                continue;
+              }
+              if (code === CHAR_RIGHT_PARENTHESES && --parens === 0) {
                 finished = true;
                 break;
               }
@@ -439,13 +445,18 @@ var require_scan = __commonJS((exports, module) => {
       if (opts.noparen !== true && code === CHAR_LEFT_PARENTHESES) {
         isGlob = token.isGlob = true;
         if (scanToEnd === true) {
+          let parens = 1;
           while (eos() !== true && (code = advance())) {
-            if (code === CHAR_LEFT_PARENTHESES) {
+            if (code === CHAR_BACKWARD_SLASH) {
               backslashes = token.backslashes = true;
-              code = advance();
+              advance();
               continue;
             }
-            if (code === CHAR_RIGHT_PARENTHESES) {
+            if (code === CHAR_LEFT_PARENTHESES) {
+              parens++;
+              continue;
+            }
+            if (code === CHAR_RIGHT_PARENTHESES && --parens === 0) {
               finished = true;
               break;
             }
@@ -519,7 +530,7 @@ var require_scan = __commonJS((exports, module) => {
     if (opts.parts === true || opts.tokens === true) {
       let prevIndex;
       for (let idx = 0;idx < slashes.length; idx++) {
-        const n = prevIndex ? prevIndex + 1 : start;
+        const n = prevIndex !== undefined ? prevIndex + 1 : start;
         const i = slashes[idx];
         const value = input.slice(n, i);
         if (opts.tokens) {
@@ -532,19 +543,18 @@ var require_scan = __commonJS((exports, module) => {
           depth(tokens[idx]);
           state.maxDepth += tokens[idx].depth;
         }
-        if (idx !== 0 || value !== "") {
+        if (i >= start) {
           parts.push(value);
+          prevIndex = i;
         }
-        prevIndex = i;
       }
-      if (prevIndex && prevIndex + 1 < input.length) {
-        const value = input.slice(prevIndex + 1);
-        parts.push(value);
-        if (opts.tokens) {
-          tokens[tokens.length - 1].value = value;
-          depth(tokens[tokens.length - 1]);
-          state.maxDepth += tokens[tokens.length - 1].depth;
-        }
+      const n = prevIndex !== undefined ? prevIndex + 1 : start;
+      const value = input.slice(n);
+      parts.push(value);
+      if (opts.tokens && prevIndex && prevIndex + 1 < input.length) {
+        tokens[tokens.length - 1].value = value;
+        depth(tokens[tokens.length - 1]);
+        state.maxDepth += tokens[tokens.length - 1].depth;
       }
       state.slashes = slashes;
       state.parts = parts;
@@ -554,8 +564,8 @@ var require_scan = __commonJS((exports, module) => {
   module.exports = scan;
 });
 
-// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/lib/parse.js
-var require_parse = __commonJS((exports, module) => {
+// ../../../node_modules/.bun/picomatch@4.0.7/node_modules/picomatch/lib/parse.js
+var require_parse = __commonJS(function(exports, module) {
   var constants = require_constants();
   var utils = require_utils();
   var {
@@ -742,7 +752,7 @@ var require_parse = __commonJS((exports, module) => {
       if (!match || match.type !== "*") {
         return;
       }
-      const branches = splitTopLevel(match.body).map((branch2) => branch2.trim());
+      const branches = splitTopLevel(match.body).map((branch) => branch.trim());
       if (branches.length !== 1) {
         return;
       }
@@ -835,8 +845,8 @@ var require_parse = __commonJS((exports, module) => {
       STAR,
       START_ANCHOR
     } = PLATFORM_CHARS;
-    const globstar = (opts2) => {
-      return `(${capture}(?:(?!${START_ANCHOR}${opts2.dot ? DOTS_SLASH : DOT_LITERAL}).)*?)`;
+    const globstar = (opts) => {
+      return `(${capture}(?:(?!${START_ANCHOR}${opts.dot ? DOTS_SLASH : DOT_LITERAL}).)*?)`;
     };
     const nodot = opts.dot ? "" : NO_DOT;
     const qmarkNoDot = opts.dot ? QMARK : QMARK_NO_DOT;
@@ -875,8 +885,8 @@ var require_parse = __commonJS((exports, module) => {
     const peek = state.peek = (n = 1) => input[state.index + n];
     const advance = state.advance = () => input[++state.index] || "";
     const remaining = () => input.slice(state.index + 1);
-    const consume = (value2 = "", num = 0) => {
-      state.consumed += value2;
+    const consume = (value = "", num = 0) => {
+      state.consumed += value;
       state.index += num;
     };
     const append = (token) => {
@@ -931,8 +941,8 @@ var require_parse = __commonJS((exports, module) => {
       tokens.push(tok);
       prev = tok;
     };
-    const extglobOpen = (type, value2) => {
-      const token = { ...EXTGLOB_CHARS[value2], conditions: 1, inner: "" };
+    const extglobOpen = (type, value) => {
+      const token = { ...EXTGLOB_CHARS[value], conditions: 1, inner: "" };
       token.prev = prev;
       token.parens = state.parens;
       token.output = state.output;
@@ -940,7 +950,7 @@ var require_parse = __commonJS((exports, module) => {
       token.tokensIndex = tokens.length;
       const output = (opts.capture ? "(" : "") + token.open;
       increment("parens");
-      push({ type, value: value2, output: state.output ? "" : ONE_CHAR });
+      push({ type, value, output: state.output ? "" : ONE_CHAR });
       push({ type: "paren", extglob: true, value: advance(), output });
       extglobs.push(token);
     };
@@ -1074,8 +1084,8 @@ var require_parse = __commonJS((exports, module) => {
             if (inner.includes(":")) {
               const idx = prev.value.lastIndexOf("[");
               const pre = prev.value.slice(0, idx);
-              const rest2 = prev.value.slice(idx + 2);
-              const posix = POSIX_REGEX_SOURCE[rest2];
+              const rest = prev.value.slice(idx + 2);
+              const posix = POSIX_REGEX_SOURCE[rest];
               if (posix) {
                 prev.value = pre + posix;
                 state.backtrack = true;
@@ -1386,6 +1396,7 @@ var require_parse = __commonJS((exports, module) => {
           rest = rest.slice(3);
           consume("/**", 3);
         }
+        const isEnd = eos() || state.parens > 0 && rest === ")".repeat(state.parens) && !extglobs.some((extglob) => extglob.type === "negate");
         if (prior.type === "bos" && eos()) {
           prev.type = "globstar";
           prev.value += value;
@@ -1395,7 +1406,7 @@ var require_parse = __commonJS((exports, module) => {
           consume(value);
           continue;
         }
-        if (prior.type === "slash" && prior.prev.type !== "bos" && !afterStar && eos()) {
+        if (prior.type === "slash" && prior.prev.type !== "bos" && !afterStar && isEnd) {
           state.output = state.output.slice(0, -(prior.output + prev.output).length);
           prior.output = `(?:${prior.output}`;
           prev.type = "globstar";
@@ -1529,10 +1540,10 @@ var require_parse = __commonJS((exports, module) => {
     if (opts.capture) {
       star = `(${star})`;
     }
-    const globstar = (opts2) => {
-      if (opts2.noglobstar === true)
+    const globstar = (opts) => {
+      if (opts.noglobstar === true)
         return star;
-      return `(${capture}(?:(?!${START_ANCHOR}${opts2.dot ? DOTS_SLASH : DOT_LITERAL}).)*?)`;
+      return `(${capture}(?:(?!${START_ANCHOR}${opts.dot ? DOTS_SLASH : DOT_LITERAL}).)*?)`;
     };
     const create = (str) => {
       switch (str) {
@@ -1556,10 +1567,10 @@ var require_parse = __commonJS((exports, module) => {
           const match = /^(.*?)\.(\w+)$/.exec(str);
           if (!match)
             return;
-          const source2 = create(match[1]);
-          if (!source2)
+          const source = create(match[1]);
+          if (!source)
             return;
-          return source2 + DOT_LITERAL + match[2];
+          return source + DOT_LITERAL + match[2];
         }
       }
     };
@@ -1573,8 +1584,8 @@ var require_parse = __commonJS((exports, module) => {
   module.exports = parse;
 });
 
-// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/lib/picomatch.js
-var require_picomatch = __commonJS((exports, module) => {
+// ../../../node_modules/.bun/picomatch@4.0.7/node_modules/picomatch/lib/picomatch.js
+var require_picomatch = __commonJS(function(exports, module) {
   var scan = require_scan();
   var parse = require_parse();
   var utils = require_utils();
@@ -1585,9 +1596,9 @@ var require_picomatch = __commonJS((exports, module) => {
       const fns = glob.map((input) => picomatch(input, options, returnState));
       const arrayMatcher = (str) => {
         for (const isMatch of fns) {
-          const state2 = isMatch(str);
-          if (state2)
-            return state2;
+          const state = isMatch(str);
+          if (state)
+            return state;
         }
         return false;
       };
@@ -1713,8 +1724,8 @@ var require_picomatch = __commonJS((exports, module) => {
   module.exports = picomatch;
 });
 
-// ../../../node_modules/.bun/picomatch@4.0.5/node_modules/picomatch/index.js
-var require_picomatch2 = __commonJS((exports, module) => {
+// ../../../node_modules/.bun/picomatch@4.0.7/node_modules/picomatch/index.js
+var require_picomatch2 = __commonJS(function(exports, module) {
   var pico = require_picomatch();
   var utils = require_utils();
   function picomatch(glob, options, returnState = false) {
@@ -2730,7 +2741,8 @@ var WINDOWS_GIT_BASH_BUNDLED_RULE_PATH = "bundled-rules/windows-git-bash.md";
 var HEPHAESTUS_BUNDLED_RULE_PREFIX = "bundled-rules/hephaestus/";
 var HEPHAESTUS_DEFAULT_VARIANT_FILE = "gpt-5.5.md";
 var HEPHAESTUS_MODEL_VARIANT_FILES = [
-  ["gpt-5.6", "gpt-5.6.md"]
+  ["gpt-5.6", "gpt-5.6.md"],
+  ["gpt-6", "gpt-6.md"]
 ];
 function findRuleCandidates(options) {
   const skipUserHome = options.skipUserHome ?? false;
@@ -2976,7 +2988,8 @@ function isDedupedRootSingleFile(candidate, rootSingleFileSelected) {
 var NEVER_TRUNCATED_RULE_PATHS = new Set([
   "bundled-rules/hephaestus.md",
   "bundled-rules/hephaestus/gpt-5.5.md",
-  "bundled-rules/hephaestus/gpt-5.6.md"
+  "bundled-rules/hephaestus/gpt-5.6.md",
+  "bundled-rules/hephaestus/gpt-6.md"
 ]);
 function truncationNotice(relativePath) {
   return TRUNCATION_NOTICE.replace("{path}", relativePath);
@@ -3871,19 +3884,29 @@ var POST_COMPACT_MIN_RESERVED_TOKENS = 8000;
 var POST_COMPACT_MIN_GUIDE_CHARS = 500;
 var FALLBACK_CONTEXT_WINDOW_TOKENS = 200000;
 var MODEL_CONTEXT_BUDGETS = [
-  { slug: "gpt-5.6-sol", contextWindowTokens: 372000, effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT },
+  { slug: "gpt-6-astra", contextWindowTokens: 600000, effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT },
+  {
+    slug: "gpt-6-astra-fast",
+    contextWindowTokens: 600000,
+    effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT
+  },
+  { slug: "gpt-5.6-sol", contextWindowTokens: 650000, effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT },
   {
     slug: "gpt-5.6-terra",
-    contextWindowTokens: 372000,
+    contextWindowTokens: 650000,
     effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT
   },
   {
     slug: "gpt-5.6-luna",
-    contextWindowTokens: 372000,
+    contextWindowTokens: 650000,
     effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT
   },
   { slug: "gpt-5.5", contextWindowTokens: 272000, effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT },
-  { slug: "gpt-5.6-luna-fast", contextWindowTokens: 272000, effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT },
+  {
+    slug: "gpt-5.6-luna-fast",
+    contextWindowTokens: 272000,
+    effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT
+  },
   {
     slug: "codex-auto-review",
     contextWindowTokens: 272000,
@@ -4146,7 +4169,7 @@ function recoverDynamicRulePaths(engine, transcriptText, staticRules) {
       if (staticRulePaths.has(rulePath)) {
         continue;
       }
-      if (transcriptText !== null && transcriptText.includes(rulePath)) {
+      if (transcriptText?.includes(rulePath)) {
         continue;
       }
       if (!existsSync4(rulePath)) {
@@ -4514,7 +4537,7 @@ function isRecord5(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function readStdin() {
-  return new Promise((resolve11, reject) => {
+  return new Promise((resolve, reject) => {
     let data = "";
     processStdin.setEncoding("utf8");
     processStdin.on("data", (chunk) => {
@@ -4523,7 +4546,7 @@ function readStdin() {
     processStdin.once("error", reject);
     processStdin.once("end", () => {
       processStdin.pause();
-      resolve11(data);
+      resolve(data);
     });
     processStdin.resume();
   });
@@ -4531,13 +4554,13 @@ function readStdin() {
 function writeStdout(output) {
   if (output.length === 0)
     return Promise.resolve();
-  return new Promise((resolve11, reject) => {
+  return new Promise((resolve, reject) => {
     processStdout.write(output, (error) => {
       if (error) {
         reject(error);
         return;
       }
-      resolve11();
+      resolve();
     });
   });
 }

@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
-import { closeSync, mkdirSync, openSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, writeSync } from "node:fs";
 import { Socket } from "node:net";
-import { dirname } from "node:path";
-import { execPath } from "node:process";
+import { dirname, isAbsolute } from "node:path";
+import { argv0, execPath } from "node:process";
 import { authEnvelope, readAuthToken } from "./ipc-protocol.js";
 import { packagedRuntimeDefaults } from "./paths.js";
 import { resolveDaemonRuntime } from "./runtime-contract.js";
@@ -81,19 +81,40 @@ export function pingDaemon(paths, token, timeoutMs = PROBE_TIMEOUT_MS, signal) {
         socket.connect(paths.socket);
     });
 }
-export function spawnDaemonProcess(paths) {
+export function spawnDaemonProcess(paths, deps = {}) {
     mkdirSync(dirname(paths.log), { recursive: true });
     const logFd = openSync(paths.log, "a");
     try {
-        const child = spawn(execPath, [paths.cliPath, "daemon"], {
+        const spawnDaemonChild = deps.spawn ?? spawn;
+        const executable = deps.resolveExecutable?.() ?? resolveDaemonNodeExecutable();
+        const child = spawnDaemonChild(executable, [paths.cliPath, "daemon"], {
             detached: true,
             stdio: ["ignore", logFd, logFd],
+            windowsHide: true,
+            // Under the packaged runtime execPath is the compiled omo binary, not a
+            // node interpreter; without BUN_BE_BUN it runs its embedded entrypoint, so
+            // the CLI argv boots a billable agent session instead of the daemon
+            // (issue #7914). Inert for node and for the bun interpreter itself.
+            env: { ...process.env, BUN_BE_BUN: "1" },
+        });
+        child.once("spawn", () => closeSync(logFd));
+        child.once("error", (error) => {
+            writeSync(logFd, `[lsp-daemon] failed to spawn daemon: ${error.message}\n`);
+            closeSync(logFd);
         });
         child.unref();
     }
-    finally {
+    catch (error) {
         closeSync(logFd);
+        throw error;
     }
+}
+export function resolveDaemonNodeExecutable(cachedExecPath = execPath, originalArgv0 = argv0, pathExists = existsSync) {
+    if (pathExists(cachedExecPath))
+        return cachedExecPath;
+    if (isAbsolute(originalArgv0) && pathExists(originalArgv0))
+        return originalArgv0;
+    return "node";
 }
 export function resolveDaemonCliPath(env = process.env, defaults = packagedRuntimeDefaults()) {
     return resolveDaemonRuntime(env, defaults).cliPath;

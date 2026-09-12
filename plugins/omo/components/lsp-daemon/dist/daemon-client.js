@@ -47,6 +47,9 @@ export async function callToolViaDaemon(name, args, options) {
 export function callDiagnosticsViaDaemon(filePath, options) {
     return callToolViaDaemon("diagnostics", { filePath, severity: "error" }, options);
 }
+export function callFormatViaDaemon(filePath, options) {
+    return callToolViaDaemon("format", { filePath }, options);
+}
 export function currentRequestContext(env = process.env) {
     const cwd = process.cwd();
     const home = env["HOME"] ?? homedir();

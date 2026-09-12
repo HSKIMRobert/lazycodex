@@ -1,11 +1,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve, sep } from "node:path";
-import { normalizeUlwLoopSessionId, ulwLoopDir } from "./paths.js";
+import { normalizeUlwLoopSessionId, ulwLoopDir, ulwLoopStateLockPath } from "./paths.js";
+import { isStateLockTimeout, withStateLockSync } from "./state-lock.js";
 // Turn-death recovery only: Codex emits Stop when a turn ends, so a run that
 // dies mid-turn (crash, kill, context blowup before any Stop) never reaches
 // this handler. Mid-turn stalls are out of scope by design.
 const RESUME_CAP = 2;
-// Mirrors start-work-continuation's context-pressure bail-out: injecting a
+// Mirrors ulw-execute-continuation's context-pressure bail-out: injecting a
 // resume directive into an already-overflowing context makes things worse.
 const CONTEXT_PRESSURE_MARKERS = [
     "context compacted",
@@ -24,14 +25,15 @@ export function runStopResumeHook(input) {
         return "";
     if (boulderContinuationWillFire(payload.cwd, payload.session_id))
         return "";
-    const stateDir = ulwLoopDir(payload.cwd, { sessionId: payload.session_id });
+    const scope = { sessionId: payload.session_id };
+    const stateDir = ulwLoopDir(payload.cwd, scope);
     const plan = readPlan(join(stateDir, "goals.json"));
     if (plan === null || plan.aggregateCompletion?.status === "complete")
         return "";
     const goal = resumableGoal(plan);
     if (goal === undefined)
         return "";
-    if (!consumeResumeBudget(stateDir, goal.id))
+    if (!consumeResumeBudgetLocked(ulwLoopStateLockPath(payload.cwd, scope), stateDir, goal.id))
         return "";
     const output = {
         decision: "block",
@@ -62,6 +64,18 @@ function resumableGoal(plan) {
 function isResumableStatus(status) {
     return status === "pending" || status === "in_progress";
 }
+// A resume is a budgeted side effect; when the session lock cannot be taken the
+// hook stays silent (fail closed) instead of charging the counter unlocked.
+function consumeResumeBudgetLocked(lockPath, stateDir, goalId) {
+    try {
+        return withStateLockSync(lockPath, () => consumeResumeBudget(stateDir, goalId));
+    }
+    catch (error) {
+        if (isStateLockTimeout(error))
+            return false;
+        throw error;
+    }
+}
 // Two-strike cap keyed on ledger movement: an unchanged ledger.jsonl line
 // count across resumes means the loop is not progressing. The stuck marker is
 // a separate file — a ledger append would change the count and self-reset.
@@ -91,9 +105,9 @@ function renderResumeDirective(plan, goal, sessionId) {
     return [
         `The ulw-loop run in this session still has unfinished goals (next: ${goal.id} — ${goal.title}).`,
         "The turn ended before the loop completed. Resume it now:",
-        `1. Run \`omo ulw-loop status${option} --json\` to reload the plan, the active goal, and currentAttemptDir.`,
+        `1. Run \`omo-agent-toolkit ulw-loop status${option} --json\` to reload the plan, the active goal, and currentAttemptDir.`,
         "2. Continue the active goal's remaining success criteria, recording evidence with record-evidence.",
-        `3. Checkpoint through \`omo ulw-loop checkpoint${option}\` when the goal's criteria are proven; a complete checkpoint prints the next goal instruction.`,
+        `3. Checkpoint through \`omo-agent-toolkit ulw-loop checkpoint${option}\` when the goal's criteria are proven; a complete checkpoint prints the next goal instruction.`,
         "If the loop is genuinely blocked on the user, checkpoint the goal as blocked with the reason instead.",
     ].join("\n");
 }
@@ -132,7 +146,7 @@ function readCounter(counterPath) {
         throw error;
     }
 }
-// Local ~10-LOC approximation of start-work-continuation's boulder check (no
+// Local ~10-LOC approximation of ulw-execute-continuation's boulder check (no
 // cross-component import allowed): any continuable work for this session means
 // that hook owns the Stop event, so this one stays silent.
 function boulderContinuationWillFire(cwd, sessionId) {
@@ -167,7 +181,7 @@ function transcriptShowsContextPressure(transcriptPath) {
         throw error;
     }
 }
-// start-work-continuation owns an active Boulder plan until its final gate marks
+// ulw-execute-continuation owns an active Boulder plan until its final gate marks
 // the work complete, including the zero-remaining checklist state.
 function boulderPlanHasChecklist(cwd, entry) {
     const activePlan = entry["active_plan"];

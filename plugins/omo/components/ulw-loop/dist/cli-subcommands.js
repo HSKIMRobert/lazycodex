@@ -9,6 +9,7 @@ import { ulwLoopAttemptEvidenceDir } from "./paths.js";
 import { addUlwLoopGoal, createUlwLoopPlan, startNextUlwLoop, summarizeUlwLoopPlan } from "./plan-crud.js";
 import { readUlwLoopPlan } from "./plan-io.js";
 import { recordFinalReviewBlockers } from "./review-blockers.js";
+import { statusNextActions } from "./status-next-actions.js";
 import { steerUlwLoop } from "./steering.js";
 import { steerUlwLoopBatch } from "./steering-batch.js";
 import { UlwLoopError } from "./types.js";
@@ -47,6 +48,7 @@ export async function status(repoRoot, json, scope) {
             plan,
             summary: summarizeUlwLoopPlan(plan),
             ...(currentAttemptDir === undefined ? {} : { currentAttemptDir }),
+            nextActions: statusNextActions(plan),
         });
     }
     else
@@ -138,6 +140,8 @@ export async function reviewBlockers(repoRoot, argv, json, scope) {
             blockedGoal: result.blockedGoal,
             goal: result.newGoal,
             ledgerEntries: result.ledgerEntries,
+            nextActions: result.nextActions,
+            warnings: result.warnings,
             summary: summarizeUlwLoopPlan(result.plan),
         });
     }

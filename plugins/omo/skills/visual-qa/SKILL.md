@@ -1,6 +1,6 @@
 ---
 name: visual-qa
-description: "MUST USE after building/changing any UI or when asked whether a page, component, or TUI looks right. Rigorous visual QA across web/page and terminal UIs. Prefer browser:control-in-app-browser for unauthenticated browser/page QA in Codex, then Playwright/agent-browser/dev-browser. Captures screenshot/TUI evidence with bundled diff scripts, runs design-system/functional and visual-fidelity/CJK reviewer passes, then synthesizes a good/bad verdict. Triggers: visual QA, screenshot/pixel diff, UI looks wrong, reference fidelity, design system check, responsive check, CJK text clipping, TUI alignment, box-drawing drift."
+description: "Runs rigorous visual QA across web, terminal, and paginated surfaces with screenshot evidence and a verdict. Use for any UI build or change, or when asked whether a page, component, or TUI looks right."
 ---
 
 ## Codex Harness Tool Compatibility
@@ -12,16 +12,18 @@ This skill may include examples copied from the OpenCode harness. In Codex, do n
 | `call_omo_agent(subagent_type="explore", ...)` | `multi_agent_v1.spawn_agent({"message":"TASK: act as an explorer. ...","agent_type":"explorer","fork_context":false})` |
 | `call_omo_agent(subagent_type="librarian", ...)` | `multi_agent_v1.spawn_agent({"message":"TASK: act as a librarian. ...","agent_type":"librarian","fork_context":false})` |
 | `task(subagent_type="plan", ...)` | `multi_agent_v1.spawn_agent({"message":"TASK: act as a planning agent. ...","agent_type":"plan","fork_context":false})` |
-| `task(subagent_type="oracle", ...)` for final verification | `multi_agent_v1.spawn_agent({"message":"TASK: act as a rigorous reviewer. ...","agent_type":"lazycodex-gate-reviewer","fork_context":false})` |
+| `task(subagent_type="oracle", ...)` for final verification | By default, record a self-review in the notepad: re-read the diff, run diagnostics, and capture evidence for every acceptance criterion. Only when the user demanded strict, rigorous, or high-accuracy review, use `multi_agent_v1.spawn_agent({"message":"TASK: act as a rigorous reviewer. ...","agent_type":"lazycodex-gate-reviewer","fork_context":false})`; include `fork_context: false`. |
 | `task(category="...", ...)` for implementation or QA | `multi_agent_v1.spawn_agent({"message":"TASK: act as an implementation or QA worker. ...","fork_context":false})` |
 | `background_output(task_id="...")` | `multi_agent_v1.wait_agent(...)` for mailbox signals |
 | `team_*(...)` | Use Codex native subagents via `multi_agent_v1.spawn_agent` and `multi_agent_v1.wait_agent`; use `multi_agent_v1.send_input` and `multi_agent_v1.close_agent` only when exposed in the active tools list |
 
 Role-specific behavior must be described in a self-contained `message`. Use `fork_context: false` to start the child with only the initial prompt (no parent history); use `fork_context: true` only when full parent history is truly required. Include any required conversation context, files, diffs, constraints, and requested skill names directly in the spawned agent's `message`. OMO installs these selectable agent roles into `~/.codex/agents/`: `explorer`, `librarian`, `plan`, `momus`, `metis`, `lazycodex-code-reviewer`, `lazycodex-qa-executor`, and `lazycodex-gate-reviewer` - pass the matching name as `agent_type` so the child gets that role's model and instructions. If the spawn tool exposes no `agent_type` parameter, omit it and describe the role inside `message`. If a code block below conflicts with this section, this section wins.
 
-Codex exposes ONE of two subagent tool surfaces per session; check your own tool list and route accordingly. If `multi_agent_v1.*` tools exist, use the table above as written. If instead a flat `spawn_agent` with a required `task_name` exists (`multi_agent_v2`), rewrite every `multi_agent_v1.*` example: `multi_agent_v1.spawn_agent({...,"fork_context":false})` becomes `spawn_agent({"task_name":"<lowercase_digits_underscores>","message":...,"agent_type":...,"fork_turns":"none"})` (`"all"` only when full parent history is truly required); `send_input` becomes `send_message`; do not call `close_agent`/`resume_agent` (finished agents end on their own; `followup_task` re-tasks one, `interrupt_agent` stops one); `wait_agent` takes only `timeout_ms` and returns on any child mailbox activity. On the v2 surface `agent_type` may be ABSENT from the spawn schema (verified 2026-07-11: only `fork_turns`/`message`/`task_name`) — when absent, omit it and describe the role inside `message`; installed role TOMLs cannot be selected on that surface. If a code block below conflicts with this section, this section wins.
+Codex exposes ONE of two subagent tool surfaces per session; check your own tool list and route accordingly. If `multi_agent_v1.*` tools exist, use the table above as written. If instead a flat `spawn_agent` with a required `task_name` exists (`multi_agent_v2`), rewrite every `multi_agent_v1.*` example: `multi_agent_v1.spawn_agent({...,"fork_context":false})` becomes `spawn_agent({"task_name":"<lowercase_digits_underscores>","message":...,"agent_type":...,"fork_turns":"none"})` (`"all"` only when full parent history is truly required); `send_input` becomes `send_message`; do not call `close_agent`/`resume_agent` (finished agents end on their own; `followup_task` re-tasks one, `interrupt_agent` stops one); `wait_agent` takes only `timeout_ms` and returns on any child mailbox activity. On the v2 surface `agent_type` may be ABSENT from the spawn schema (verified 2026-07-11: only `fork_turns`/`message`/`task_name`) — when absent, omit it and describe the role inside `message`; installed role TOMLs cannot be selected on that surface. If a code block below conflicts with this section, this section wins. `fork_context` is rejected on `multi_agent_v2` (`fork_context is not supported in MultiAgentV2; use fork_turns instead`).
 
 When translating `load_skills=[...]`, include the requested skill names in the spawned agent's `message`. If a code block below conflicts with this section, this section wins.
+
+Omit optional keys you do not set. Never send `items: []`, `message: ""`, `model: ""`, `reasoning_effort: ""`, or `service_tier: ""` — Codex rejects them (`Items can't be empty`, `reasoning_effort must not be empty`).
 
 For work likely to exceed one wait cycle, require the child to send `WORKING: <task> - <current phase>` before long passes and `BLOCKED: <reason>` only when progress stops. A `multi_agent_v1.wait_agent` timeout only means no new mailbox update arrived; back off between waits (double the timeout up to ~5 minutes) instead of spinning short cycles. Treat a running child as alive. Fallback only when the child is completed without the deliverable, ack-only after followup, explicitly `BLOCKED:`, or no longer running.
 
@@ -31,7 +33,7 @@ Verify a rendered UI against intent using objective script evidence plus two par
 
 ## Purpose and when to use
 
-- Use after you build or change any UI, before calling it done. Covers web/page UIs and TUI/terminal UIs.
+- Use after you build or change any UI, before calling it done. Covers web/page UIs, TUI/terminal UIs, and paginated documents.
 - Use when output must match a mock, a baseline, or a stated design intent; when you suspect a regression; when CJK (Korean/Japanese/Chinese) text may clip, misalign, or wrap awkwardly; when a claimed design system might actually be a flat image; when a terminal layout may overflow or its borders may break.
 - Skip when there is no rendered surface (pure backend or library logic with no visual or terminal output). For broad post-implementation review use review-work; this skill is the visual specialist.
 
@@ -41,6 +43,7 @@ In the commands below, `$SKILL_DIR` is this skill's own directory (the folder co
 
 - Web/page UI: renders in a browser (HTML/CSS/JS, components, canvas, SVG). Evidence is screenshots.
 - TUI/terminal UI: renders as text in a terminal (box-drawing, panes, status lines, REPL/TUI apps). Evidence is terminal captures.
+- Paginated document: renders as ordered pages (PDF report, printed HTML, exported deck). Evidence is every page rendered to an image - `pdftoppm -png -r 150 <file>.pdf <prefix>` or the pipeline's own renderer. Extracted text is not evidence here: layout is exactly what extraction discards, so a stranded block, a split table, or a near-empty page survives a clean text check.
 - Reference-fidelity UI: any web/page UI built from a concrete reference packet, including screenshots, generated Imagen/Stitch mockups, Figma exports, overview text, annotations, or source-site captures. Evidence is the full reference packet plus same-size actual captures.
 
 If the change touches both, run both capture tracks and feed both into the passes.
@@ -70,7 +73,7 @@ Before any reviewer sees an image, verify each capture yourself: the file signat
 ### Web
 
 1. Capture a REFERENCE image: the user's mock/target, generated page snapshot, Figma export, source-site capture, or known-good baseline. Save as PNG. If the user provided overview text or annotations, save them next to the image and treat them as part of the reference packet.
-2. Capture the ACTUAL rendered screenshot at the same viewport size. In Codex, when `browser:control-in-app-browser` is available and the page does not need an authenticated user browser session, use that Browser plugin first for navigation, page state inspection, and screenshots. If it is unavailable or lacks the needed capture action, use the project's configured browser tooling (the playwright, agent-browser, or dev-browser skill). Save as PNG. If none is configured or available, install [agent-browser](https://github.com/vercel-labs/agent-browser) (`npm install -g agent-browser && agent-browser install`) and capture with it — see `$SKILL_DIR/references/agent-browser-setup.md` for the full setup, including how to shoot a fixed-viewport screenshot.
+2. Capture the ACTUAL rendered screenshot at the same viewport size, driving the browser your harness actually has. Where a code cell can reach a browser (`new Bun.WebView()` on a Bun >= 1.4 kernel, otherwise `playwright-core` against the local Chrome), capture in-process: it needs no CLI and returns the PNG path directly. In Codex, `browser:control-in-app-browser` is that in-process surface — use it first unless the page needs an authenticated user browser session. Otherwise use the project's configured browser tooling (the playwright, agent-browser, or dev-browser skill). Save as PNG. If nothing is available, install [agent-browser](https://github.com/vercel-labs/agent-browser) (`bun add -g agent-browser && agent-browser install`) and capture with it — see `$SKILL_DIR/references/agent-browser-setup.md` for the full setup, including how to shoot a fixed-viewport screenshot.
 3. Run the diff and keep the JSON:
 
 ```

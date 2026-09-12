@@ -439,7 +439,7 @@ async function readOptionalFile(path) {
 
 // components/bootstrap/src/worker.ts
 import { appendFile as appendFile2, mkdir as mkdir8, readFile as readFile14 } from "node:fs/promises";
-import { homedir as homedir4 } from "node:os";
+import { homedir as homedir5 } from "node:os";
 import { dirname as dirname9, join as join22, resolve as resolve7 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
@@ -448,6 +448,10 @@ import { execFile } from "node:child_process";
 import { rm as rm4 } from "node:fs/promises";
 import { dirname as dirname4, join as join7 } from "node:path";
 import { promisify } from "node:util";
+
+// ../../utils/src/ast-grep/sg-candidates.ts
+import { homedir as homedir3 } from "node:os";
+import { join as join4 } from "node:path";
 
 // ../../utils/src/ast-grep/sg-manifest.ts
 var SG_PINNED_VERSION = "0.43.0";
@@ -494,10 +498,113 @@ function sgBinaryName(platform = process.platform) {
   return normalizeRuntimePlatform(platform) === "win32" ? "sg.exe" : "sg";
 }
 
+// ../../utils/src/ast-grep/install-script.ts
+var AST_GREP_BIN_DIR_ENV_KEY = "OMO_AST_GREP_BIN_DIR";
+
+// ../../utils/src/ast-grep/types.ts
+var SG_PATH_ENV_KEY = "OMO_AST_GREP_SG_PATH";
+var SG_BINARY_NOT_FOUND = "BINARY_NOT_FOUND";
+
+// ../../utils/src/ast-grep/sg-candidates.ts
+var HOMEBREW_PREFIXES = {
+  darwin: ["/opt/homebrew/bin", "/usr/local/bin"],
+  linux: ["/home/linuxbrew/.linuxbrew/bin", "/usr/local/bin"],
+  win32: []
+};
+function nonEmptyValue(value) {
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed.length === 0 ? null : trimmed;
+}
+function astGrepBinaryName(platform) {
+  return platform === "win32" ? "ast-grep.exe" : "ast-grep";
+}
+function candidate(tier, path) {
+  return { path, tier };
+}
+function envOverrideCandidates(env) {
+  const override = nonEmptyValue(env[SG_PATH_ENV_KEY]);
+  return override === null ? [] : [candidate("env-override", override)];
+}
+function omoRuntimeCandidates(options) {
+  const binaryName = sgBinaryName(options.platform);
+  const slug = runtimeSlug(options.platform, options.arch);
+  const paths = [];
+  if (options.runtimeDir !== undefined)
+    paths.push(join4(options.runtimeDir, binaryName));
+  const codexHome = nonEmptyValue(options.env["CODEX_HOME"]);
+  if (codexHome !== null)
+    paths.push(join4(codexHome, "runtime", "ast-grep", slug, binaryName));
+  paths.push(join4(options.homeDir, ".omo", "runtime", "ast-grep", slug, binaryName));
+  return paths.map((path) => candidate("omo-runtime", path));
+}
+function skillBinCandidates(options) {
+  const names = [astGrepBinaryName(options.platform), sgBinaryName(options.platform)];
+  const directories = [];
+  const cacheDir = nonEmptyValue(options.env[AST_GREP_BIN_DIR_ENV_KEY]);
+  if (cacheDir !== null)
+    directories.push(cacheDir);
+  if (options.packageDir !== undefined)
+    directories.push(join4(options.packageDir, "bin"));
+  return directories.flatMap((directory) => names.map((name) => candidate("skill-bin", join4(directory, name))));
+}
+function homebrewCandidates(platform) {
+  const prefixes = platform === "darwin" || platform === "linux" || platform === "win32" ? HOMEBREW_PREFIXES[platform] : [];
+  const names = [astGrepBinaryName(platform), sgBinaryName(platform)];
+  return prefixes.flatMap((prefix) => names.map((name) => candidate("homebrew", join4(prefix, name))));
+}
+function planSgCandidates(options) {
+  const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
+  const arch = options.arch ?? process.arch;
+  const homeDir = options.homeDir ?? homedir3();
+  return {
+    afterPath: homebrewCandidates(platform),
+    beforePath: [
+      ...envOverrideCandidates(env),
+      ...omoRuntimeCandidates({ arch, env, homeDir, platform, runtimeDir: options.runtimeDir }),
+      ...skillBinCandidates({ env, packageDir: options.packageDir, platform })
+    ],
+    pathCommands: ["ast-grep", "sg"]
+  };
+}
+
+// ../../utils/src/ast-grep/sg-install-hints.ts
+var OMO_PROVISION_HINT = "Start an OMO session so the bundled ast-grep skill provisions the pinned runtime automatically";
+var ENV_OVERRIDE_HINT = `Or point ${SG_PATH_ENV_KEY} at an existing ast-grep binary`;
+var DARWIN_HINTS = [
+  "brew install ast-grep",
+  "npm install -g @ast-grep/cli",
+  "cargo install ast-grep --locked"
+];
+var LINUX_HINTS = [
+  "npm install -g @ast-grep/cli",
+  "cargo install ast-grep --locked",
+  "brew install ast-grep  # linuxbrew"
+];
+var WIN32_HINTS = [
+  "scoop install main/ast-grep",
+  "winget install ast-grep",
+  "choco install ast-grep",
+  "npm install -g @ast-grep/cli"
+];
+function platformHints(platform) {
+  if (platform === "darwin")
+    return DARWIN_HINTS;
+  if (platform === "win32")
+    return WIN32_HINTS;
+  return LINUX_HINTS;
+}
+function sgInstallHints(platform = process.platform) {
+  return [...platformHints(platform), OMO_PROVISION_HINT, ENV_OVERRIDE_HINT];
+}
+function sgBinaryNotFoundMessage(platform = process.platform) {
+  return `ast-grep binary not found for ${platform}: no candidate passed the --version probe across the env override, OMO runtime, skill bin cache, PATH, or Homebrew prefixes.`;
+}
+
 // ../../utils/src/ast-grep/sg-provisioner.ts
 import { createHash as createHash2, randomUUID as randomUUID2 } from "node:crypto";
 import { chmod, mkdir as mkdir3, rename as rename2, rm as rm3, writeFile as writeFile2 } from "node:fs/promises";
-import { basename as basename2, isAbsolute, join as join4, relative, resolve as resolve2 } from "node:path";
+import { basename as basename2, isAbsolute, join as join5, relative, resolve as resolve2 } from "node:path";
 import { inflateRawSync } from "node:zlib";
 var DEFAULT_DOWNLOAD_TIMEOUT_MS = 60000;
 var EOCD_SIGNATURE = 101010256;
@@ -623,8 +730,8 @@ async function provisionSgBinary(options) {
     throw new SgProvisionError("unsupported_platform", `ast-grep ${SG_PINNED_VERSION} has no asset for ${slug}`);
   }
   const targetDir = resolve2(options.targetDir);
-  const destination = join4(targetDir, sgBinaryName(platform));
-  const tempPath = join4(targetDir, `.sg-${randomUUID2().slice(0, 8)}.partial`);
+  const destination = join5(targetDir, sgBinaryName(platform));
+  const tempPath = join5(targetDir, `.sg-${randomUUID2().slice(0, 8)}.partial`);
   assertInsideTarget(targetDir, destination);
   assertInsideTarget(targetDir, tempPath);
   try {
@@ -649,11 +756,10 @@ async function provisionSgBinary(options) {
 // ../../utils/src/ast-grep/sg-resolver.ts
 import { execFileSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
-import { join as join6 } from "node:path";
 
 // ../../utils/src/runtime/which.ts
 import { accessSync, constants } from "node:fs";
-import { delimiter, join as join5 } from "node:path";
+import { delimiter, join as join6 } from "node:path";
 var runtime = globalThis;
 function isUnsafeCommandName(commandName) {
   if (commandName.includes("/") || commandName.includes("\\"))
@@ -708,7 +814,7 @@ function bunWhich(commandName) {
     return null;
   for (const pathEntry of pathEntries) {
     for (const candidateName of candidateNames) {
-      const candidatePath = join5(pathEntry, candidateName);
+      const candidatePath = join6(pathEntry, candidateName);
       if (isExecutable(candidatePath))
         return candidatePath;
     }
@@ -716,13 +822,15 @@ function bunWhich(commandName) {
   return null;
 }
 
-// ../../utils/src/ast-grep/types.ts
-var SG_PATH_ENV_KEY = "OMO_AST_GREP_SG_PATH";
-
 // ../../utils/src/ast-grep/sg-resolver.ts
-function nonEmptyValue(value) {
-  const trimmed = value?.trim();
-  return trimmed === undefined || trimmed.length === 0 ? null : trimmed;
+var SG_VERSION_PROBE_TIMEOUT_MS = 5000;
+var cacheEntry = null;
+function cacheFingerprint(options, plan) {
+  return JSON.stringify([
+    options.platform ?? process.platform,
+    options.arch ?? process.arch,
+    plan.beforePath.map((candidate) => candidate.path)
+  ]);
 }
 function defaultFileExists(filePath) {
   if (!existsSync(filePath))
@@ -730,9 +838,7 @@ function defaultFileExists(filePath) {
   try {
     const stats = statSync(filePath);
     return stats.isFile() && stats.size > 0;
-  } catch (error) {
-    if (error instanceof Error)
-      return false;
+  } catch {
     return false;
   }
 }
@@ -740,52 +846,78 @@ function defaultVersionProbe(binaryPath) {
   return String(execFileSync(binaryPath, ["--version"], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
-    timeout: 5000
+    timeout: SG_VERSION_PROBE_TIMEOUT_MS
   }));
 }
-function isAstGrepVersionOutput(output) {
-  return output.toLowerCase().includes("ast-grep");
-}
-function hasAstGrepVersion(binaryPath, runVersionProbeSync) {
+function probePasses(binaryPath, deps) {
   try {
-    return isAstGrepVersionOutput(runVersionProbeSync(binaryPath));
-  } catch (error) {
-    if (error instanceof Error)
-      return false;
+    return deps.runVersionProbeSync(binaryPath).toLowerCase().includes("ast-grep");
+  } catch {
     return false;
   }
 }
-function pathCommandCandidates() {
-  return ["ast-grep", "sg"];
+function acceptsCandidate(binaryPath, deps) {
+  return deps.fileExists(binaryPath) && probePasses(binaryPath, deps);
+}
+function firstAccepted(candidates, deps) {
+  for (const candidate of candidates) {
+    if (acceptsCandidate(candidate.path, deps))
+      return { found: true, path: candidate.path, tier: candidate.tier };
+  }
+  return null;
+}
+function pathCandidates(commands, deps) {
+  const resolved = [];
+  for (const commandName of commands) {
+    const found = deps.which(commandName);
+    if (found !== null)
+      resolved.push({ path: found, tier: "path" });
+  }
+  return resolved;
+}
+function notFound(platform) {
+  return {
+    error: { code: SG_BINARY_NOT_FOUND, hints: sgInstallHints(platform), message: sgBinaryNotFoundMessage(platform) },
+    found: false
+  };
+}
+function cacheIsStillValid(resolution, deps, revalidate) {
+  if (!resolution.found)
+    return false;
+  if (!deps.fileExists(resolution.path))
+    return false;
+  return !revalidate || probePasses(resolution.path, deps);
+}
+function resolverDeps(options) {
+  return {
+    fileExists: options.fileExists ?? defaultFileExists,
+    platform: options.platform ?? process.platform,
+    runVersionProbeSync: options.runVersionProbeSync ?? defaultVersionProbe,
+    which: options.which ?? bunWhich
+  };
+}
+function resolveSgBinarySync(options = {}) {
+  const deps = resolverDeps(options);
+  const useCache = options.cache ?? true;
+  try {
+    const plan = planSgCandidates(options);
+    const fingerprint = cacheFingerprint(options, plan);
+    if (useCache && cacheEntry !== null && cacheEntry.fingerprint === fingerprint) {
+      if (cacheIsStillValid(cacheEntry.resolution, deps, options.revalidate ?? false))
+        return cacheEntry.resolution;
+      cacheEntry = null;
+    }
+    const resolution = firstAccepted(plan.beforePath, deps) ?? firstAccepted(pathCandidates(plan.pathCommands, deps), deps) ?? firstAccepted(plan.afterPath, deps) ?? notFound(deps.platform);
+    if (useCache && resolution.found)
+      cacheEntry = { fingerprint, resolution };
+    return resolution;
+  } catch {
+    return notFound(deps.platform);
+  }
 }
 function findSgBinarySync(options = {}) {
-  const env = options.env ?? process.env;
-  const platform = options.platform ?? process.platform;
-  const fileExists = options.fileExists ?? defaultFileExists;
-  const runVersionProbeSync = options.runVersionProbeSync ?? defaultVersionProbe;
-  const which = options.which ?? bunWhich;
-  try {
-    const envOverride = nonEmptyValue(env[SG_PATH_ENV_KEY]);
-    if (envOverride !== null && fileExists(envOverride))
-      return envOverride;
-    if (options.runtimeDir !== undefined) {
-      const runtimeCandidate = join6(options.runtimeDir, sgBinaryName(platform));
-      if (fileExists(runtimeCandidate))
-        return runtimeCandidate;
-    }
-    for (const commandName of pathCommandCandidates()) {
-      const pathCandidate = which(commandName);
-      if (pathCandidate === null || !fileExists(pathCandidate))
-        continue;
-      if (commandName !== "sg" || hasAstGrepVersion(pathCandidate, runVersionProbeSync))
-        return pathCandidate;
-    }
-    return null;
-  } catch (error) {
-    if (error instanceof Error)
-      return null;
-    return null;
-  }
+  const resolution = resolveSgBinarySync(options);
+  return resolution.found ? resolution.path : null;
 }
 
 // components/bootstrap/src/provision.ts
@@ -935,9 +1067,9 @@ function replaceOrInsertSetting(config, section, key, value) {
       offset += line.length;
       continue;
     }
-    const replacement2 = replaceTomlAssignmentValue(line, assignmentIndex, value);
+    const replacement = replaceTomlAssignmentValue(line, assignmentIndex, value);
     const assignmentEnd = multilineScan.nextQuote ? findTomlMultilineValueEnd(section.text, offset + line.length, multilineScan.nextQuote) : offset + line.length;
-    const sectionReplacement = section.text.slice(0, offset) + replacement2 + section.text.slice(assignmentEnd);
+    const sectionReplacement = section.text.slice(0, offset) + replacement + section.text.slice(assignmentEnd);
     return config.slice(0, section.start) + sectionReplacement + config.slice(section.end);
   }
   const replacement = insertSetting(section.text, key, value);
@@ -961,6 +1093,15 @@ function replaceOrInsertRootSetting(config, key, value) {
   return `${replacement.trimEnd()}
 
 ${suffix.trimStart()}`;
+}
+function removeRootSetting(config, key) {
+  const sectionStart = findFirstTableStart(config);
+  const root = config.slice(0, sectionStart);
+  const suffix = config.slice(sectionStart);
+  const linePattern = new RegExp(`^[ \\t]*${escapeRegExp(key)}[ \\t]*=.*(?:\\n|$)`, "m");
+  if (!linePattern.test(root))
+    return config;
+  return root.replace(linePattern, "") + suffix;
 }
 function replaceOrInsertRootDottedSetting(config, keyPath, value) {
   const targetPath = parseTomlDottedKey(keyPath);
@@ -990,9 +1131,9 @@ function replaceOrInsertRootDottedSetting(config, keyPath, value) {
       offset += line.length;
       continue;
     }
-    const replacement2 = replaceTomlAssignmentValue(line, assignmentIndex, value);
+    const replacement = replaceTomlAssignmentValue(line, assignmentIndex, value);
     const assignmentEnd = multilineScan.nextQuote ? findTomlMultilineValueEnd(config, offset + line.length, multilineScan.nextQuote) : offset + line.length;
-    return config.slice(0, offset) + replacement2 + config.slice(assignmentEnd);
+    return config.slice(0, offset) + replacement + config.slice(assignmentEnd);
   }
   const sectionStart = findFirstTableStart(config);
   const root = config.slice(0, sectionStart).trimEnd();
@@ -1092,10 +1233,10 @@ function scanTomlMultilineLine(line, currentQuote) {
     }
     if (char === "#")
       break;
-    const delimiter2 = line.startsWith('"""', index) ? '"""' : line.startsWith("'''", index) ? "'''" : null;
-    if (delimiter2) {
-      const closingIndex = findTomlMultilineDelimiter(line, delimiter2, index + delimiter2.length);
-      return { wasInside: false, nextQuote: closingIndex === -1 ? delimiter2 : null };
+    const delimiter = line.startsWith('"""', index) ? '"""' : line.startsWith("'''", index) ? "'''" : null;
+    if (delimiter) {
+      const closingIndex = findTomlMultilineDelimiter(line, delimiter, index + delimiter.length);
+      return { wasInside: false, nextQuote: closingIndex === -1 ? delimiter : null };
     }
     if (char === '"' || char === "'")
       quote = char;
@@ -1103,12 +1244,12 @@ function scanTomlMultilineLine(line, currentQuote) {
   }
   return { wasInside: false, nextQuote: null };
 }
-function findTomlMultilineDelimiter(line, delimiter2, startIndex) {
-  let index = line.indexOf(delimiter2, startIndex);
+function findTomlMultilineDelimiter(line, delimiter, startIndex) {
+  let index = line.indexOf(delimiter, startIndex);
   while (index !== -1) {
-    if (delimiter2 === "'''" || countPrecedingBackslashes(line, index) % 2 === 0)
+    if (delimiter === "'''" || countPrecedingBackslashes(line, index) % 2 === 0)
       return index;
-    index = line.indexOf(delimiter2, index + 1);
+    index = line.indexOf(delimiter, index + 1);
   }
   return -1;
 }
@@ -1426,6 +1567,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-terra", effort: "medium" },
         current: { model: "gpt-5.6-luna", effort: "low" }
+      },
+      {
+        previous: { model: "gpt-5.6-luna", effort: "low" },
+        current: { model: "gpt-6-astra", effort: "low" }
       }
     ]
   ],
@@ -1439,6 +1584,28 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-terra", effort: "medium" },
         current: { model: "gpt-5.6-luna", effort: "low" }
+      },
+      {
+        previous: { model: "gpt-5.6-luna", effort: "low" },
+        current: { model: "gpt-6-astra", effort: "low" }
+      }
+    ]
+  ],
+  [
+    "metis",
+    [
+      {
+        previous: { model: "gpt-5.6-sol", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
+      }
+    ]
+  ],
+  [
+    "lazycodex-worker-low",
+    [
+      {
+        previous: { model: "gpt-5.6-luna", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -1452,6 +1619,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "ultra" },
         current: { model: "gpt-5.6-terra", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -1465,6 +1636,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "max" },
         current: { model: "gpt-5.6-sol", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-sol", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -1478,6 +1653,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-luna", effort: "max" },
         current: { model: "gpt-5.6-terra", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -1487,6 +1666,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "max" },
         current: { model: "gpt-5.6-sol", effort: "medium" }
+      },
+      {
+        previous: { model: "gpt-5.6-sol", effort: "medium" },
+        current: { model: "gpt-6-astra", effort: "medium" }
       }
     ]
   ],
@@ -1496,6 +1679,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "xhigh" },
         current: { model: "gpt-5.6-terra", effort: "medium" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "medium" },
+        current: { model: "gpt-6-astra", effort: "medium" }
       }
     ]
   ],
@@ -1505,6 +1692,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "xhigh" },
         current: { model: "gpt-5.6-terra", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -1514,6 +1705,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-terra", effort: "medium" },
         current: { model: "gpt-5.6-luna", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-luna", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -1527,6 +1722,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "high" },
         current: { model: "gpt-5.6-sol", effort: "low" }
+      },
+      {
+        previous: { model: "gpt-5.6-sol", effort: "low" },
+        current: { model: "gpt-6-astra", effort: "low" }
       }
     ]
   ]
@@ -1538,9 +1737,9 @@ function resolveManagedAgentReasoning(input) {
   const latest = steps[steps.length - 1];
   if (latest === undefined)
     return input.preserved.effort;
-  if (input.bundledModel !== latest.current.model || input.bundledEffort !== latest.current.effort) {
+  const bundledMatchesCurrentEffort = input.bundledEffort === latest.current.effort && steps.some((step) => input.bundledModel === step.current.model && input.bundledEffort === step.current.effort);
+  if (!bundledMatchesCurrentEffort)
     return input.preserved.effort;
-  }
   const preservedMatchesAnyStep = steps.some((step) => input.preserved.model === step.previous.model && input.preserved.effort === step.previous.effort);
   return preservedMatchesAnyStep ? latest.current.effort : input.preserved.effort;
 }
@@ -2023,10 +2222,11 @@ var LEGACY_CODEX_COMPONENT_BINS = [
   { name: "codex-comment-checker", component: "comment-checker" },
   { name: "codex-lsp", component: "lsp" },
   { name: "codex-rules", component: "rules" },
-  { name: "codex-start-work-continuation", component: "start-work-continuation" },
   { name: "codex-telemetry", component: "telemetry" },
-  { name: "codex-ultrawork", component: "ultrawork" }
+  { name: "codex-ultrawork", component: "ultrawork" },
+  { name: "codex-ulw-execute-continuation", component: "ulw-execute-continuation" }
 ];
+var LEGACY_CODEX_COMPONENT_BIN_NAMES = LEGACY_CODEX_COMPONENT_BINS.map((entry) => entry.name);
 async function removeLegacyCodexComponentBins(binDir, platform) {
   for (const entry of LEGACY_CODEX_COMPONENT_BINS) {
     const linkPath = join12(binDir, platform === "win32" ? `${entry.name}.cmd` : entry.name);
@@ -2035,16 +2235,16 @@ async function removeLegacyCodexComponentBins(binDir, platform) {
 }
 async function removeLegacyCodexComponentBin(linkPath, component, platform) {
   try {
-    const stat4 = await lstat6(linkPath);
+    const stat = await lstat6(linkPath);
     if (platform !== "win32") {
-      if (!stat4.isSymbolicLink())
+      if (!stat.isSymbolicLink())
         return;
       const target = await readlink2(linkPath);
       if (isManagedLegacyComponentTarget(target, component))
         await rm8(linkPath, { force: true });
       return;
     }
-    if (!stat4.isFile())
+    if (!stat.isFile())
       return;
     const content = await readFile7(linkPath, "utf8");
     if (content.includes(COMMAND_SHIM_MARKER))
@@ -2082,7 +2282,7 @@ function isNodeErrorWithCode2(error) {
 // ../src/install/codex-cache-runtime-wrapper.ts
 import { join as join13 } from "node:path";
 var RUNTIME_WRAPPER_MARKER = "OMO_GENERATED_RUNTIME_WRAPPER";
-function posixRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
+function posixRuntimeWrapper(binName, cliPath, codexHome, binDir, nodeCliPath) {
   const ulwLoopBin = toPosixPath(join13(binDir, "omo-ulw-loop"));
   const nodeCli = escapePosixDoubleQuoted(toPosixPath(nodeCliPath));
   const escapedCliPath = escapePosixDoubleQuoted(toPosixPath(cliPath));
@@ -2092,6 +2292,8 @@ function posixRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
     "#!/bin/sh",
     `# ${RUNTIME_WRAPPER_MARKER}`,
     `export CODEX_HOME="\${CODEX_HOME:-${escapedCodexHome}}"`,
+    `export OMO_INVOCATION_NAME=${binName}`,
+    "export OMO_EDITION=codex",
     'if [ "$1" = "ulw-loop" ] && [ -x "' + escapedUlwLoopBin + '" ]; then',
     "  shift",
     '  exec "' + escapedUlwLoopBin + '" ulw-loop "$@"',
@@ -2115,11 +2317,11 @@ function posixRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
     `  if [ -f "${nodeCli}" ] && command -v node >/dev/null 2>&1; then`,
     `    exec node "${nodeCli}" "$@"`,
     "  fi",
-    `  echo "omo: bun runtime not found (checked PATH, ~/.bun/bin, /opt/homebrew/bin, /usr/local/bin) and the node fallback CLI is missing at ${nodeCli}; install bun from https://bun.sh, or reinstall omo and force the fallback with OMO_RUNTIME=node" >&2`,
+    `  echo "${binName}: bun runtime not found (checked PATH, ~/.bun/bin, /opt/homebrew/bin, /usr/local/bin) and the node fallback CLI is missing at ${nodeCli}; install bun from https://bun.sh, or reinstall ${binName} and force the fallback with OMO_RUNTIME=node" >&2`,
     "  exit 127",
     "fi",
     `if [ ! -f "${escapedCliPath}" ]; then`,
-    `  echo "omo: runtime target missing at ${escapedCliPath}; reinstall with: npx --yes lazycodex-ai@latest install --no-tui" >&2`,
+    `  echo "${binName}: runtime target missing at ${escapedCliPath}; reinstall with: npx --yes lazycodex-ai@latest install --no-tui" >&2`,
     "  exit 1",
     "fi",
     `exec "$BUN_BINARY" "${escapedCliPath}" "$@"`,
@@ -2127,12 +2329,14 @@ function posixRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
   ].join(`
 `);
 }
-function windowsRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
+function windowsRuntimeWrapper(binName, cliPath, codexHome, binDir, nodeCliPath) {
   const ulwLoopBin = join13(binDir, "omo-ulw-loop.cmd");
   return [
     "@echo off",
     `rem ${RUNTIME_WRAPPER_MARKER}`,
     `if not defined CODEX_HOME set "CODEX_HOME=${codexHome}"`,
+    `set "OMO_INVOCATION_NAME=${binName}"`,
+    'set "OMO_EDITION=codex"',
     ...windowsNodeDiscoveryLines(),
     `if "%~1"=="ulw-loop" if exist "${ulwLoopBin}" (`,
     "  shift /1",
@@ -2150,11 +2354,11 @@ function windowsRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
     `    "%OMO_NODE_BINARY%" "${nodeCliPath}" %*`,
     "    exit /b %ERRORLEVEL%",
     "  )",
-    `  echo omo: bun runtime not found, no Node runtime was discovered from NODE_REPL_NODE_PATH or PATH, or the node fallback CLI is missing at ${nodeCliPath}; install bun from https://bun.sh or rerun LazyCodex install from Codex Desktop 1>&2`,
+    `  echo ${binName}: bun runtime not found, no Node runtime was discovered from NODE_REPL_NODE_PATH or PATH, or the node fallback CLI is missing at ${nodeCliPath}; install bun from https://bun.sh or rerun LazyCodex install from Codex Desktop 1>&2`,
     "  exit /b 127",
     ")",
     `if not exist "${cliPath}" (`,
-    `  echo omo: runtime target missing at ${cliPath}; reinstall with: npx --yes lazycodex-ai@latest install --no-tui 1>&2`,
+    `  echo ${binName}: runtime target missing at ${cliPath}; reinstall with: npx --yes lazycodex-ai@latest install --no-tui 1>&2`,
     "  exit /b 1",
     ")",
     `"%BUN_BINARY%" "${cliPath}" %*`,
@@ -2170,7 +2374,14 @@ function escapePosixDoubleQuoted(value) {
 }
 
 // ../src/install/codex-cache-bins.ts
-var RESERVED_NESTED_BIN_NAMES = new Set(["omo", "lazycodex", "lazycodex-ai", "oh-my-opencode", "oh-my-openagent"]);
+var RESERVED_NESTED_BIN_NAMES = new Set([
+  "omo",
+  "omo-agent-toolkit",
+  "lazycodex",
+  "lazycodex-ai",
+  "oh-my-opencode",
+  "oh-my-openagent"
+]);
 async function linkCachedPluginBins(input) {
   const binLinks = await discoverPackageBins(input.pluginRoot);
   const platform = input.platform ?? process.platform;
@@ -2186,26 +2397,32 @@ async function linkCachedPluginBins(input) {
 }
 async function linkRootRuntimeBin(input) {
   const cliPath = join14(input.repoRoot, "dist", "cli", "index.js");
-  if (!await isFile2(cliPath))
-    return null;
-  const nodeCliPath = join14(input.repoRoot, "dist", "cli-node", "index.js");
   const platform = input.platform ?? process.platform;
+  const legacyPath = join14(input.binDir, platform === "win32" ? "omo.cmd" : "omo");
+  if (!await isFile2(cliPath)) {
+    await removeGeneratedRuntimeWrapper(legacyPath);
+    return null;
+  }
+  const binName = "omo-agent-toolkit";
+  const nodeCliPath = join14(input.repoRoot, "dist", "cli-node", "index.js");
   await mkdir5(input.binDir, { recursive: true });
   if (platform === "win32") {
-    const linkPath2 = join14(input.binDir, "omo.cmd");
-    await replaceRuntimeWrapper(linkPath2, windowsRuntimeWrapper(cliPath, input.codexHome, input.binDir, nodeCliPath));
-    return { name: "omo", path: linkPath2, target: cliPath };
+    const linkPath = join14(input.binDir, `${binName}.cmd`);
+    await replaceRuntimeWrapper(linkPath, windowsRuntimeWrapper(binName, cliPath, input.codexHome, input.binDir, nodeCliPath));
+    await removeGeneratedRuntimeWrapper(legacyPath);
+    return { name: binName, path: linkPath, target: cliPath };
   }
-  const linkPath = join14(input.binDir, "omo");
-  await replaceRuntimeWrapper(linkPath, posixRuntimeWrapper(cliPath, input.codexHome, input.binDir, nodeCliPath));
+  const linkPath = join14(input.binDir, binName);
+  await replaceRuntimeWrapper(linkPath, posixRuntimeWrapper(binName, cliPath, input.codexHome, input.binDir, nodeCliPath));
   await chmod2(linkPath, 493);
-  return { name: "omo", path: linkPath, target: cliPath };
+  await removeGeneratedRuntimeWrapper(legacyPath);
+  return { name: binName, path: linkPath, target: cliPath };
 }
 async function linkCachedPluginBin(binDir, link, platform) {
   if (platform === "win32") {
-    const linkPath2 = join14(binDir, `${link.name}.cmd`);
-    await replaceCommandShim(linkPath2, link.target);
-    return linkPath2;
+    const linkPath = join14(binDir, `${link.name}.cmd`);
+    await replaceCommandShim(linkPath, link.target);
+    return linkPath;
   }
   const linkPath = join14(binDir, link.name);
   await replaceSymlink(linkPath, link.target);
@@ -2302,12 +2519,35 @@ async function replaceRuntimeWrapper(linkPath, content) {
   await rm9(linkPath, { force: true });
   await writeFile5(linkPath, content);
 }
+async function removeGeneratedRuntimeWrapper(path) {
+  try {
+    const entry = await lstat7(path);
+    if (!entry.isFile() && !entry.isSymbolicLink())
+      return;
+    const content = await readGeneratedWrapperContent(path);
+    if (content.includes(RUNTIME_WRAPPER_MARKER))
+      await rm9(path, { force: true });
+  } catch (error) {
+    if (isNodeErrorWithCode(error) && error.code === "ENOENT")
+      return;
+    throw error;
+  }
+}
+async function readGeneratedWrapperContent(path) {
+  try {
+    return await readFile8(path, "utf8");
+  } catch (error) {
+    if (isNodeErrorWithCode(error) && (error.code === "ENOENT" || error.code === "EISDIR"))
+      return "";
+    throw error;
+  }
+}
 async function existingNonRuntimeWrapper(path) {
   try {
-    const stat5 = await lstat7(path);
-    if (stat5.isSymbolicLink())
+    const stat = await lstat7(path);
+    if (stat.isSymbolicLink())
       return false;
-    if (!stat5.isFile())
+    if (!stat.isFile())
       return true;
     const content = await readFile8(path, "utf8");
     return !content.includes(RUNTIME_WRAPPER_MARKER);
@@ -2319,8 +2559,8 @@ async function existingNonRuntimeWrapper(path) {
 }
 async function existingNonShim(path) {
   try {
-    const stat5 = await lstat7(path);
-    if (!stat5.isFile())
+    const stat = await lstat7(path);
+    if (!stat.isFile())
       return true;
     const content = await readFile8(path, "utf8");
     if (content.includes(COMMAND_SHIM_MARKER))
@@ -2334,8 +2574,8 @@ async function existingNonShim(path) {
 }
 async function existingNonSymlink(path) {
   try {
-    const stat5 = await lstat7(path);
-    if (!stat5.isSymbolicLink())
+    const stat = await lstat7(path);
+    if (!stat.isSymbolicLink())
       return true;
     await readlink3(path);
     return false;
@@ -2461,15 +2701,6 @@ function delay(milliseconds) {
 }
 
 // ../src/install/toml-setting-reader.ts
-function hasTomlSetting(config, keyPath) {
-  const targetPath = parseTomlDottedKey(keyPath);
-  if (!targetPath)
-    return false;
-  return hasTomlAssignment(config, (tablePath, settingPath) => {
-    const fullPath = [...tablePath, ...settingPath];
-    return fullPath.length === targetPath.length && fullPath.every((part, index) => part === targetPath[index]);
-  });
-}
 function hasTomlRootDottedKeyPrefix(config, rootKey) {
   return hasTomlAssignment(config, (tablePath, settingPath) => tablePath.length === 0 && settingPath.length > 1 && settingPath[0] === rootKey);
 }
@@ -2656,7 +2887,7 @@ var AUTONOMOUS_FEATURES = ["multi_agent", "unified_exec", "goals"];
 function ensureAutonomousPermissions(config) {
   let next = replaceOrInsertRootSetting(config, "approval_policy", JSON.stringify("never"));
   next = replaceOrInsertRootSetting(next, "sandbox_mode", JSON.stringify("danger-full-access"));
-  next = replaceOrInsertRootSetting(next, "network_access", JSON.stringify("enabled"));
+  next = removeRootSetting(next, "network_access");
   for (const featureName of AUTONOMOUS_FEATURES) {
     next = ensureFeatureEnabled(next, featureName);
   }
@@ -2695,11 +2926,9 @@ enabled = true
 function ensureOmoBuiltinMcpPolicies(config, input) {
   if (input.marketplaceName !== "sisyphuslabs" || !input.pluginNames.includes("omo"))
     return config;
-  const codegraphEnabled = input.codegraphMcpEnabled ?? true;
   const gitBashEnabled = (input.platform ?? process.platform) === "win32" && input.gitBashEnabled === true;
   let nextConfig = removeStaleContext7PlaceholderMcp(config);
   nextConfig = ensurePluginMcpEnabled(nextConfig, "omo@sisyphuslabs", "context7", true);
-  nextConfig = ensurePluginMcpEnabled(nextConfig, "omo@sisyphuslabs", "codegraph", codegraphEnabled);
   nextConfig = ensurePluginMcpEnabled(nextConfig, "omo@sisyphuslabs", "git_bash", gitBashEnabled);
   return nextConfig;
 }
@@ -2914,8 +3143,8 @@ import { readFile as readFile9 } from "node:fs/promises";
 import { join as join16 } from "node:path";
 var FALLBACK_CODEX_MODEL_CATALOG = {
   current: {
-    model: "gpt-5.6-sol",
-    modelContextWindow: 372000,
+    model: "gpt-6-astra",
+    modelContextWindow: 600000,
     modelReasoningEffort: "high",
     planModeReasoningEffort: "xhigh"
   },
@@ -2932,7 +3161,13 @@ var FALLBACK_CODEX_MODEL_CATALOG = {
       modelReasoningEffort: "high",
       planModeReasoningEffort: "xhigh"
     },
-    { model: "gpt-5.5", modelContextWindow: 272000 }
+    { model: "gpt-5.5", modelContextWindow: 272000 },
+    {
+      model: "gpt-5.6-sol",
+      modelContextWindow: 650000,
+      modelReasoningEffort: "high",
+      planModeReasoningEffort: "xhigh"
+    }
   ]
 };
 async function readCodexModelCatalog(codexPackageRoot) {
@@ -3023,27 +3258,18 @@ import { readFileSync } from "node:fs";
 import { dirname as dirname7, isAbsolute as isAbsolute5, join as join17 } from "node:path";
 var CODEX_AGENTS_HEADER = "agents";
 var CODEX_MULTI_AGENT_V2_HEADER = "features.multi_agent_v2";
-var CODEX_MULTI_AGENT_V2_THREAD_LIMIT_KEY = `${CODEX_MULTI_AGENT_V2_HEADER}.max_concurrent_threads_per_session`;
-var CODEX_SUBAGENT_THREAD_LIMIT = 1000;
-var CODEX_MULTI_AGENT_V2_THREAD_LIMIT = 16;
 function ensureCodexMultiAgentV2Config(config, options = {}) {
   const featureFlag = removeFeatureFlagSetting(config, "multi_agent_v2");
-  const v2Preferred = options.multiAgentVersion === "v2";
-  const modelKnown = options.multiAgentVersion != null || readRootModel(featureFlag.config) !== null;
-  const agentsConfig = v2Preferred ? removeAgentsMaxThreads(featureFlag.config) : modelKnown ? ensureAgentsMaxThreads(featureFlag.config) : raiseExistingAgentsMaxThreads(featureFlag.config);
+  const v2Preferred = options.multiAgentVersion === "v2" || isMultiAgentV2Enabled(featureFlag.config);
+  const agentsConfig = removeAgentsMaxThreads(featureFlag.config, v2Preferred);
   const preserveDisable = featureFlag.value === false && !v2Preferred;
   const featureConfig = preserveDisable ? setMultiAgentV2Disable(agentsConfig) : v2Preferred ? removeMultiAgentV2Disable(agentsConfig) : agentsConfig;
-  if (hasTomlSetting(featureConfig, CODEX_MULTI_AGENT_V2_THREAD_LIMIT_KEY))
-    return featureConfig;
-  const section = findTomlSection(featureConfig, CODEX_MULTI_AGENT_V2_HEADER);
-  if (!section) {
-    const enabledSetting = preserveDisable ? `enabled = false
-` : "";
-    return appendBlock(featureConfig, `[${CODEX_MULTI_AGENT_V2_HEADER}]
-${enabledSetting}max_concurrent_threads_per_session = ${CODEX_MULTI_AGENT_V2_THREAD_LIMIT}
-`);
+  const withoutManagedLimit = removeManagedMultiAgentV2ThreadLimit(featureConfig);
+  if (preserveDisable && !findTomlSection(withoutManagedLimit, CODEX_MULTI_AGENT_V2_HEADER)) {
+    return appendBlock(withoutManagedLimit, `[${CODEX_MULTI_AGENT_V2_HEADER}]
+enabled = false`);
   }
-  return replaceOrInsertSetting(featureConfig, section, "max_concurrent_threads_per_session", CODEX_MULTI_AGENT_V2_THREAD_LIMIT.toString());
+  return withoutManagedLimit;
 }
 function resolveCodexMultiAgentVersion(config, configPath) {
   const model = readRootModel(config);
@@ -3053,7 +3279,7 @@ function resolveCodexMultiAgentVersion(config, configPath) {
   const catalogVersion = readCatalogMultiAgentVersion(model, catalogPath);
   if (catalogVersion !== null)
     return catalogVersion;
-  return /^gpt-5\.6\b/i.test(model) ? "v2" : null;
+  return /^(?:gpt-5\.6|gpt-6)\b/i.test(model) ? "v2" : null;
 }
 function resolveCatalogPath(configuredPath, configPath) {
   if (configuredPath === null)
@@ -3113,23 +3339,38 @@ function removeFeatureFlagSetting(config, featureName) {
     value: readBooleanSetting(section.text, featureName)
   };
 }
-function ensureAgentsMaxThreads(config) {
-  const maxThreadsValue = CODEX_SUBAGENT_THREAD_LIMIT.toString();
-  const section = findTomlSection(config, CODEX_AGENTS_HEADER);
-  if (!section) {
-    return appendBlock(config, `[${CODEX_AGENTS_HEADER}]
-max_threads = ${maxThreadsValue}
-`);
-  }
-  return replaceOrInsertSetting(config, section, "max_threads", maxThreadsValue);
+function isMultiAgentV2Enabled(config) {
+  const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
+  return section !== null && /^\s*enabled\s*=\s*true[ \t]*(?:#.*)?$/m.test(section.text);
 }
-function removeAgentsMaxThreads(config) {
+function removeAgentsMaxThreads(config, v2Preferred) {
   const section = findTomlSection(config, CODEX_AGENTS_HEADER);
   if (!section)
     return config;
-  if (!/^\s*max_threads\s*=/m.test(section.text))
+  return removeMatchingCap(config, section, "max_threads", v2Preferred ? undefined : /^1000\s*(?:#.*)?$/);
+}
+function removeManagedMultiAgentV2ThreadLimit(config) {
+  const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
+  if (!section)
     return config;
-  return removeSetting(config, section, "max_threads");
+  return removeMatchingCap(config, section, "max_concurrent_threads_per_session", /^(?:1000|16)\s*(?:#.*)?$/);
+}
+function removeMatchingCap(config, section, keyName, expectedValue) {
+  let quote = null;
+  let offset = section.start;
+  for (const line of section.text.match(/[^\n]*\n?/g) ?? []) {
+    const scan = scanTomlMultilineLine(line, quote);
+    quote = scan.nextQuote;
+    if (!scan.wasInside) {
+      const assignment = line.indexOf("=");
+      const key = assignment < 0 ? null : parseTomlDottedKey(line.slice(0, assignment).trim());
+      if (key?.length === 1 && key[0] === keyName && (expectedValue === undefined || expectedValue.test(line.slice(assignment + 1).trim()))) {
+        return config.slice(0, offset) + config.slice(offset + line.length);
+      }
+    }
+    offset += line.length;
+  }
+  return config;
 }
 function removeMultiAgentV2Disable(config) {
   const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
@@ -3144,14 +3385,6 @@ function setMultiAgentV2Disable(config) {
   if (!section)
     return config;
   return replaceOrInsertSetting(config, section, "enabled", "false");
-}
-function raiseExistingAgentsMaxThreads(config) {
-  const section = findTomlSection(config, CODEX_AGENTS_HEADER);
-  if (!section)
-    return config;
-  if (!/^\s*max_threads\s*=/m.test(section.text))
-    return config;
-  return replaceOrInsertSetting(config, section, "max_threads", CODEX_SUBAGENT_THREAD_LIMIT.toString());
 }
 function readBooleanSetting(sectionText, key) {
   const match = new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*(true|false)\\s*(?:#.*)?$`, "m").exec(sectionText);
@@ -3214,7 +3447,6 @@ function isMissingFileError(error) {
 import { readFile as readFile11, writeFile as writeFile7 } from "node:fs/promises";
 import { join as join18 } from "node:path";
 var GIT_BASH_ENV_KEY = "OMO_CODEX_GIT_BASH_PATH";
-var CODEGRAPH_RELATIVE_ARGS = new Set(["components/codegraph/dist/serve.js", "./components/codegraph/dist/serve.js"]);
 async function stampGitBashMcpEnv(input) {
   const manifestPath = join18(input.pluginRoot, ".mcp.json");
   if (!await fileExistsStrict(manifestPath))
@@ -3222,7 +3454,7 @@ async function stampGitBashMcpEnv(input) {
   const parsed = JSON.parse(await readFile11(manifestPath, "utf8"));
   if (!isPlainRecord(parsed) || !isPlainRecord(parsed["mcpServers"]))
     return false;
-  let changed = stampCodegraphMcpPath(parsed["mcpServers"], input.pluginRoot);
+  let changed = false;
   if (input.platform === "win32") {
     const rawOverride = input.env?.[GIT_BASH_ENV_KEY];
     const override = typeof rawOverride === "string" ? rawOverride.trim() : "";
@@ -3239,17 +3471,6 @@ async function stampGitBashMcpEnv(input) {
     return false;
   await writeFile7(manifestPath, `${JSON.stringify(parsed, null, "\t")}
 `);
-  return true;
-}
-function stampCodegraphMcpPath(mcpServers, pluginRoot) {
-  const codegraphServer = mcpServers["codegraph"];
-  if (!isPlainRecord(codegraphServer) || !Array.isArray(codegraphServer["args"]))
-    return false;
-  const args = codegraphServer["args"];
-  const entrypoint = args[0];
-  if (typeof entrypoint !== "string" || !CODEGRAPH_RELATIVE_ARGS.has(entrypoint))
-    return false;
-  codegraphServer["args"] = [join18(pluginRoot, "components", "codegraph", "dist", "serve.js"), ...args.slice(1)];
   return true;
 }
 
@@ -3374,13 +3595,13 @@ async function exists4(path) {
 }
 
 // ../src/install/codex-installer-bin-dir.ts
-import { homedir as homedir3 } from "node:os";
+import { homedir as homedir4 } from "node:os";
 import { join as join20, resolve as resolve6 } from "node:path";
 function resolveCodexInstallerBinDir(input) {
   const explicitBinDir = input.binDir ?? input.env?.CODEX_LOCAL_BIN_DIR;
   if (explicitBinDir !== undefined && explicitBinDir.trim().length > 0)
     return resolve6(explicitBinDir.trim());
-  const homeDir = input.homeDir ?? homedir3();
+  const homeDir = input.homeDir ?? homedir4();
   const defaultCodexHome = resolve6(homeDir, ".codex");
   const resolvedCodexHome = resolve6(input.codexHome);
   if (resolvedCodexHome !== defaultCodexHome)
@@ -3476,8 +3697,8 @@ var resolveGitBashForCurrentProcess2 = (input = {}) => {
   return toCodexResolution(resolveGitBashForCurrentProcess(input));
 };
 async function prepareGitBashForInstall(input) {
-  const resolve7 = input.resolveGitBash ?? (() => resolveGitBashForCurrentProcess2({ platform: input.platform, env: input.env }));
-  const initialResolution = resolve7();
+  const resolve = input.resolveGitBash ?? (() => resolveGitBashForCurrentProcess2({ platform: input.platform, env: input.env }));
+  const initialResolution = resolve();
   return initialResolution;
 }
 function toCodexResolution(resolution) {
@@ -3662,18 +3883,18 @@ async function linkRuntimeWrapperStep(options, binDir, degraded) {
     if (linked !== null)
       return;
     degraded.push({
-      component: "omo-cli",
-      hint: "use npx lazycodex-ai for the omo CLI",
+      component: "omo-agent-toolkit",
+      hint: "use npx lazycodex-ai for the omo-agent-toolkit CLI",
       reason: "marketplace payload has no dist/cli"
     });
-    await appendBootstrapLog(options.pluginData, options.now ?? Date.now(), "omo-cli-degraded", {
-      warning: `Warning: skipped the omo runtime wrapper because ${cliPath} is missing; omo ulw-loop commands will be unavailable until a package shipping dist/cli is installed`
+    await appendBootstrapLog(options.pluginData, options.now ?? Date.now(), "omo-agent-toolkit-degraded", {
+      warning: `Warning: skipped the omo-agent-toolkit runtime wrapper because ${cliPath} is missing; omo-agent-toolkit ulw-loop commands will be unavailable until a package shipping dist/cli is installed`
     });
   } catch (error) {
     degraded.push({
-      component: "omo-cli",
+      component: "omo-agent-toolkit",
       hint: BOOTSTRAP_DOCTOR_HINT,
-      reason: `failed to link the omo runtime wrapper into ${binDir}: ${errorMessage(error)}`
+      reason: `failed to link the omo-agent-toolkit runtime wrapper into ${binDir}: ${errorMessage(error)}`
     });
   }
 }
@@ -3752,7 +3973,7 @@ function resolvePluginDataRoot(env) {
   const fromEnv = env["PLUGIN_DATA"]?.trim();
   if (fromEnv !== undefined && fromEnv.length > 0)
     return fromEnv;
-  return join22(homedir4(), ".local", "share", "lazycodex");
+  return join22(homedir5(), ".local", "share", "lazycodex");
 }
 async function readPluginVersion(pluginRoot) {
   try {
@@ -3801,6 +4022,9 @@ async function runBootstrapWorker(options = {}) {
   const platform = options.platform ?? process.platform;
   const flags = parseWorkerFlags(options.argv ?? []);
   const steps = options.steps ?? defaultWorkerSteps();
+  if (flags.only !== undefined && !steps.some((step) => step.name === flags.only)) {
+    throw new Error(`unknown --only flag value: ${flags.only}`);
+  }
   const pluginRoot = resolvePluginRoot(env);
   const pluginData = resolvePluginDataRoot(env);
   const statePath = resolveBootstrapStatePath(pluginData);
@@ -3940,7 +4164,8 @@ function spawnDetachedWorker(invocation) {
   const child = spawn(invocation.command, [...invocation.args], {
     detached: true,
     env: invocation.env,
-    stdio: "ignore"
+    stdio: "ignore",
+    windowsHide: true
   });
   child.unref();
 }
@@ -4046,33 +4271,33 @@ if (isProcessEntry()) {
   });
 }
 export {
-  sgProvisionDestination,
-  runWorkerSetup,
-  runSgProvision,
-  runSessionStartHook,
-  runBootstrapWorker,
-  resolvePluginDataRoot,
-  resolveCodexHome,
-  resolveBootstrapStatePath,
-  resolveBootstrapLockPath,
-  readPluginVersion,
-  readBootstrapState,
-  parseWorkerFlags,
-  parseBootstrapState,
-  executeSessionStartHook,
-  detectInstallFlowFromEnvironment,
-  detectInstallFlowForTest,
-  detectInstallFlowDetailed,
-  detectInstallFlow,
-  defaultWorkerSteps,
-  bootstrapLocks,
-  appendBootstrapLog,
-  SG_PROVISION_COMPONENT,
-  SG_FORCE_PROVISION_ENV_KEY,
-  SETUP_PLUGIN_NAME,
-  SETUP_MARKETPLACE_NAME,
-  INSTALL_SNAPSHOT_FILENAME,
-  GIT_BASH_INSTALL_HINT,
+  BOOTSTRAP_DOCTOR_HINT,
   BOOTSTRAP_RESTART_NOTICE,
-  BOOTSTRAP_DOCTOR_HINT
+  GIT_BASH_INSTALL_HINT,
+  INSTALL_SNAPSHOT_FILENAME,
+  SETUP_MARKETPLACE_NAME,
+  SETUP_PLUGIN_NAME,
+  SG_FORCE_PROVISION_ENV_KEY,
+  SG_PROVISION_COMPONENT,
+  appendBootstrapLog,
+  bootstrapLocks,
+  defaultWorkerSteps,
+  detectInstallFlow,
+  detectInstallFlowDetailed,
+  detectInstallFlowForTest,
+  detectInstallFlowFromEnvironment,
+  executeSessionStartHook,
+  parseBootstrapState,
+  parseWorkerFlags,
+  readBootstrapState,
+  readPluginVersion,
+  resolveBootstrapLockPath,
+  resolveBootstrapStatePath,
+  resolveCodexHome,
+  resolvePluginDataRoot,
+  runBootstrapWorker,
+  runSessionStartHook,
+  runSgProvision,
+  runWorkerSetup,
+  sgProvisionDestination
 };

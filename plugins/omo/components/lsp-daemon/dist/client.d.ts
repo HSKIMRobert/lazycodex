@@ -90,6 +90,15 @@ export type LspPrepareRenameDetails = {
     readonly error?: string;
     readonly errorKind?: "missing_dependency";
 };
+export type LspFormatDetails = {
+    readonly filePath: string;
+    readonly status: "formatted" | "unchanged" | "unavailable";
+    readonly reason?: "capability_not_advertised" | "server_unavailable";
+    readonly linesAdded: number;
+    readonly linesRemoved: number;
+    readonly error?: string;
+    readonly errorKind?: "missing_dependency";
+};
 export type LspRenameDetails = {
     readonly filePath: string;
     readonly line: number;
@@ -102,4 +111,5 @@ export type LspRenameDetails = {
 };
 export declare function callToolViaDaemon(name: string, args: Record<string, unknown>, options: CallToolOptions): Promise<ToolExecutionResult>;
 export declare function callDiagnosticsViaDaemon(filePath: string, options: CallToolOptions): Promise<ToolExecutionResult>;
+export declare function callFormatViaDaemon(filePath: string, options: CallToolOptions): Promise<ToolExecutionResult>;
 export declare function currentRequestContext(env?: Record<string, string | undefined>): DaemonToolContext;
