@@ -1,4 +1,4 @@
-import { type UlwLoopScope } from "./paths.js";
+import type { UlwLoopScope } from "./paths.js";
 export declare function createGoals(repoRoot: string, argv: readonly string[], json: boolean, scope?: UlwLoopScope): Promise<number>;
 export declare function status(repoRoot: string, json: boolean, scope?: UlwLoopScope): Promise<number>;
 export declare function completeGoals(repoRoot: string, argv: readonly string[], json: boolean, scope?: UlwLoopScope): Promise<number>;

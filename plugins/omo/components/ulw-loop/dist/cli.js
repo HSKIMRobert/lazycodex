@@ -1569,7 +1569,7 @@ function buildLedger(now, args, goal, qualityGate, codexGoal, aggregateCompletio
     entry.requiredExternalDecision = goal.requiredExternalDecision;
   return entry;
 }
-async function checkpointUlwLoop(repoRoot, args, scope) {
+async function checkpointUlwLoop(repoRoot, args, scope, dependencies) {
   return withUlwLoopMutationLock(repoRoot, scope, async () => {
     const plan = await readUlwLoopPlan(repoRoot, scope);
     const goal = findGoal2(plan, args.goalId);
@@ -1621,7 +1621,7 @@ async function checkpointUlwLoop(repoRoot, args, scope) {
           qualityGate = validateQualityGate(await readJsonInput2(args.qualityGateJson, repoRoot), {
             repoRoot,
             fs: QUALITY_GATE_FS,
-            reviewerSurface: resolveToolkitSurface(),
+            reviewerSurface: dependencies?.surface ?? resolveToolkitSurface(),
             ...plan.evidenceLayoutVersion === 2 ? { currentAttemptDir: ulwLoopAttemptEvidenceDir(goal.id, goal.attempt, scope) } : {}
           });
           requireBatchGate(plan, goal, qualityGate);
@@ -1740,8 +1740,9 @@ function gateTemplate(surface, base) {
   };
   return common;
 }
-async function checkpointTemplate(repoRoot, scope, goalId) {
+async function checkpointTemplate(repoRoot, scope, goalId, dependencies) {
   const plan = await readUlwLoopPlan(repoRoot, scope);
+  const surface = dependencies?.surface ?? resolveToolkitSurface();
   const targetId = goalId ?? plan.activeGoalId;
   const active = plan.goals.find((goal) => goal.id === targetId);
   if (goalId !== undefined && active === undefined)
@@ -1753,13 +1754,13 @@ async function checkpointTemplate(repoRoot, scope, goalId) {
     "Fill every <replace:...> value with plausible non-empty evidence and use real, non-empty artifact files.",
     'Passing codex-goal-json example: {"goal":{"objective":"<plan codexObjective verbatim>","status":"complete"}}.',
     'Passing quality-gate-json example requires gateReview {"by":"category:deep","recommendation":"APPROVE","evidence":"review passed","reportPath":"<attemptDir>/gate-review.md","blockers":[],"notes":[]}, manualQa.artifactRefs objects, iteration, and criteriaCoverage.',
-    ...resolveToolkitSurface() === "lazycodex" ? [
+    ...surface === "lazycodex" ? [
       "Self-review defaults: manualQa.by and gateReview.by are main-session. Alternatives: manualQa.by accepts lazycodex-qa-executor; gateReview.by accepts lazycodex-gate-reviewer, category:deep, category:unspecified-high, or category:unspecified-low. Optional codeReview.by accepts lazycodex-code-reviewer or main-session."
     ] : [],
     ...hasAttempt ? [] : ["This plan is evidence-layout v1; artifacts go under .omo/evidence/."]
   ].join(" ");
   return {
-    qualityGateTemplate: gateTemplate(resolveToolkitSurface(), attemptDir),
+    qualityGateTemplate: gateTemplate(surface, attemptDir),
     codexGoalTemplate: {
       goal: { objective: plan.codexObjective ?? "<replace:codex objective>", status: "complete" }
     },
@@ -3039,6 +3040,142 @@ function ledgerEntry(proposal, audit, at) {
   return entry;
 }
 
+// components/ulw-loop/src/sdk/manifest.ts
+var ULW_LOOP_MANIFEST = {
+  version: 1,
+  name: "ulw-loop",
+  operations: [
+    { name: "help", mutating: false },
+    { name: "create-goals", mutating: true },
+    { name: "status", mutating: false },
+    { name: "complete-goals", mutating: true },
+    { name: "checkpoint", mutating: true },
+    { name: "steer", mutating: true },
+    { name: "add-goal", mutating: true },
+    { name: "criteria", mutating: false },
+    { name: "record-evidence", mutating: true },
+    { name: "record-review-blockers", mutating: true }
+  ]
+};
+
+// components/ulw-loop/src/sdk/factory.ts
+function validateCodexGoalJson(raw) {
+  if (raw === undefined)
+    return;
+  try {
+    JSON.parse(raw);
+  } catch (error) {
+    throw new UlwLoopError(`Invalid codexGoal: ${error instanceof Error ? error.message : "not valid JSON"}`, "ULW_LOOP_CODEX_GOAL_JSON_INVALID", { cause: error });
+  }
+}
+function validateContext(context) {
+  if (!context.cwd.trim())
+    throw new UlwLoopError("cwd is required.", "ULW_LOOP_CWD_REQUIRED");
+  if (!context.sessionId.trim())
+    throw new UlwLoopError("ULW_LOOP_SESSION_ID_REQUIRED: sessionId is required.", "ULW_LOOP_SESSION_ID_REQUIRED");
+  if (context.surface !== "omo-senpi" && context.surface !== "lazycodex")
+    throw new UlwLoopError("surface must be omo-senpi or lazycodex.", "ULW_LOOP_SURFACE_INVALID");
+}
+function errorDetails(error) {
+  const details = error.details === undefined ? undefined : Object.fromEntries(Object.entries(error.details).map(([key, value]) => [key, String(value)]));
+  return details === undefined ? { code: error.code, message: error.message } : { code: error.code, message: error.message, details };
+}
+function failure(operation, error) {
+  return { ok: false, operation, error: errorDetails(error) };
+}
+function caught(operation, error) {
+  return failure(operation, error instanceof UlwLoopError ? error : new UlwLoopError(error.message, "ULW_LOOP_ERROR"));
+}
+function isKnownRequest(request) {
+  return ULW_LOOP_MANIFEST.operations.some((operation) => operation.name === request.operation);
+}
+function unreachable(value) {
+  throw new UlwLoopError(`Unhandled operation: ${String(value)}`, "ULW_LOOP_OPERATION_UNHANDLED");
+}
+function nextActionsFrom(result) {
+  if (!("nextActions" in result) || !Array.isArray(result.nextActions))
+    return [];
+  return result.nextActions.filter((action) => typeof action === "string").slice(0, 8);
+}
+function checkpointWithValidatedSnapshot(context, scope, args) {
+  validateCodexGoalJson(args.codexGoalJson);
+  return checkpointUlwLoop(context.cwd, args, scope, { surface: context.surface });
+}
+function createAgentToolkit(context, deps = {}) {
+  validateContext(context);
+  const scope = { sessionId: context.sessionId };
+  const notify = async (operation, response) => {
+    if (deps.hooks?.onOperation !== undefined)
+      await deps.hooks.onOperation({ operation, context, response });
+    return response;
+  };
+  const invoke = async (operation, fn) => {
+    try {
+      const result = await fn();
+      const nextActions = typeof result === "object" && result !== null ? nextActionsFrom(result) : [];
+      return await notify(operation, { ok: true, operation, result, nextActions });
+    } catch (error) {
+      const response = caught(operation, error instanceof Error ? error : new Error("ULW_LOOP_ERROR"));
+      return notify(operation, response);
+    }
+  };
+  const toolkit = {
+    dispatch: async (request) => {
+      if (!isKnownRequest(request))
+        return failure(request.operation, new UlwLoopError(`Unknown operation: ${request.operation}`, "ULW_LOOP_OPERATION_UNKNOWN"));
+      switch (request.operation) {
+        case "help":
+          return toolkit.help();
+        case "create-goals":
+          return toolkit.createGoals(request.args);
+        case "status":
+          return toolkit.status();
+        case "complete-goals":
+          return toolkit.completeGoals(request.args);
+        case "checkpoint":
+          return toolkit.checkpoint(request.args);
+        case "steer":
+          return toolkit.steer(request.args);
+        case "add-goal":
+          return toolkit.addGoal(request.args);
+        case "criteria":
+          return toolkit.criteria(request.args);
+        case "record-evidence":
+          return toolkit.recordEvidence(request.args);
+        case "record-review-blockers":
+          return toolkit.recordReviewBlockers(request.args);
+        default:
+          return unreachable(request);
+      }
+    },
+    help: () => invoke("help", async () => ULW_LOOP_MANIFEST),
+    createGoals: (args) => invoke("create-goals", () => createUlwLoopPlan(context.cwd, args, scope)),
+    status: () => invoke("status", async () => {
+      const plan = await readUlwLoopPlan(context.cwd, scope);
+      const active = plan.goals.find((goal) => goal.id === plan.activeGoalId);
+      return {
+        plan,
+        summary: summarizeUlwLoopPlan(plan),
+        nextActions: statusNextActions(plan),
+        ...active === undefined || plan.evidenceLayoutVersion !== 2 ? {} : { currentAttemptDir: ulwLoopAttemptEvidenceDir(active.id, active.attempt, scope) }
+      };
+    }),
+    completeGoals: (args = {}) => invoke("complete-goals", () => startNextUlwLoop(context.cwd, args, scope)),
+    checkpoint: (args) => invoke("checkpoint", () => args.printTemplate === true ? checkpointTemplate(context.cwd, scope, args.goalId, { surface: context.surface }) : checkpointWithValidatedSnapshot(context, scope, args)),
+    steer: (args) => invoke("steer", () => steerUlwLoop(context.cwd, args, scope)),
+    addGoal: (args) => invoke("add-goal", () => addUlwLoopGoal(context.cwd, args, scope)),
+    criteria: (args) => invoke("criteria", async () => {
+      const plan = await readUlwLoopPlan(context.cwd, scope);
+      const goal = plan.goals.find((candidate) => candidate.id === args.goalId);
+      if (goal === undefined)
+        throw new UlwLoopError(`Unknown ulw-loop id: ${args.goalId}.`, "ULW_LOOP_GOAL_NOT_FOUND");
+      return { goalId: goal.id, criteria: goal.successCriteria };
+    }),
+    recordEvidence: (args) => invoke("record-evidence", () => recordEvidence(context.cwd, args, scope)),
+    recordReviewBlockers: (args) => invoke("record-review-blockers", () => recordFinalReviewBlockers(context.cwd, args, scope))
+  };
+  return toolkit;
+}
 // components/ulw-loop/src/steering-batch.ts
 async function steerUlwLoopBatch(repoRoot, proposals, scope) {
   return withUlwLoopMutationLock(repoRoot, scope, async () => {
@@ -3128,12 +3265,12 @@ async function createGoals(repoRoot, argv, json, scope) {
     throw new UlwLoopError("Missing brief text. Pass --brief, --brief-file, --from-stdin, or positional text.", "ULW_LOOP_BRIEF_REQUIRED");
   }
   const validationBatchesJson = readValue(argv, "--validation-batch-json");
-  const plan = await createUlwLoopPlan(repoRoot, {
+  const plan = unwrap(await toolkitFor(repoRoot, scope).createGoals({
     brief,
     codexGoalMode: normalizeCodexGoalMode(readValue(argv, "--codex-goal-mode")),
     force: hasFlag(argv, "--force"),
     ...validationBatchesJson === undefined ? {} : { validationBatchesJson }
-  }, scope);
+  }));
   if (json)
     printJson({ ok: true, plan, summary: summarizeUlwLoopPlan(plan) });
   else {
@@ -3146,23 +3283,15 @@ ledger: ${plan.ledgerPath}
   return 0;
 }
 async function status(repoRoot, json, scope) {
-  const plan = await readUlwLoopPlan(repoRoot, scope);
-  if (json) {
-    const active = plan.goals.find((goal) => goal.id === plan.activeGoalId);
-    const currentAttemptDir = plan.evidenceLayoutVersion === 2 && active ? ulwLoopAttemptEvidenceDir(active.id, active.attempt, scope) : undefined;
-    printJson({
-      ok: true,
-      plan,
-      summary: summarizeUlwLoopPlan(plan),
-      ...currentAttemptDir === undefined ? {} : { currentAttemptDir },
-      nextActions: statusNextActions(plan)
-    });
-  } else
-    printStatus(plan);
+  const status = unwrap(await toolkitFor(repoRoot, scope).status());
+  if (json)
+    printJson({ ok: true, ...status });
+  else
+    printStatus(status.plan);
   return 0;
 }
 async function completeGoals(repoRoot, argv, json, scope) {
-  const result = await startNextUlwLoop(repoRoot, { retryFailed: hasFlag(argv, "--retry-failed") }, scope);
+  const result = unwrap(await toolkitFor(repoRoot, scope).completeGoals({ retryFailed: hasFlag(argv, "--retry-failed") }));
   if ("done" in result) {
     const handoff = blockedDecisionHandoff(result.plan);
     if (json) {
@@ -3191,7 +3320,7 @@ async function steer(repoRoot, argv, json, scope) {
   const proposals = await parseSteeringProposals(argv);
   const single = proposals[0];
   if (single !== undefined && proposals.length === 1 && readValue(argv, "--proposals-json") === undefined) {
-    const result = await steerUlwLoop(repoRoot, single, scope);
+    const result = unwrap(await toolkitFor(repoRoot, scope).steer(single));
     printSteerResult(result, json);
     return result.accepted ? 0 : 1;
   }
@@ -3200,7 +3329,10 @@ async function steer(repoRoot, argv, json, scope) {
   return result.accepted ? 0 : 1;
 }
 async function addGoal(repoRoot, argv, json, scope) {
-  const result = await addUlwLoopGoal(repoRoot, { title: required4(argv, "--title"), objective: required4(argv, "--objective") }, scope);
+  const result = unwrap(await toolkitFor(repoRoot, scope).addGoal({
+    title: required4(argv, "--title"),
+    objective: required4(argv, "--objective")
+  }));
   if (json)
     printJson({ ok: true, plan: result.plan, goal: result.goal, summary: summarizeUlwLoopPlan(result.plan) });
   else {
@@ -3212,19 +3344,19 @@ async function addGoal(repoRoot, argv, json, scope) {
 }
 async function criteria(repoRoot, argv, json, scope) {
   const goalId = required4(argv, "--goal-id");
-  const goal = findGoal3(await readUlwLoopPlan(repoRoot, scope), goalId);
+  const result = unwrap(await toolkitFor(repoRoot, scope).criteria({ goalId }));
   if (json)
-    printJson({ ok: true, goalId: goal.id, criteria: goal.successCriteria });
+    printJson({ ok: true, goalId: result.goalId, criteria: result.criteria });
   else {
-    process.stdout.write(`criteria for ${goal.id}:
-${goal.successCriteria.map(formatCriterionForCli).join(`
+    process.stdout.write(`criteria for ${result.goalId}:
+${result.criteria.map(formatCriterionForCli).join(`
 `)}
 `);
   }
   return 0;
 }
 async function captureEvidence(repoRoot, argv, json, scope) {
-  const result = await recordEvidence(repoRoot, parseRecordEvidenceArgs(argv), scope);
+  const result = unwrap(await toolkitFor(repoRoot, scope).recordEvidence(parseRecordEvidenceArgs(argv)));
   if (json)
     printJson({ ok: true, ...result, summary: summarizeUlwLoopPlan(result.plan) });
   else {
@@ -3238,13 +3370,13 @@ async function reviewBlockers(repoRoot, argv, json, scope) {
   if (codexGoalJson === undefined) {
     throw new UlwLoopError("Missing --codex-goal-json.", "ULW_LOOP_CODEX_GOAL_JSON_REQUIRED");
   }
-  const result = await recordFinalReviewBlockers(repoRoot, {
+  const result = unwrap(await toolkitFor(repoRoot, scope).recordReviewBlockers({
     goalId: required4(argv, "--goal-id"),
     title: required4(argv, "--title"),
     objective: required4(argv, "--objective"),
     evidence: required4(argv, "--evidence"),
     codexGoalJson
-  }, scope);
+  }));
   if (json) {
     printJson({
       ok: true,
@@ -3262,6 +3394,20 @@ async function reviewBlockers(repoRoot, argv, json, scope) {
   }
   return 0;
 }
+function toolkitFor(repoRoot, scope) {
+  const sessionId = scope?.sessionId?.trim();
+  if (sessionId === undefined || sessionId.length === 0) {
+    throw new UlwLoopError("Missing --session-id.", "ULW_LOOP_SESSION_ID_REQUIRED", {
+      details: { flag: "--session-id" }
+    });
+  }
+  return createAgentToolkit({ cwd: repoRoot, sessionId, surface: resolveToolkitSurface() });
+}
+function unwrap(response) {
+  if (response.ok)
+    return response.result;
+  throw new UlwLoopError(response.error.message, response.error.code);
+}
 function formatCriterionForCli(criterion) {
   const marker = isEssentialCriterion(criterion) ? "essential" : "non-essential";
   return `- ${criterion.id} [${criterion.status}] [${marker}] (${criterion.userModel}) ${criterion.scenario} evidence: ${criterion.capturedEvidence ?? "pending"}`;
@@ -3271,12 +3417,6 @@ function required4(argv, flag) {
   if (value)
     return value;
   throw new UlwLoopError(`Missing ${flag}.`, "ULW_LOOP_ARGUMENT_MISSING", { details: { flag } });
-}
-function findGoal3(plan, goalId) {
-  const goal = plan.goals.find((candidate) => candidate.id === goalId);
-  if (goal !== undefined)
-    return goal;
-  throw new UlwLoopError(`Unknown ulw-loop id: ${goalId}.`, "ULW_LOOP_GOAL_NOT_FOUND", { details: { goalId } });
 }
 
 // components/ulw-loop/src/cli-commands.ts
@@ -3682,7 +3822,36 @@ function readAll(stdin) {
 import { randomBytes } from "node:crypto";
 import { existsSync as existsSync6, mkdirSync as mkdirSync2, readFileSync as readFileSync5, renameSync, statSync as statSync3, writeFileSync } from "node:fs";
 import { dirname as dirname3, join as join3 } from "node:path";
-var SPAWN_TOOL_TOKENS = new Set(["spawn_agent", "collaborationspawn_agent", "collaboration.spawn_agent"]);
+
+// components/ulw-loop/src/spawn-role-guard.ts
+var LAZYCODEX_SPAWN_ROLES = new Set([
+  "explorer",
+  "lazycodex-clone-fidelity-reviewer",
+  "lazycodex-code-reviewer",
+  "lazycodex-gate-reviewer",
+  "lazycodex-qa-executor",
+  "lazycodex-worker-high",
+  "lazycodex-worker-low",
+  "lazycodex-worker-medium",
+  "librarian",
+  "metis",
+  "momus",
+  "plan"
+]);
+function spawnRoleDenial(input) {
+  const role = typeof input === "object" && input !== null && "agent_type" in input ? input.agent_type : undefined;
+  if (typeof role === "string" && LAZYCODEX_SPAWN_ROLES.has(role))
+    return null;
+  return `LazyCodex requires an explicit registered agent_type: ${[...LAZYCODEX_SPAWN_ROLES].join(", ")}. Received ${JSON.stringify(role) ?? "no agent_type"}. Use the matching role and fork_turns: "none" (V2) or fork_context: false (V1), unless full history is deliberately required. The hook cannot see the tool schema; if agent_type is unavailable, stop and report incompatible role routing rather than spawning a generic agent. Describing a role in message does not select its TOML.`;
+}
+
+// components/ulw-loop/src/spawn-guard.ts
+var SPAWN_TOOL_TOKENS = new Set([
+  "spawn_agent",
+  "multi_agent_v1.spawn_agent",
+  "collaborationspawn_agent",
+  "collaboration.spawn_agent"
+]);
 var DEFAULT_FANOUT_LIMIT = 24;
 var DEFAULT_REVIEW_SPAWN_LIMIT = 3;
 var GATE_MESSAGE_PATTERN = /lazycodex-gate-reviewer|omo-senpi-gate-reviewer|final gate review/i;
@@ -3693,6 +3862,16 @@ var REVIEW_AGENT_TYPES = [
 ];
 var REVIEW_AGENT_TYPE_SET = new Set(REVIEW_AGENT_TYPES);
 function applySpawnGuards(payload, options = {}) {
+  if (payload.hook_event_name !== "PreToolUse" || !SPAWN_TOOL_TOKENS.has(payload.tool_name))
+    return "";
+  if (resolveToolkitSurface() === "lazycodex") {
+    const reason = spawnRoleDenial(payload.tool_input);
+    if (reason !== null)
+      return deny(reason);
+  }
+  return applySpawnBudgetGuards(payload, options);
+}
+function applySpawnBudgetGuards(payload, options = {}) {
   if (payload.hook_event_name !== "PreToolUse" || !SPAWN_TOOL_TOKENS.has(payload.tool_name))
     return "";
   const breaker = readAdmissionBreaker(payload.session_id);
@@ -3759,14 +3938,15 @@ async function runSpawnGuardCli(stdin, stdout) {
     for await (const chunk of stdin)
       chunks.push(Buffer.from(chunk));
     const payload = parsePreToolUsePayload(Buffer.concat(chunks).toString("utf8"));
-    if (payload === null)
+    if (payload === null) {
+      stdout.write(deny("LazyCodex spawn guard received an invalid hook payload; role routing was not verified."));
       return;
+    }
     const output = applySpawnGuards(payload);
     if (output.length > 0)
       stdout.write(output);
   } catch (error) {
-    if (error instanceof Error)
-      return;
+    stdout.write(deny(`LazyCodex spawn guard failed: ${error instanceof Error ? error.message : String(error)}`));
   }
 }
 function peekFanOutBudget(stateDir) {

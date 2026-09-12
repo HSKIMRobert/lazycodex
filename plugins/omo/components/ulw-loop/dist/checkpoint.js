@@ -101,7 +101,7 @@ function buildLedger(now, args, goal, qualityGate, codexGoal, aggregateCompletio
         entry.requiredExternalDecision = goal.requiredExternalDecision;
     return entry;
 }
-export async function checkpointUlwLoop(repoRoot, args, scope) {
+export async function checkpointUlwLoop(repoRoot, args, scope, dependencies) {
     return withUlwLoopMutationLock(repoRoot, scope, async () => {
         const plan = await readUlwLoopPlan(repoRoot, scope);
         const goal = findGoal(plan, args.goalId);
@@ -155,7 +155,7 @@ export async function checkpointUlwLoop(repoRoot, args, scope) {
                     qualityGate = validateQualityGate(await readJsonInput(args.qualityGateJson, repoRoot), {
                         repoRoot,
                         fs: QUALITY_GATE_FS,
-                        reviewerSurface: resolveToolkitSurface(),
+                        reviewerSurface: dependencies?.surface ?? resolveToolkitSurface(),
                         ...(plan.evidenceLayoutVersion === 2
                             ? { currentAttemptDir: ulwLoopAttemptEvidenceDir(goal.id, goal.attempt, scope) }
                             : {}),
