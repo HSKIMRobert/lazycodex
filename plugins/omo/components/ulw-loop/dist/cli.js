@@ -3059,15 +3059,6 @@ var ULW_LOOP_MANIFEST = {
 };
 
 // components/ulw-loop/src/sdk/factory.ts
-function validateCodexGoalJson(raw) {
-  if (raw === undefined)
-    return;
-  try {
-    JSON.parse(raw);
-  } catch (error) {
-    throw new UlwLoopError(`Invalid codexGoal: ${error instanceof Error ? error.message : "not valid JSON"}`, "ULW_LOOP_CODEX_GOAL_JSON_INVALID", { cause: error });
-  }
-}
 function validateContext(context) {
   if (!context.cwd.trim())
     throw new UlwLoopError("cwd is required.", "ULW_LOOP_CWD_REQUIRED");
@@ -3096,10 +3087,6 @@ function nextActionsFrom(result) {
   if (!("nextActions" in result) || !Array.isArray(result.nextActions))
     return [];
   return result.nextActions.filter((action) => typeof action === "string").slice(0, 8);
-}
-function checkpointWithValidatedSnapshot(context, scope, args) {
-  validateCodexGoalJson(args.codexGoalJson);
-  return checkpointUlwLoop(context.cwd, args, scope, { surface: context.surface });
 }
 function createAgentToolkit(context, deps = {}) {
   validateContext(context);
@@ -3161,7 +3148,7 @@ function createAgentToolkit(context, deps = {}) {
       };
     }),
     completeGoals: (args = {}) => invoke("complete-goals", () => startNextUlwLoop(context.cwd, args, scope)),
-    checkpoint: (args) => invoke("checkpoint", () => args.printTemplate === true ? checkpointTemplate(context.cwd, scope, args.goalId, { surface: context.surface }) : checkpointWithValidatedSnapshot(context, scope, args)),
+    checkpoint: (args) => invoke("checkpoint", () => args.printTemplate === true ? checkpointTemplate(context.cwd, scope, args.goalId, { surface: context.surface }) : checkpointUlwLoop(context.cwd, args, scope, { surface: context.surface })),
     steer: (args) => invoke("steer", () => steerUlwLoop(context.cwd, args, scope)),
     addGoal: (args) => invoke("add-goal", () => addUlwLoopGoal(context.cwd, args, scope)),
     criteria: (args) => invoke("criteria", async () => {
@@ -3822,36 +3809,7 @@ function readAll(stdin) {
 import { randomBytes } from "node:crypto";
 import { existsSync as existsSync6, mkdirSync as mkdirSync2, readFileSync as readFileSync5, renameSync, statSync as statSync3, writeFileSync } from "node:fs";
 import { dirname as dirname3, join as join3 } from "node:path";
-
-// components/ulw-loop/src/spawn-role-guard.ts
-var LAZYCODEX_SPAWN_ROLES = new Set([
-  "explorer",
-  "lazycodex-clone-fidelity-reviewer",
-  "lazycodex-code-reviewer",
-  "lazycodex-gate-reviewer",
-  "lazycodex-qa-executor",
-  "lazycodex-worker-high",
-  "lazycodex-worker-low",
-  "lazycodex-worker-medium",
-  "librarian",
-  "metis",
-  "momus",
-  "plan"
-]);
-function spawnRoleDenial(input) {
-  const role = typeof input === "object" && input !== null && "agent_type" in input ? input.agent_type : undefined;
-  if (typeof role === "string" && LAZYCODEX_SPAWN_ROLES.has(role))
-    return null;
-  return `LazyCodex requires an explicit registered agent_type: ${[...LAZYCODEX_SPAWN_ROLES].join(", ")}. Received ${JSON.stringify(role) ?? "no agent_type"}. Use the matching role and fork_turns: "none" (V2) or fork_context: false (V1), unless full history is deliberately required. The hook cannot see the tool schema; if agent_type is unavailable, stop and report incompatible role routing rather than spawning a generic agent. Describing a role in message does not select its TOML.`;
-}
-
-// components/ulw-loop/src/spawn-guard.ts
-var SPAWN_TOOL_TOKENS = new Set([
-  "spawn_agent",
-  "multi_agent_v1.spawn_agent",
-  "collaborationspawn_agent",
-  "collaboration.spawn_agent"
-]);
+var SPAWN_TOOL_TOKENS = new Set(["spawn_agent", "collaborationspawn_agent", "collaboration.spawn_agent"]);
 var DEFAULT_FANOUT_LIMIT = 24;
 var DEFAULT_REVIEW_SPAWN_LIMIT = 3;
 var GATE_MESSAGE_PATTERN = /lazycodex-gate-reviewer|omo-senpi-gate-reviewer|final gate review/i;
@@ -3862,16 +3820,6 @@ var REVIEW_AGENT_TYPES = [
 ];
 var REVIEW_AGENT_TYPE_SET = new Set(REVIEW_AGENT_TYPES);
 function applySpawnGuards(payload, options = {}) {
-  if (payload.hook_event_name !== "PreToolUse" || !SPAWN_TOOL_TOKENS.has(payload.tool_name))
-    return "";
-  if (resolveToolkitSurface() === "lazycodex") {
-    const reason = spawnRoleDenial(payload.tool_input);
-    if (reason !== null)
-      return deny(reason);
-  }
-  return applySpawnBudgetGuards(payload, options);
-}
-function applySpawnBudgetGuards(payload, options = {}) {
   if (payload.hook_event_name !== "PreToolUse" || !SPAWN_TOOL_TOKENS.has(payload.tool_name))
     return "";
   const breaker = readAdmissionBreaker(payload.session_id);
@@ -3938,15 +3886,14 @@ async function runSpawnGuardCli(stdin, stdout) {
     for await (const chunk of stdin)
       chunks.push(Buffer.from(chunk));
     const payload = parsePreToolUsePayload(Buffer.concat(chunks).toString("utf8"));
-    if (payload === null) {
-      stdout.write(deny("LazyCodex spawn guard received an invalid hook payload; role routing was not verified."));
+    if (payload === null)
       return;
-    }
     const output = applySpawnGuards(payload);
     if (output.length > 0)
       stdout.write(output);
   } catch (error) {
-    stdout.write(deny(`LazyCodex spawn guard failed: ${error instanceof Error ? error.message : String(error)}`));
+    if (error instanceof Error)
+      return;
   }
 }
 function peekFanOutBudget(stateDir) {
