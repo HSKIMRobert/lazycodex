@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve, sep } from "node:path";
+import { readLedgerAt } from "./ledger.js";
 import { normalizeUlwLoopSessionId, ulwLoopDir, ulwLoopStateLockPath } from "./paths.js";
+import { readUlwLoopPlanSync } from "./plan-io.js";
 import { isStateLockTimeout, withStateLockSync } from "./state-lock.js";
 // Turn-death recovery only: Codex emits Stop when a turn ends, so a run that
 // dies mid-turn (crash, kill, context blowup before any Stop) never reaches
@@ -27,7 +29,7 @@ export function runStopResumeHook(input) {
         return "";
     const scope = { sessionId: payload.session_id };
     const stateDir = ulwLoopDir(payload.cwd, scope);
-    const plan = readPlan(join(stateDir, "goals.json"));
+    const plan = readPlan(payload.cwd, payload.session_id);
     if (plan === null || plan.aggregateCompletion?.status === "complete")
         return "";
     const goal = resumableGoal(plan);
@@ -76,11 +78,10 @@ function consumeResumeBudgetLocked(lockPath, stateDir, goalId) {
         throw error;
     }
 }
-// Two-strike cap keyed on ledger movement: an unchanged ledger.jsonl line
-// count across resumes means the loop is not progressing. The stuck marker is
-// a separate file — a ledger append would change the count and self-reset.
+// Hook budget counters are exempt from plan/audit commits. Count reconciled
+// entries, not cache lines: a writer dying after link still made progress.
 function consumeResumeBudget(stateDir, goalId) {
-    const ledgerLineCount = countLedgerLines(join(stateDir, "ledger.jsonl"));
+    const ledgerLineCount = readLedgerAt(stateDir).length;
     const counterPath = resolve(stateDir, `auto-resume-${goalId}.json`);
     const stuckPath = resolve(stateDir, `auto-resume-${goalId}.stuck`);
     // goals.json is untrusted input: a crafted goal id (e.g. `../../x`) must
@@ -111,23 +112,13 @@ function renderResumeDirective(plan, goal, sessionId) {
         "If the loop is genuinely blocked on the user, checkpoint the goal as blocked with the reason instead.",
     ].join("\n");
 }
-function readPlan(goalsPath) {
+function readPlan(repoRoot, sessionId) {
     try {
-        return JSON.parse(readFileSync(goalsPath, "utf8"));
+        return readUlwLoopPlanSync(repoRoot, { sessionId });
     }
     catch (error) {
         if (error instanceof Error)
             return null;
-        throw error;
-    }
-}
-function countLedgerLines(ledgerPath) {
-    try {
-        return readFileSync(ledgerPath, "utf8").split("\n").filter(Boolean).length;
-    }
-    catch (error) {
-        if (error instanceof Error)
-            return 0;
         throw error;
     }
 }

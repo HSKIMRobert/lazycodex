@@ -1,9 +1,10 @@
-import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { parsePreToolUsePayload } from "./codex-hook.js";
 import { isFinalRunCompletionCandidate } from "./goal-status.js";
 import { ulwLoopAttemptEvidenceDir, ulwLoopDir, ulwLoopStateLockPath } from "./paths.js";
+import { readUlwLoopPlanSync } from "./plan-io.js";
+import { atomicWriteJson, isNonEmptyFile, readAdmissionBreaker, readCount, readCounts } from "./spawn-budget-io.js";
 import { spawnRoleDenial } from "./spawn-role-guard.js";
 import { isStateLockTimeout, withStateLockSync } from "./state-lock.js";
 import { GATE_REVIEWER_AGENT_NAMES, REVIEWER_ROLES_BY_SURFACE, resolveToolkitSurface, reviewerRolesFor, } from "./surface.js";
@@ -43,7 +44,7 @@ export function applySpawnBudgetGuards(payload, options = {}) {
         return deny(`Subagent admission failed earlier in this session (${breaker}). Do not spawn more workers or reviewers; report the capacity block and wait for the user.`);
     const scope = { sessionId: payload.session_id };
     const stateDir = ulwLoopDir(payload.cwd, scope);
-    const plan = readPlan(join(stateDir, "goals.json"));
+    const plan = readPlan(payload.cwd, payload.session_id);
     if (plan === null)
         return "";
     const lockOptions = options.lockTimeoutMs === undefined ? {} : { timeoutMs: options.lockTimeoutMs };
@@ -133,6 +134,7 @@ function peekFanOutBudget(stateDir) {
         return null;
     return `ulw-loop spawn fan-out cap reached (${count}/${limit}). Consolidate work into the agents already running, or raise OMO_SPAWN_FANOUT_LIMIT if this volume is intentional.`;
 }
+// Hook budget counters are exempt from plan/audit commits.
 // Per-session spawn counter; depth/lineage tracking is descoped — this is a
 // total-volume backstop against fan-out explosions, not a recursion tracker.
 function consumeFanOutBudget(stateDir) {
@@ -239,11 +241,6 @@ function activeSurfaceReviewerAlias(reviewer) {
     }
     return reviewer;
 }
-function atomicWriteJson(targetPath, data) {
-    const tmp = join(dirname(targetPath), `.tmp-${randomBytes(6).toString("hex")}`);
-    writeFileSync(tmp, JSON.stringify(data));
-    renameSync(tmp, targetPath);
-}
 function deny(reason) {
     return `${JSON.stringify({
         hookSpecificOutput: {
@@ -253,18 +250,6 @@ function deny(reason) {
             additionalContext: reason,
         },
     })}\n`;
-}
-function readAdmissionBreaker(sessionId) {
-    const dataDir = process.env["PLUGIN_DATA"];
-    if (typeof dataDir !== "string")
-        return null;
-    try {
-        const value = JSON.parse(readFileSync(join(dataDir, "spawn-breaker", `${sessionId}.json`), "utf8"));
-        return typeof value.reason === "string" ? value.reason : "capacity limit";
-    }
-    catch {
-        return null;
-    }
 }
 function fanOutLimit() {
     const raw = process.env["OMO_SPAWN_FANOUT_LIMIT"];
@@ -280,48 +265,9 @@ function reviewSpawnLimit() {
     const parsed = Number.parseInt(raw, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_REVIEW_SPAWN_LIMIT;
 }
-function isNonEmptyFile(path) {
+function readPlan(repoRoot, sessionId) {
     try {
-        return existsSync(path) && statSync(path).size > 0;
-    }
-    catch (error) {
-        if (error instanceof Error)
-            return false;
-        throw error;
-    }
-}
-function readCount(counterPath) {
-    try {
-        const parsed = JSON.parse(readFileSync(counterPath, "utf8"));
-        return typeof parsed["count"] === "number" && parsed["count"] >= 0 ? parsed["count"] : 0;
-    }
-    catch (error) {
-        if (error instanceof Error)
-            return 0;
-        throw error;
-    }
-}
-function readCounts(counterPath) {
-    try {
-        const parsed = JSON.parse(readFileSync(counterPath, "utf8"));
-        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
-            return {};
-        const counts = {};
-        for (const [key, value] of Object.entries(parsed)) {
-            if (typeof value === "number" && value >= 0)
-                counts[key] = value;
-        }
-        return counts;
-    }
-    catch (error) {
-        if (error instanceof Error)
-            return {};
-        throw error;
-    }
-}
-function readPlan(goalsPath) {
-    try {
-        return JSON.parse(readFileSync(goalsPath, "utf8"));
+        return readUlwLoopPlanSync(repoRoot, { sessionId });
     }
     catch (error) {
         if (error instanceof Error)

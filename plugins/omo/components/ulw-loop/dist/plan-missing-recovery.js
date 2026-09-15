@@ -1,14 +1,26 @@
+import { UlwLoopError } from "./runtime.js";
 export const ULW_LOOP_CREATE_GOALS_COMMAND = 'omo-agent-toolkit ulw-loop create-goals --brief "<brief>" --json';
+export function createGoalsAction(surface) {
+    return surface === "omo-senpi" ? 'agentToolkit.createGoals({ brief: "<brief>" })' : ULW_LOOP_CREATE_GOALS_COMMAND;
+}
 /**
  * A missing plan is either "never bootstrapped" or "bootstrapped under a different
  * session id"; the recovery text has to answer both without the caller guessing.
  */
-export function planMissingRecovery(existingSessionIds) {
-    const lines = [`Recovery: bootstrap the plan with \`${ULW_LOOP_CREATE_GOALS_COMMAND}\`.`];
+export function planMissingRecovery(existingSessionIds, surface = "lazycodex") {
+    const lines = [`Recovery: bootstrap the plan with \`${createGoalsAction(surface)}\`.`];
     if (existingSessionIds.length === 0)
         return { message: lines.join("\n") };
-    lines.push(`Existing ulw-loop session ids under .omo/ulw-loop/: ${existingSessionIds.join(", ")}. Re-run with \`--session-id <id>\` to target one of them.`);
+    lines.push(surface === "omo-senpi"
+        ? `Existing ulw-loop session ids under .omo/ulw-loop/: ${existingSessionIds.join(", ")}. The SDK is bound to the current session; resume the owning session to target its plan.`
+        : `Existing ulw-loop session ids under .omo/ulw-loop/: ${existingSessionIds.join(", ")}. Re-run with \`--session-id <id>\` to target one of them.`);
     return { message: lines.join("\n"), details: { existingSessionIds } };
+}
+export function planMissingError(planPath, existingSessionIds, surface = "lazycodex") {
+    const recovery = planMissingRecovery(existingSessionIds, surface);
+    return new UlwLoopError(`No ulw-loop plan found at ${planPath}.\n${recovery.message}`, "ULW_LOOP_PLAN_MISSING", {
+        ...(recovery.details === undefined ? {} : { details: recovery.details }),
+    });
 }
 export function sessionScopeRequiredMessage(flag, existingSessionIds) {
     const lines = [

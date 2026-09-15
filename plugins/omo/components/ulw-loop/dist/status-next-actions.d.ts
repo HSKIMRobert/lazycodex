@@ -1,6 +1,7 @@
+import type { UlwLoopToolkitSurface } from "./surface.js";
 import type { UlwLoopPlan } from "./types.js";
 /**
- * `status --json` is the one call every agent already makes between steps, so it is
+ * Status is the one call every agent already makes between steps, so it is
  * also the cheapest place to answer "what now?" without a second round trip.
  */
-export declare function statusNextActions(plan: UlwLoopPlan): readonly string[];
+export declare function statusNextActions(plan: UlwLoopPlan, surface?: UlwLoopToolkitSurface): readonly string[];

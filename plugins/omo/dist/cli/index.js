@@ -64,7 +64,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.62",
+    version: "5.0.0-beta.63",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -96,8 +96,6 @@ var init_package = __esm(() => {
       "packages/omo-codex",
       "packages/omo-senpi",
       "packages/senpi-task",
-      "packages/pi-goal",
-      "packages/pi-webfetch",
       "packages/omo-opencode",
       "packages/omo-native"
     ],
@@ -199,7 +197,7 @@ var init_package = __esm(() => {
       prepublishOnly: "bun run clean && bun run build:lsp-tools-mcp && bun run build:lsp-daemon && bun run build",
       "test:model-capabilities": "bun test --timeout 20000 packages/model-core/src/model-capability-aliases.test.ts packages/model-core/src/model-capability-guardrails.test.ts packages/model-core/src/model-capabilities.test.ts packages/omo-opencode/src/cli/doctor/checks/model-resolution.test.ts --bail",
       typecheck: "tsgo --noEmit && bun run typecheck:script && bun run typecheck:packages",
-      "typecheck:packages": "tsgo --noEmit -p packages/rules-engine/tsconfig.json && tsgo --noEmit -p packages/delegate-core/tsconfig.json && tsgo --noEmit -p packages/mcp-stdio-core/tsconfig.json && tsgo --noEmit -p packages/mcp-client-core/tsconfig.json && tsgo --noEmit -p packages/git-bash-mcp/tsconfig.json && tsgo --noEmit -p packages/ast-grep-mcp/tsconfig.json && tsgo --noEmit -p packages/lsp-core/tsconfig.json && tsgo --noEmit -p packages/utils/tsconfig.json && tsgo --noEmit -p packages/model-core/tsconfig.json && tsgo --noEmit -p packages/omo-config-core/tsconfig.json && tsgo --noEmit -p packages/prompts-core/tsconfig.json && tsgo --noEmit -p packages/comment-checker-core/tsconfig.json && tsgo --noEmit -p packages/hashline-core/tsconfig.json && tsgo --noEmit -p packages/tmux-core/tsconfig.json && tsgo --noEmit -p packages/team-core/tsconfig.json && tsgo --noEmit -p packages/openclaw-core/tsconfig.json && tsgo --noEmit -p packages/boulder-state/tsconfig.json && tsgo --noEmit -p packages/memory-core/tsconfig.json && tsgo --noEmit -p packages/telemetry-core/tsconfig.json && tsgo --noEmit -p packages/claude-code-compat-core/tsconfig.json && tsgo --noEmit -p packages/skills-loader-core/tsconfig.json && tsgo --noEmit -p packages/agents-md-core/tsconfig.json && tsgo --noEmit -p packages/omo-codex/plugin/shared/tsconfig.json && tsgo --noEmit -p packages/omo-codex/tsconfig.json && tsgo --noEmit -p packages/omo-senpi/tsconfig.json && tsgo --noEmit -p packages/senpi-task/tsconfig.json && tsgo --noEmit -p packages/pi-goal/tsconfig.json && tsgo --noEmit -p packages/pi-webfetch/tsconfig.json && tsgo --noEmit -p packages/omo-opencode/tsconfig.json && tsgo --noEmit -p packages/omo-native/tsconfig.json",
+      "typecheck:packages": "tsgo --noEmit -p packages/rules-engine/tsconfig.json && tsgo --noEmit -p packages/delegate-core/tsconfig.json && tsgo --noEmit -p packages/mcp-stdio-core/tsconfig.json && tsgo --noEmit -p packages/mcp-client-core/tsconfig.json && tsgo --noEmit -p packages/git-bash-mcp/tsconfig.json && tsgo --noEmit -p packages/ast-grep-mcp/tsconfig.json && tsgo --noEmit -p packages/lsp-core/tsconfig.json && tsgo --noEmit -p packages/utils/tsconfig.json && tsgo --noEmit -p packages/model-core/tsconfig.json && tsgo --noEmit -p packages/omo-config-core/tsconfig.json && tsgo --noEmit -p packages/prompts-core/tsconfig.json && tsgo --noEmit -p packages/comment-checker-core/tsconfig.json && tsgo --noEmit -p packages/hashline-core/tsconfig.json && tsgo --noEmit -p packages/tmux-core/tsconfig.json && tsgo --noEmit -p packages/team-core/tsconfig.json && tsgo --noEmit -p packages/openclaw-core/tsconfig.json && tsgo --noEmit -p packages/boulder-state/tsconfig.json && tsgo --noEmit -p packages/memory-core/tsconfig.json && tsgo --noEmit -p packages/telemetry-core/tsconfig.json && tsgo --noEmit -p packages/claude-code-compat-core/tsconfig.json && tsgo --noEmit -p packages/skills-loader-core/tsconfig.json && tsgo --noEmit -p packages/agents-md-core/tsconfig.json && tsgo --noEmit -p packages/omo-codex/plugin/shared/tsconfig.json && tsgo --noEmit -p packages/omo-codex/tsconfig.json && tsgo --noEmit -p packages/omo-senpi/tsconfig.json && tsgo --noEmit -p packages/senpi-task/tsconfig.json && tsgo --noEmit -p packages/omo-opencode/tsconfig.json && tsgo --noEmit -p packages/omo-native/tsconfig.json",
       "typecheck:script": "tsgo --noEmit -p script/tsconfig.json",
       test: "bun test --timeout 20000",
       "changelog:section": "bun script/changelog-section.ts",
@@ -231,7 +229,6 @@ var init_package = __esm(() => {
     homepage: "https://github.com/code-yeongyu/oh-my-openagent#readme",
     dependencies: {
       "@clack/prompts": "^1.7.0",
-      "@code-yeongyu/comment-checker": "^0.8.0",
       "@modelcontextprotocol/sdk": "^1.30.0",
       "@opencode-ai/plugin": "1.18.22",
       "@opencode-ai/sdk": "1.18.22",
@@ -249,7 +246,7 @@ var init_package = __esm(() => {
       zod: "^4.4.3"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.13",
+      "@code-yeongyu/senpi": "2026.9.15-2",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -268,8 +265,6 @@ var init_package = __esm(() => {
       "@oh-my-opencode/omo-opencode": "workspace:*",
       "@oh-my-opencode/omo-senpi": "workspace:*",
       "@oh-my-opencode/openclaw-core": "workspace:*",
-      "@oh-my-opencode/pi-goal": "workspace:*",
-      "@oh-my-opencode/pi-webfetch": "workspace:*",
       "@oh-my-opencode/prompts-core": "workspace:*",
       "@oh-my-opencode/rules-engine": "workspace:*",
       "@oh-my-opencode/senpi-task": "workspace:*",
@@ -290,18 +285,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.62",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.62",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.62",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.62",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.62",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.62",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.62",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.62",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.62",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.62",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.62",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.62"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.63",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.63",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.63",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.63",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.63",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.63",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.63",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.63",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.63",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.63",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.63",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.63"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -315,9 +310,7 @@ var init_package = __esm(() => {
       "path-to-regexp": "^8.4.2",
       "@types/node": "26.2.0"
     },
-    trustedDependencies: [
-      "@code-yeongyu/comment-checker"
-    ]
+    trustedDependencies: []
   };
 });
 
@@ -7152,13 +7145,18 @@ var init_agent_model_requirements = __esm(() => {
       fallbackChain: [
         {
           providers: ["anthropic", "github-copilot", "opencode"],
+          model: "claude-fable-5-1",
+          variant: "max"
+        },
+        {
+          providers: ["anthropic", "github-copilot", "opencode"],
           model: "claude-opus-5",
-          variant: "high"
+          variant: "max"
         },
         {
           providers: ["opencode-go", "kimi-for-coding", "moonshotai", "opencode"],
           model: "kimi-k3",
-          variant: "low"
+          variant: "max"
         }
       ]
     },
@@ -72934,6 +72932,7 @@ var init_task = __esm(() => {
     model_concurrency: record(string2(), number2().int().nonnegative()).optional(),
     max_depth: number2().int().nonnegative().default(1),
     residency_max_children: ResidencyMaxChildrenInputSchema.default(8),
+    resident_idle_timeout_ms: number2().int().positive().max(Number.MAX_SAFE_INTEGER).default(900000),
     ttl_ms: number2().int().positive().default(86400000),
     state_dir: string2().optional(),
     reattach_on_reconcile: boolean2().optional(),
@@ -72978,6 +72977,7 @@ var init_task = __esm(() => {
     model_concurrency: record(string2(), number2().int().nonnegative()).optional(),
     max_depth: number2().int().nonnegative().optional(),
     residency_max_children: ResidencyMaxChildrenInputSchema.optional(),
+    resident_idle_timeout_ms: number2().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
     ttl_ms: number2().int().positive().optional(),
     state_dir: string2().optional(),
     reattach_on_reconcile: boolean2().optional(),
@@ -84542,7 +84542,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.62",
+    version: "5.0.0-beta.63",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -93545,7 +93545,6 @@ var REQUIRED_PLUGIN_ARTIFACTS = [
   join60("extensions", "omo.js"),
   join60("extensions", "omo-task.js"),
   join60("extensions", "omo-member.js"),
-  join60("extensions", "omo-agent-toolkit.js"),
   join60("extensions", "memory-run-supervisor.mjs"),
   ...PERSONA_ASSET_FILES.map((filename) => join60("extensions", filename)),
   join60("skills", "ast-grep", "SKILL.md"),
@@ -93567,6 +93566,7 @@ var REQUIRED_PLUGIN_ARTIFACTS = [
   join60("skills", "ulw-research", "SKILL.md"),
   join60("skills", "visual-qa", "SKILL.md"),
   join60("skills-conditional", "x-search", "SKILL.md"),
+  join60("runtime", "agent-toolkit-sdk", "sdk.js"),
   join60("runtime", "ast-grep-mcp", "cli.js"),
   join60("runtime", "lsp-daemon", "dist", "cli.js"),
   join60("runtime", "lsp-daemon", "dist", "index.js"),
@@ -96899,7 +96899,6 @@ var BuiltinAgentNameSchema = _enum([
 ]);
 var BuiltinSkillNameSchema = _enum([
   "playwright",
-  "agent-browser",
   "dev-browser",
   "frontend",
   "git-master",
@@ -97062,10 +97061,11 @@ var BackgroundTaskConfigSchema = object({
 init_zod();
 var BrowserAutomationProviderSchema = _enum([
   "playwright",
-  "agent-browser",
   "dev-browser",
   "playwright-cli"
-]);
+], {
+  error: (issue) => `Browser provider ${JSON.stringify(issue.input)} is no longer supported; use the built-in browser path: Bun.WebView / playwright-core scripts`
+});
 var BrowserAutomationConfigSchema = object({
   provider: BrowserAutomationProviderSchema.default("playwright"),
   playwright_mcp_args: array(string2()).optional()
@@ -100273,7 +100273,6 @@ var defaultDeps5 = {
   readConfigFile: (path) => readFileSync31(path, "utf-8"),
   parseConfigContent: (content) => parseJsonc(content)
 };
-var BUN_POSTINSTALL_HELPER_PACKAGE_NAME = "@code-yeongyu/comment-checker";
 function isConfigValid(configPath, deps) {
   if (!configPath)
     return true;
@@ -100394,7 +100393,7 @@ async function checkSystem(deps = defaultDeps5) {
       description: `Loaded ${systemInfo.loadedVersion}, latest ${latestVersion}.`,
       fix: `Update: cd "${loadedInfo.cacheDir}" && bun add ${loadedPackageName}@${installTag}
 ` + `If Bun reports blocked postinstalls, inspect them: cd "${loadedInfo.cacheDir}" && bun pm untrusted
-` + `Then trust only OMO-related packages from that list: cd "${loadedInfo.cacheDir}" && bun pm trust ${loadedPackageName} ${BUN_POSTINSTALL_HELPER_PACKAGE_NAME}`,
+` + `Then trust only OMO-related packages from that list: cd "${loadedInfo.cacheDir}" && bun pm trust ${loadedPackageName}`,
       severity: "warning",
       affects: ["plugin features"]
     });
@@ -100861,6 +100860,35 @@ async function checkConfig() {
   };
 }
 
+// packages/omo-opencode/src/cli/doctor/checks/browser-provider.ts
+async function checkBrowserProvider() {
+  const chain = loadOmoOpenCodeConfigChain(process.cwd());
+  const issues = [];
+  for (const view of chain.views) {
+    const browserConfig = view.config.browser_automation_engine;
+    if (browserConfig === undefined)
+      continue;
+    const result = BrowserAutomationConfigSchema.safeParse(browserConfig);
+    if (result.success)
+      continue;
+    for (const issue of result.error.issues) {
+      const path = ["browser_automation_engine", ...issue.path].join(".");
+      issues.push({
+        title: "Invalid browser provider configuration",
+        description: `${view.path}: ${path}: ${issue.message}`,
+        severity: "error",
+        affects: [path]
+      });
+    }
+  }
+  return {
+    name: "Browser Provider",
+    status: issues.length > 0 ? "fail" : "pass",
+    message: issues.length > 0 ? "Browser provider configuration requires migration" : "Browser provider configuration is valid",
+    issues
+  };
+}
+
 // packages/omo-opencode/src/cli/doctor/checks/deprecated-reasoning-keys.ts
 init_src4();
 init_main();
@@ -100956,11 +100984,11 @@ import { homedir as homedir19 } from "os";
 import { dirname as dirname31, join as join81 } from "path";
 
 // packages/omo-opencode/src/hooks/comment-checker/downloader.ts
-import { join as join80 } from "path";
-import { homedir as homedir18, tmpdir as tmpdir4 } from "os";
 init_binary_downloader();
 init_logger2();
 init_plugin_identity();
+import { join as join80 } from "path";
+import { homedir as homedir18, tmpdir as tmpdir4 } from "os";
 var DEBUG = process.env.COMMENT_CHECKER_DEBUG === "1";
 var DEBUG_FILE = join80(tmpdir4(), "comment-checker-debug.log");
 function getCacheDir2() {
@@ -101518,7 +101546,7 @@ function buildToolIssues(summary) {
     issues.push({
       title: "Comment checker unavailable",
       description: "Comment checker binary is not installed.",
-      fix: "Install @code-yeongyu/comment-checker",
+      fix: "The hook downloads its pinned GitHub release automatically on first use. Allow access to github.com and restart OpenCode to retry.",
       severity: "warning",
       affects: ["comment-checker hook"]
     });
@@ -102426,6 +102454,7 @@ function parseRuntimeTargetPath(wrapper) {
 // packages/omo-opencode/src/cli/doctor/checks/index.ts
 function getAllCheckDefinitions() {
   return [
+    { id: "browser-provider", name: "Browser Provider", check: checkBrowserProvider },
     {
       id: CHECK_IDS.SYSTEM,
       name: CHECK_NAMES[CHECK_IDS.SYSTEM],

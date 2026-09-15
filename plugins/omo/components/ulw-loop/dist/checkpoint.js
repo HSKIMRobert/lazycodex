@@ -6,7 +6,8 @@ import { combineCheckpointValidationErrors, validateCheckpointCodexGoal, } from 
 import { requireAllCriteriaPass, requireAllPlanCriteriaPass, requireEssentialCriteriaPass } from "./evidence.js";
 import { codexGoalMode, isFinalRunCompletionCandidate } from "./goal-status.js";
 import { ulwLoopAttemptEvidenceDir } from "./paths.js";
-import { appendLedger, readUlwLoopPlan, withUlwLoopMutationLock, writePlan } from "./plan-io.js";
+import { commit } from "./plan-commit.js";
+import { readUlwLoopPlan, withUlwLoopMutationLock } from "./plan-io.js";
 import { classifyExternalAuthorizationBlocker, clearGoalBlockerFields, sameBlockerOccurrences, validateQualityGate, } from "./quality-gate.js";
 import { resolveToolkitSurface } from "./surface.js";
 import { iso, UlwLoopError } from "./types.js";
@@ -187,12 +188,12 @@ export async function checkpointUlwLoop(repoRoot, args, scope, dependencies) {
         if (aggregateCompletion !== undefined)
             nextActions = [...nextActions, 'aggregate complete — now update_goal({status:"complete"})'];
         plan.updatedAt = now;
-        await writePlan(repoRoot, plan, scope);
         const ledgerEntry = buildLedger(now, args, goal, qualityGate, codexGoal, aggregateCompletion);
-        await appendLedger(repoRoot, ledgerEntry, scope);
+        const entries = [ledgerEntry];
         const closedBatch = args.status === "complete" ? batchClosedBy(plan, goal.id) : undefined;
         if (closedBatch !== undefined)
-            await appendLedger(repoRoot, { at: now, kind: "batch_closed", goalId: goal.id, message: closedBatch.batchId }, scope);
+            entries.push({ at: now, kind: "batch_closed", goalId: goal.id, message: closedBatch.batchId });
+        await commit(repoRoot, scope, { plan, entries });
         return aggregateCompletion === undefined
             ? { plan, goal, ledgerEntry, nextActions, warnings }
             : { plan, goal, ledgerEntry, aggregateCompletion, nextActions, warnings };

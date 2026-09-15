@@ -1,89 +1,121 @@
 import { randomUUID } from "node:crypto";
-import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeSync } from "node:fs";
+import { closeSync, ftruncateSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeSync } from "node:fs";
 import { dirname } from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
 import { UlwLoopError } from "./types.js";
-// Cross-process exclusive lock for one ulw-loop state directory. Every CLI
-// invocation is its own process, so the in-process promise chain in plan-io
-// serializes nothing across them; this file-level lock is what makes the
-// read-modify-write of goals.json (and the counters next to it) atomic.
-//
-// Protocol: the lock is a file created with O_EXCL whose body records the
-// owner (pid + a per-acquisition token). A waiter reclaims it only when the
-// owner is provably gone (pid dead) or the body never became a record within
-// `staleMs` (a creator that died mid-write); a live owner is never reclaimed by
-// age alone, because overlapping two bodies is exactly the lost update this lock
-// exists to prevent. Waiters back off and fail closed at `timeoutMs`. Release
-// unlinks only a lock that still carries the releaser's own token.
+// O_EXCL establishes ownership. Async holders keep the fd open and refresh a
+// lease through that fd, never through the pathname: a reclaimed inode is invisible.
+// Sync/legacy holders are lease-less and only dead pids retire their records.
+// Expiry permits overlapping bodies; immutable revision publication fences them.
+// Reclaim's reread/unlink is not atomic. On Windows an open inode may not unlink:
+// treat that refusal as a live owner and fail closed. Release checks its token.
 export const ULW_LOOP_LOCK_TIMEOUT_CODE = "ULW_LOOP_LOCK_TIMEOUT";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_STALE_MS = 60_000;
-const MIN_DELAY_MS = 5;
-const MAX_DELAY_MS = 100;
+const DEFAULT_LEASE_MS = 30_000;
 const SLEEP_CELL = new Int32Array(new SharedArrayBuffer(4));
+const systemClock = {
+    now: Date.now,
+    schedule(fn, ms) {
+        const timer = setTimeout(fn, ms);
+        return {
+            unref: () => {
+                timer.unref();
+            },
+            cancel: () => clearTimeout(timer),
+        };
+    },
+};
 export async function withStateLock(lockPath, fn, options = {}) {
-    const token = await acquireAsync(lockPath, options);
+    const holder = await acquireAsync(lockPath, options);
+    const clock = options.clock ?? systemClock;
+    let timer;
+    let heartbeatError;
+    const beat = () => {
+        try {
+            holder.record.leaseUntil = clock.now() + (options.leaseMs ?? DEFAULT_LEASE_MS);
+            writeRecord(holder);
+            schedule();
+        }
+        catch (error) {
+            heartbeatError = error;
+        }
+    };
+    const schedule = () => {
+        if (options.heartbeatMs === 0)
+            return;
+        timer = clock.schedule(beat, options.heartbeatMs ?? (options.leaseMs ?? DEFAULT_LEASE_MS) / 3);
+        timer.unref();
+    };
+    schedule();
     try {
-        return await fn();
+        const result = await fn(holder.record.token);
+        if (heartbeatError !== undefined)
+            throw heartbeatError;
+        return result;
     }
     finally {
-        release(lockPath, token);
+        timer?.cancel();
+        closeSync(holder.fd);
+        release(lockPath, holder.record.token);
     }
 }
 export function withStateLockSync(lockPath, fn, options = {}) {
-    const token = acquireSync(lockPath, options);
+    const holder = acquireSync(lockPath, options);
     try {
         return fn();
     }
     finally {
-        release(lockPath, token);
+        closeSync(holder.fd);
+        release(lockPath, holder.record.token);
     }
 }
 export function isStateLockTimeout(error) {
     return error instanceof UlwLoopError && error.code === ULW_LOOP_LOCK_TIMEOUT_CODE;
 }
 async function acquireAsync(lockPath, options) {
-    const deadline = Date.now() + (options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-    const staleMs = options.staleMs ?? DEFAULT_STALE_MS;
+    const clock = options.clock ?? systemClock;
+    const deadline = clock.now() + (options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     mkdirSync(dirname(lockPath), { recursive: true });
     for (let attempt = 0;;) {
-        const outcome = attemptOnce(lockPath, staleMs);
+        const outcome = attemptOnce(lockPath, options, clock.now(), options.leaseMs ?? DEFAULT_LEASE_MS);
         if (outcome.kind === "acquired")
-            return outcome.token;
+            return outcome.holder;
         if (outcome.kind === "retry")
             continue;
-        if (Date.now() >= deadline)
-            throw lockTimeout(lockPath, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-        await sleep(backoffMs(attempt));
+        if (clock.now() >= deadline)
+            throw lockTimeout(lockPath, options);
+        await new Promise((resolve) => clock.schedule(resolve, backoffMs(attempt)));
         attempt += 1;
     }
 }
 function acquireSync(lockPath, options) {
     const deadline = Date.now() + (options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-    const staleMs = options.staleMs ?? DEFAULT_STALE_MS;
     mkdirSync(dirname(lockPath), { recursive: true });
     for (let attempt = 0;;) {
-        const outcome = attemptOnce(lockPath, staleMs);
+        const outcome = attemptOnce(lockPath, options, Date.now());
         if (outcome.kind === "acquired")
-            return outcome.token;
+            return outcome.holder;
         if (outcome.kind === "retry")
             continue;
         if (Date.now() >= deadline)
-            throw lockTimeout(lockPath, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+            throw lockTimeout(lockPath, options);
         Atomics.wait(SLEEP_CELL, 0, 0, backoffMs(attempt));
         attempt += 1;
     }
 }
-// EINTR surfaces raw from macOS fs syscalls under some runtimes; it is a retry, never a verdict.
-function attemptOnce(lockPath, staleMs) {
+function attemptOnce(lockPath, options, now, leaseMs) {
     try {
-        const token = tryCreate(lockPath);
-        if (token !== null)
-            return { kind: "acquired", token };
-        const snapshot = readSnapshot(lockPath);
+        const holder = tryCreate(lockPath, now, leaseMs);
+        if (holder !== null)
+            return { kind: "acquired", holder };
+        const snapshot = readSnapshot(lockPath, now);
         if (snapshot === null)
             return { kind: "retry" };
-        if (isStale(snapshot, staleMs) && reclaim(lockPath, snapshot.raw))
+        const record = snapshot.record;
+        const stale = record === null
+            ? snapshot.ageMs > (options.staleMs ?? DEFAULT_STALE_MS)
+            : !isProcessAlive(record.pid) || (record.leaseUntil !== undefined && now > record.leaseUntil);
+        if (stale && reclaim(lockPath, snapshot.raw))
             return { kind: "retry" };
         return { kind: "wait" };
     }
@@ -93,7 +125,18 @@ function attemptOnce(lockPath, staleMs) {
         throw error;
     }
 }
-function tryCreate(lockPath) {
+function writeRecord(holder) {
+    const buf = Buffer.from(JSON.stringify(holder.record));
+    ftruncateSync(holder.fd, 0);
+    let offset = 0;
+    while (offset < buf.length) {
+        const written = writeSync(holder.fd, buf, offset, buf.length - offset, offset);
+        if (written === 0)
+            throw new Error("State lock write made no progress.");
+        offset += written;
+    }
+}
+function tryCreate(lockPath, now, leaseMs) {
     let fd;
     try {
         fd = openSync(lockPath, "wx");
@@ -103,30 +146,33 @@ function tryCreate(lockPath) {
             return null;
         throw error;
     }
-    const record = { pid: process.pid, createdAt: new Date().toISOString(), token: randomUUID() };
+    const record = {
+        pid: process.pid,
+        createdAt: new Date(now).toISOString(),
+        token: randomUUID(),
+        ...(leaseMs === undefined ? {} : { leaseUntil: now + leaseMs }),
+    };
+    const holder = { fd, record };
     try {
-        writeSync(fd, JSON.stringify(record));
+        writeRecord(holder);
     }
     catch (error) {
         closeSync(fd);
-        // A failed write (e.g. EINTR) must not leave a partial lock the owner never recorded;
-        // otherwise later readers see a young ownerless lock and only age can retire it.
         try {
             unlinkSync(lockPath);
         }
-        catch {
-            // another process already reclaimed the partial file; leave it alone
+        catch (cleanup) {
+            if (!hasCode(cleanup, "ENOENT"))
+                throw cleanup;
         }
         throw error;
     }
-    closeSync(fd);
-    return record.token;
+    return holder;
 }
-function readSnapshot(lockPath) {
+function readSnapshot(lockPath, now) {
     try {
         const raw = readFileSync(lockPath, "utf8");
-        const ageMs = Date.now() - statSync(lockPath).mtimeMs;
-        return { raw, record: parseRecord(raw), ageMs };
+        return { raw, record: parseRecord(raw), ageMs: now - statSync(lockPath).mtimeMs };
     }
     catch (error) {
         if (hasCode(error, "ENOENT"))
@@ -136,32 +182,27 @@ function readSnapshot(lockPath) {
 }
 function parseRecord(raw) {
     try {
-        const parsed = JSON.parse(raw);
-        if (typeof parsed !== "object" || parsed === null)
+        const record = JSON.parse(raw);
+        if (typeof record !== "object" || record === null)
             return null;
-        const record = parsed;
-        const pid = record["pid"];
-        const createdAt = record["createdAt"];
-        const token = record["token"];
-        if (typeof pid !== "number" || !Number.isInteger(pid) || pid <= 0 || typeof createdAt !== "string")
+        if (!("pid" in record) || typeof record.pid !== "number" || !Number.isInteger(record.pid) || record.pid <= 0)
             return null;
-        if (typeof token !== "string" || token.length === 0)
+        if (!("createdAt" in record) || typeof record.createdAt !== "string")
             return null;
-        return { pid, createdAt, token };
+        if (!("token" in record) || typeof record.token !== "string" || record.token.length === 0)
+            return null;
+        return {
+            pid: record.pid,
+            createdAt: record.createdAt,
+            token: record.token,
+            ...("leaseUntil" in record && typeof record.leaseUntil === "number" ? { leaseUntil: record.leaseUntil } : {}),
+        };
     }
     catch (error) {
         if (error instanceof SyntaxError)
             return null;
         throw error;
     }
-}
-// A body that is not a record is a lock mid-write (or a foreign/legacy file); only
-// age retires it. A parsable record is stale only when its owner is dead: a live
-// owner running past staleMs is slow, not gone, and the waiter fails closed instead.
-function isStale(snapshot, staleMs) {
-    if (snapshot.record === null)
-        return snapshot.ageMs > staleMs;
-    return !isProcessAlive(snapshot.record.pid);
 }
 function isProcessAlive(pid) {
     try {
@@ -176,10 +217,8 @@ function isProcessAlive(pid) {
         throw error;
     }
 }
-// Re-read right before unlinking so a lock that changed hands since the stale
-// verdict (a sibling waiter reclaimed and re-acquired it) is left alone.
 function reclaim(lockPath, expectedRaw) {
-    const current = readSnapshot(lockPath);
+    const current = readSnapshot(lockPath, Date.now());
     if (current === null)
         return true;
     if (current.raw !== expectedRaw)
@@ -188,16 +227,15 @@ function reclaim(lockPath, expectedRaw) {
         unlinkSync(lockPath);
     }
     catch (error) {
+        if (hasCode(error, "EPERM") || hasCode(error, "EACCES"))
+            return false;
         if (!hasCode(error, "ENOENT"))
             throw error;
     }
     return true;
 }
-// Only the acquisition that wrote this token may unlink: if the file now carries
-// another token, a waiter has legitimately taken over and its lock must stand.
 function release(lockPath, token) {
-    const current = readSnapshot(lockPath);
-    if (current === null || current.record?.token !== token)
+    if (readSnapshot(lockPath, Date.now())?.record?.token !== token)
         return;
     try {
         unlinkSync(lockPath);
@@ -208,19 +246,13 @@ function release(lockPath, token) {
     }
 }
 function backoffMs(attempt) {
-    const exponential = Math.min(MAX_DELAY_MS, MIN_DELAY_MS * 2 ** attempt);
-    return exponential + Math.random() * MIN_DELAY_MS;
+    return Math.min(100, 5 * 2 ** attempt) + Math.random() * 5;
 }
-function lockTimeout(lockPath, timeoutMs) {
-    const holder = readSnapshot(lockPath)?.record;
-    const owner = holder === undefined || holder === null ? "another process" : `pid ${holder.pid}`;
-    return new UlwLoopError(`ulw-loop state lock ${lockPath} is held by ${owner} for more than ${timeoutMs}ms; retry once that process finishes, or delete the lock file if that process is gone.`, ULW_LOOP_LOCK_TIMEOUT_CODE, {
-        details: {
-            lockPath,
-            timeoutMs,
-            ...(holder === undefined || holder === null ? {} : { holderPid: holder.pid }),
-        },
-    });
+function lockTimeout(lockPath, options) {
+    const holder = readSnapshot(lockPath, Date.now())?.record;
+    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const owner = holder == null ? "another process" : `pid ${holder.pid}`;
+    return new UlwLoopError(`ulw-loop state lock ${lockPath} is held by ${owner} for more than ${timeoutMs}ms. The lock owner is still alive. If a JS eval kernel was interrupted while writing, wait for its lease to expire (${options.leaseMs ?? DEFAULT_LEASE_MS} ms) or restart the owning senpi process; never delete a lock owned by a live process.`, ULW_LOOP_LOCK_TIMEOUT_CODE, { details: { lockPath, timeoutMs, ...(holder == null ? {} : { holderPid: holder.pid }) } });
 }
 function hasCode(error, code) {
     return error instanceof Error && "code" in error && error.code === code;

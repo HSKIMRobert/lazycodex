@@ -1,4 +1,5 @@
 import { type UlwLoopScope } from "./paths.js";
+import type { UlwLoopToolkitSurface } from "./surface.js";
 import type { UlwLoopCodexGoalMode, UlwLoopItem, UlwLoopPlan } from "./types.js";
 export { deriveGoalCandidates, seedDefaultSuccessCriteria } from "./plan-goal-factory.js";
 export type UlwLoopPlanSummary = {
@@ -24,7 +25,7 @@ export declare function createUlwLoopPlan(repoRoot: string, args: {
     codexGoalMode?: UlwLoopCodexGoalMode;
     force?: boolean;
     validationBatchesJson?: string;
-}, scope?: UlwLoopScope): Promise<UlwLoopPlan>;
+}, scope?: UlwLoopScope, surface?: UlwLoopToolkitSurface): Promise<UlwLoopPlan>;
 export declare function addUlwLoopGoal(repoRoot: string, args: {
     title: string;
     objective: string;

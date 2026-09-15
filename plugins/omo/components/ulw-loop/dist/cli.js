@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // components/ulw-loop/src/checkpoint.ts
-import { existsSync as existsSync3, statSync as statSync2 } from "node:fs";
-import { readFile as readFile4 } from "node:fs/promises";
+import { existsSync as existsSync4, statSync as statSync2 } from "node:fs";
+import { readFile as readFile3 } from "node:fs/promises";
 import { resolve as resolve3 } from "node:path";
 
 // components/ulw-loop/src/codex-goal-snapshot.ts
@@ -178,14 +178,8 @@ function ulwLoopGoalsRelativePath(scope) {
 function ulwLoopLedgerRelativePath(scope) {
   return `${ulwLoopRelativeDir(scope)}/${ULW_LOOP_LEDGER}`;
 }
-function ulwLoopBriefPath(repoRoot, scope) {
-  return join(ulwLoopDir(repoRoot, scope), ULW_LOOP_BRIEF);
-}
 function ulwLoopGoalsPath(repoRoot, scope) {
   return join(ulwLoopDir(repoRoot, scope), ULW_LOOP_GOALS);
-}
-function ulwLoopLedgerPath(repoRoot, scope) {
-  return join(ulwLoopDir(repoRoot, scope), ULW_LOOP_LEDGER);
 }
 function ulwLoopStateLockPath(repoRoot, scope) {
   return join(ulwLoopDir(repoRoot, scope), ULW_LOOP_STATE_LOCK);
@@ -322,22 +316,141 @@ ${gateError.message}`, "ULW_LOOP_QUALITY_GATE_INVALID", {
   });
 }
 
+// components/ulw-loop/src/plan-commit.ts
+import { AsyncLocalStorage as AsyncLocalStorage2 } from "node:async_hooks";
+import { randomUUID as randomUUID2 } from "node:crypto";
+import { linkSync, mkdirSync as mkdirSync2, renameSync, rmSync, writeFileSync } from "node:fs";
+import { rename, writeFile } from "node:fs/promises";
+import { join as join4 } from "node:path";
+
+// components/ulw-loop/src/ledger.ts
+import { join as join3 } from "node:path";
+
+// components/ulw-loop/src/plan-log.ts
+import { existsSync as existsSync2, readdirSync, readFileSync } from "node:fs";
+import { join as join2 } from "node:path";
+function hasCode(error, code) {
+  return error instanceof Error && "code" in error && error.code === code;
+}
+function readOptional(path) {
+  try {
+    return readFileSync(path, "utf8");
+  } catch (error) {
+    if (hasCode(error, "ENOENT"))
+      return;
+    throw error;
+  }
+}
+function logNames(dir) {
+  try {
+    return readdirSync(join2(dir, "revisions")).filter((name) => /^\d{8,}\.json$/.test(name)).sort();
+  } catch (error) {
+    if (hasCode(error, "ENOENT"))
+      return [];
+    throw error;
+  }
+}
+function readRecord(dir, name) {
+  try {
+    const record = JSON.parse(readFileSync(join2(dir, "revisions", name), "utf8"));
+    return record.version === 1 && Number.isInteger(record.revision) && record.plan?.version === 1 && Array.isArray(record.plan.goals) && Array.isArray(record.ledger) ? record : undefined;
+  } catch (error) {
+    if (!(error instanceof SyntaxError))
+      throw error;
+    return;
+  }
+}
+function readRecords(dir) {
+  const records = [];
+  for (const name of logNames(dir)) {
+    const record = readRecord(dir, name);
+    if (record !== undefined)
+      records.push(record);
+  }
+  return records.sort((a, b) => a.revision - b.revision);
+}
+function readNewestRecord(dir) {
+  const names = logNames(dir).sort((a, b) => Number.parseInt(b, 10) - Number.parseInt(a, 10));
+  for (const name of names) {
+    const record = readRecord(dir, name);
+    if (record !== undefined)
+      return record;
+  }
+  return;
+}
+function reconcilePlan(dir) {
+  const raw = readOptional(join2(dir, "goals.json"));
+  let cached;
+  if (raw !== undefined) {
+    try {
+      cached = JSON.parse(raw);
+    } catch (error) {
+      if (!(error instanceof SyntaxError))
+        throw error;
+    }
+  }
+  const latest = readNewestRecord(dir);
+  return latest !== undefined && latest.revision >= (cached?.revision ?? 0) ? latest.plan : cached;
+}
+function planExists(repoRoot, scope) {
+  const dir = ulwLoopDir(repoRoot, scope);
+  return existsSync2(join2(dir, "goals.json")) || logNames(dir).length > 0;
+}
+
+// components/ulw-loop/src/ledger.ts
+function readLedgerAt(dir) {
+  const entries = new Map;
+  const lines = (readOptional(join3(dir, "ledger.jsonl")) ?? "").split(/\r?\n/);
+  for (const [index, line] of lines.entries()) {
+    if (line.trim().length === 0)
+      continue;
+    try {
+      const entry = JSON.parse(line);
+      entry.revision ??= 0;
+      entry.id ??= `legacy-${index + 1}`;
+      entries.set(entry.id, entry);
+    } catch (error) {
+      if (!(error instanceof SyntaxError))
+        throw error;
+    }
+  }
+  for (const record of readRecords(dir))
+    for (const [seq, entry] of record.ledger.entries()) {
+      const id = entry.id ?? `${record.revision}-${seq}`;
+      entries.set(id, { ...entry, revision: record.revision, id });
+    }
+  const reset = reconcilePlan(dir)?.ledgerResetRevision ?? 0;
+  const sequence = (entry) => Number(entry.id?.split("-").at(-1) ?? 0);
+  return [...entries.values()].filter((entry) => (entry.revision ?? 0) >= reset).sort((a, b) => (a.revision ?? 0) - (b.revision ?? 0) || sequence(a) - sequence(b));
+}
+function readLedger(repoRoot, scope) {
+  return readLedgerAt(ulwLoopDir(repoRoot, scope));
+}
+
 // components/ulw-loop/src/plan-io.ts
 import { AsyncLocalStorage } from "node:async_hooks";
-import { createReadStream, readdirSync } from "node:fs";
-import { appendFile, mkdir, readFile as readFile2, rename, writeFile } from "node:fs/promises";
-import { createInterface } from "node:readline";
+import { readdirSync as readdirSync2 } from "node:fs";
 
 // components/ulw-loop/src/plan-missing-recovery.ts
 var ULW_LOOP_CREATE_GOALS_COMMAND = 'omo-agent-toolkit ulw-loop create-goals --brief "<brief>" --json';
-function planMissingRecovery(existingSessionIds) {
-  const lines = [`Recovery: bootstrap the plan with \`${ULW_LOOP_CREATE_GOALS_COMMAND}\`.`];
+function createGoalsAction(surface) {
+  return surface === "omo-senpi" ? 'agentToolkit.createGoals({ brief: "<brief>" })' : ULW_LOOP_CREATE_GOALS_COMMAND;
+}
+function planMissingRecovery(existingSessionIds, surface = "lazycodex") {
+  const lines = [`Recovery: bootstrap the plan with \`${createGoalsAction(surface)}\`.`];
   if (existingSessionIds.length === 0)
     return { message: lines.join(`
 `) };
-  lines.push(`Existing ulw-loop session ids under .omo/ulw-loop/: ${existingSessionIds.join(", ")}. Re-run with \`--session-id <id>\` to target one of them.`);
+  lines.push(surface === "omo-senpi" ? `Existing ulw-loop session ids under .omo/ulw-loop/: ${existingSessionIds.join(", ")}. The SDK is bound to the current session; resume the owning session to target its plan.` : `Existing ulw-loop session ids under .omo/ulw-loop/: ${existingSessionIds.join(", ")}. Re-run with \`--session-id <id>\` to target one of them.`);
   return { message: lines.join(`
 `), details: { existingSessionIds } };
+}
+function planMissingError(planPath, existingSessionIds, surface = "lazycodex") {
+  const recovery = planMissingRecovery(existingSessionIds, surface);
+  return new UlwLoopError(`No ulw-loop plan found at ${planPath}.
+${recovery.message}`, "ULW_LOOP_PLAN_MISSING", {
+    ...recovery.details === undefined ? {} : { details: recovery.details }
+  });
 }
 function sessionScopeRequiredMessage(flag, existingSessionIds) {
   const lines = [
@@ -361,155 +474,207 @@ function sessionIdRequiredMessage(flag) {
 
 // components/ulw-loop/src/state-lock.ts
 import { randomUUID } from "node:crypto";
-import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeSync } from "node:fs";
+import { closeSync, ftruncateSync, mkdirSync, openSync, readFileSync as readFileSync2, statSync, unlinkSync, writeSync } from "node:fs";
 import { dirname } from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
 var ULW_LOOP_LOCK_TIMEOUT_CODE = "ULW_LOOP_LOCK_TIMEOUT";
 var DEFAULT_TIMEOUT_MS = 1e4;
 var DEFAULT_STALE_MS = 60000;
-var MIN_DELAY_MS = 5;
-var MAX_DELAY_MS = 100;
+var DEFAULT_LEASE_MS = 30000;
 var SLEEP_CELL = new Int32Array(new SharedArrayBuffer(4));
+var systemClock = {
+  now: Date.now,
+  schedule(fn, ms) {
+    const timer = setTimeout(fn, ms);
+    return {
+      unref: () => {
+        timer.unref();
+      },
+      cancel: () => clearTimeout(timer)
+    };
+  }
+};
 async function withStateLock(lockPath, fn, options = {}) {
-  const token = await acquireAsync(lockPath, options);
+  const holder = await acquireAsync(lockPath, options);
+  const clock = options.clock ?? systemClock;
+  let timer;
+  let heartbeatError;
+  const beat = () => {
+    try {
+      holder.record.leaseUntil = clock.now() + (options.leaseMs ?? DEFAULT_LEASE_MS);
+      writeRecord(holder);
+      schedule();
+    } catch (error) {
+      heartbeatError = error;
+    }
+  };
+  const schedule = () => {
+    if (options.heartbeatMs === 0)
+      return;
+    timer = clock.schedule(beat, options.heartbeatMs ?? (options.leaseMs ?? DEFAULT_LEASE_MS) / 3);
+    timer.unref();
+  };
+  schedule();
   try {
-    return await fn();
+    const result = await fn(holder.record.token);
+    if (heartbeatError !== undefined)
+      throw heartbeatError;
+    return result;
   } finally {
-    release(lockPath, token);
+    timer?.cancel();
+    closeSync(holder.fd);
+    release(lockPath, holder.record.token);
   }
 }
 function withStateLockSync(lockPath, fn, options = {}) {
-  const token = acquireSync(lockPath, options);
+  const holder = acquireSync(lockPath, options);
   try {
     return fn();
   } finally {
-    release(lockPath, token);
+    closeSync(holder.fd);
+    release(lockPath, holder.record.token);
   }
 }
 function isStateLockTimeout(error) {
   return error instanceof UlwLoopError && error.code === ULW_LOOP_LOCK_TIMEOUT_CODE;
 }
 async function acquireAsync(lockPath, options) {
-  const deadline = Date.now() + (options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-  const staleMs = options.staleMs ?? DEFAULT_STALE_MS;
+  const clock = options.clock ?? systemClock;
+  const deadline = clock.now() + (options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   mkdirSync(dirname(lockPath), { recursive: true });
   for (let attempt = 0;; ) {
-    const outcome = attemptOnce(lockPath, staleMs);
+    const outcome = attemptOnce(lockPath, options, clock.now(), options.leaseMs ?? DEFAULT_LEASE_MS);
     if (outcome.kind === "acquired")
-      return outcome.token;
+      return outcome.holder;
     if (outcome.kind === "retry")
       continue;
-    if (Date.now() >= deadline)
-      throw lockTimeout(lockPath, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-    await sleep(backoffMs(attempt));
+    if (clock.now() >= deadline)
+      throw lockTimeout(lockPath, options);
+    await new Promise((resolve) => clock.schedule(resolve, backoffMs(attempt)));
     attempt += 1;
   }
 }
 function acquireSync(lockPath, options) {
   const deadline = Date.now() + (options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-  const staleMs = options.staleMs ?? DEFAULT_STALE_MS;
   mkdirSync(dirname(lockPath), { recursive: true });
   for (let attempt = 0;; ) {
-    const outcome = attemptOnce(lockPath, staleMs);
+    const outcome = attemptOnce(lockPath, options, Date.now());
     if (outcome.kind === "acquired")
-      return outcome.token;
+      return outcome.holder;
     if (outcome.kind === "retry")
       continue;
     if (Date.now() >= deadline)
-      throw lockTimeout(lockPath, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      throw lockTimeout(lockPath, options);
     Atomics.wait(SLEEP_CELL, 0, 0, backoffMs(attempt));
     attempt += 1;
   }
 }
-function attemptOnce(lockPath, staleMs) {
+function attemptOnce(lockPath, options, now, leaseMs) {
   try {
-    const token = tryCreate(lockPath);
-    if (token !== null)
-      return { kind: "acquired", token };
-    const snapshot = readSnapshot(lockPath);
+    const holder = tryCreate(lockPath, now, leaseMs);
+    if (holder !== null)
+      return { kind: "acquired", holder };
+    const snapshot = readSnapshot(lockPath, now);
     if (snapshot === null)
       return { kind: "retry" };
-    if (isStale(snapshot, staleMs) && reclaim(lockPath, snapshot.raw))
+    const record = snapshot.record;
+    const stale = record === null ? snapshot.ageMs > (options.staleMs ?? DEFAULT_STALE_MS) : !isProcessAlive(record.pid) || record.leaseUntil !== undefined && now > record.leaseUntil;
+    if (stale && reclaim(lockPath, snapshot.raw))
       return { kind: "retry" };
     return { kind: "wait" };
   } catch (error) {
-    if (hasCode(error, "EINTR"))
+    if (hasCode2(error, "EINTR"))
       return { kind: "wait" };
     throw error;
   }
 }
-function tryCreate(lockPath) {
+function writeRecord(holder) {
+  const buf = Buffer.from(JSON.stringify(holder.record));
+  ftruncateSync(holder.fd, 0);
+  let offset = 0;
+  while (offset < buf.length) {
+    const written = writeSync(holder.fd, buf, offset, buf.length - offset, offset);
+    if (written === 0)
+      throw new Error("State lock write made no progress.");
+    offset += written;
+  }
+}
+function tryCreate(lockPath, now, leaseMs) {
   let fd;
   try {
     fd = openSync(lockPath, "wx");
   } catch (error) {
-    if (hasCode(error, "EEXIST"))
+    if (hasCode2(error, "EEXIST"))
       return null;
     throw error;
   }
-  const record = { pid: process.pid, createdAt: new Date().toISOString(), token: randomUUID() };
+  const record = {
+    pid: process.pid,
+    createdAt: new Date(now).toISOString(),
+    token: randomUUID(),
+    ...leaseMs === undefined ? {} : { leaseUntil: now + leaseMs }
+  };
+  const holder = { fd, record };
   try {
-    writeSync(fd, JSON.stringify(record));
+    writeRecord(holder);
   } catch (error) {
     closeSync(fd);
     try {
       unlinkSync(lockPath);
-    } catch {}
+    } catch (cleanup) {
+      if (!hasCode2(cleanup, "ENOENT"))
+        throw cleanup;
+    }
     throw error;
   }
-  closeSync(fd);
-  return record.token;
+  return holder;
 }
-function readSnapshot(lockPath) {
+function readSnapshot(lockPath, now) {
   try {
-    const raw = readFileSync(lockPath, "utf8");
-    const ageMs = Date.now() - statSync(lockPath).mtimeMs;
-    return { raw, record: parseRecord(raw), ageMs };
+    const raw = readFileSync2(lockPath, "utf8");
+    return { raw, record: parseRecord(raw), ageMs: now - statSync(lockPath).mtimeMs };
   } catch (error) {
-    if (hasCode(error, "ENOENT"))
+    if (hasCode2(error, "ENOENT"))
       return null;
     throw error;
   }
 }
 function parseRecord(raw) {
   try {
-    const parsed = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null)
+    const record = JSON.parse(raw);
+    if (typeof record !== "object" || record === null)
       return null;
-    const record = parsed;
-    const pid = record["pid"];
-    const createdAt = record["createdAt"];
-    const token = record["token"];
-    if (typeof pid !== "number" || !Number.isInteger(pid) || pid <= 0 || typeof createdAt !== "string")
+    if (!("pid" in record) || typeof record.pid !== "number" || !Number.isInteger(record.pid) || record.pid <= 0)
       return null;
-    if (typeof token !== "string" || token.length === 0)
+    if (!("createdAt" in record) || typeof record.createdAt !== "string")
       return null;
-    return { pid, createdAt, token };
+    if (!("token" in record) || typeof record.token !== "string" || record.token.length === 0)
+      return null;
+    return {
+      pid: record.pid,
+      createdAt: record.createdAt,
+      token: record.token,
+      ..."leaseUntil" in record && typeof record.leaseUntil === "number" ? { leaseUntil: record.leaseUntil } : {}
+    };
   } catch (error) {
     if (error instanceof SyntaxError)
       return null;
     throw error;
   }
 }
-function isStale(snapshot, staleMs) {
-  if (snapshot.record === null)
-    return snapshot.ageMs > staleMs;
-  return !isProcessAlive(snapshot.record.pid);
-}
 function isProcessAlive(pid) {
   try {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    if (hasCode(error, "ESRCH"))
+    if (hasCode2(error, "ESRCH"))
       return false;
-    if (hasCode(error, "EPERM"))
+    if (hasCode2(error, "EPERM"))
       return true;
     throw error;
   }
 }
 function reclaim(lockPath, expectedRaw) {
-  const current = readSnapshot(lockPath);
+  const current = readSnapshot(lockPath, Date.now());
   if (current === null)
     return true;
   if (current.raw !== expectedRaw)
@@ -517,63 +682,102 @@ function reclaim(lockPath, expectedRaw) {
   try {
     unlinkSync(lockPath);
   } catch (error) {
-    if (!hasCode(error, "ENOENT"))
+    if (hasCode2(error, "EPERM") || hasCode2(error, "EACCES"))
+      return false;
+    if (!hasCode2(error, "ENOENT"))
       throw error;
   }
   return true;
 }
 function release(lockPath, token) {
-  const current = readSnapshot(lockPath);
-  if (current === null || current.record?.token !== token)
+  if (readSnapshot(lockPath, Date.now())?.record?.token !== token)
     return;
   try {
     unlinkSync(lockPath);
   } catch (error) {
-    if (!hasCode(error, "ENOENT"))
+    if (!hasCode2(error, "ENOENT"))
       throw error;
   }
 }
 function backoffMs(attempt) {
-  const exponential = Math.min(MAX_DELAY_MS, MIN_DELAY_MS * 2 ** attempt);
-  return exponential + Math.random() * MIN_DELAY_MS;
+  return Math.min(100, 5 * 2 ** attempt) + Math.random() * 5;
 }
-function lockTimeout(lockPath, timeoutMs) {
-  const holder = readSnapshot(lockPath)?.record;
-  const owner = holder === undefined || holder === null ? "another process" : `pid ${holder.pid}`;
-  return new UlwLoopError(`ulw-loop state lock ${lockPath} is held by ${owner} for more than ${timeoutMs}ms; retry once that process finishes, or delete the lock file if that process is gone.`, ULW_LOOP_LOCK_TIMEOUT_CODE, {
-    details: {
-      lockPath,
-      timeoutMs,
-      ...holder === undefined || holder === null ? {} : { holderPid: holder.pid }
-    }
-  });
+function lockTimeout(lockPath, options) {
+  const holder = readSnapshot(lockPath, Date.now())?.record;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const owner = holder == null ? "another process" : `pid ${holder.pid}`;
+  return new UlwLoopError(`ulw-loop state lock ${lockPath} is held by ${owner} for more than ${timeoutMs}ms. The lock owner is still alive. If a JS eval kernel was interrupted while writing, wait for its lease to expire (${options.leaseMs ?? DEFAULT_LEASE_MS} ms) or restart the owning senpi process; never delete a lock owned by a live process.`, ULW_LOOP_LOCK_TIMEOUT_CODE, { details: { lockPath, timeoutMs, ...holder == null ? {} : { holderPid: holder.pid } } });
 }
-function hasCode(error, code) {
+function hasCode2(error, code) {
   return error instanceof Error && "code" in error && error.code === code;
 }
 
 // components/ulw-loop/src/plan-io.ts
+function readLedger2(repoRoot, scope) {
+  const lockPath = ulwLoopStateLockPath(repoRoot, scope);
+  if (heldLocks.getStore()?.has(lockPath)) {
+    assertStateLockOwned(lockPath);
+    materializeSync(ulwLoopDir(repoRoot, scope));
+  }
+  return readLedger(repoRoot, scope);
+}
 var LEGACY_OBJECTIVE_PREFIX = `Complete all ulw-loop stories in ${ULW_LOOP_DIR}/${ULW_LOOP_GOALS}: `;
 var LEGACY_OBJECTIVE = `Complete all ulw-loop stories listed in ${ULW_LOOP_DIR}/${ULW_LOOP_GOALS}. Use ${ULW_LOOP_DIR}/${ULW_LOOP_LEDGER} as the durable audit trail.`;
 var locks = new Map;
 var heldLocks = new AsyncLocalStorage;
-function hasCode2(error, code) {
-  return error instanceof Error && "code" in error && error.code === code;
+var lockOptions = new AsyncLocalStorage;
+function tokenAt(lockPath) {
+  const raw = readOptional(lockPath);
+  if (raw === undefined)
+    return;
+  try {
+    const record = JSON.parse(raw);
+    return typeof record === "object" && record !== null && "token" in record && typeof record.token === "string" ? record.token : undefined;
+  } catch (error) {
+    if (error instanceof SyntaxError)
+      return;
+    throw error;
+  }
 }
-function isLegacyEnumeratedAggregateObjective(objective) {
-  return objective === LEGACY_OBJECTIVE || Boolean(objective?.startsWith(LEGACY_OBJECTIVE_PREFIX));
+function assertStateLockOwned(lockPath) {
+  const context = heldLocks.getStore()?.get(lockPath);
+  if (context === undefined)
+    return;
+  if (tokenAt(lockPath) !== context.token)
+    throw new UlwLoopError("The ulw-loop mutation lock changed owners.", "ULW_LOOP_LOCK_LOST");
 }
-function isSteeringKind(value) {
-  return value === "steering_accepted" || value === "steering_rejected" || value === "criteria_revised" || value === "batch_updated";
+function migrationEntries(plan) {
+  for (const context of heldLocks.getStore()?.values() ?? []) {
+    const entries = context.migrations.get(plan.goalsPath);
+    if (entries !== undefined) {
+      context.migrations.delete(plan.goalsPath);
+      return entries;
+    }
+  }
+  return [];
 }
-async function withUlwLoopMutationLock(repoRoot, scopeOrFn, maybeFn) {
+async function withUlwLoopMutationLock(repoRoot, scopeOrFn, maybeFn, options = {}) {
   const scope = typeof scopeOrFn === "function" ? undefined : scopeOrFn;
   const fn = typeof scopeOrFn === "function" ? scopeOrFn : maybeFn;
   if (fn === undefined)
     throw new UlwLoopError("Missing ulw-loop mutation body.", "ULW_LOOP_LOCK_BODY_MISSING");
   const lockKey = `${repoRoot}\x00${ulwLoopRelativeDir(scope)}`;
   const lockPath = ulwLoopStateLockPath(repoRoot, scope);
-  const locked = () => withStateLock(lockPath, () => heldLocks.run(new Set([...heldLocks.getStore() ?? [], lockKey]), fn));
+  const locked = () => withStateLock(lockPath, async (token) => {
+    return heldLocks.run(new Map([...heldLocks.getStore() ?? [], [lockPath, { token, migrations: new Map }]]), async () => {
+      for (let attempt = 0;; attempt += 1) {
+        try {
+          return await fn();
+        } catch (error) {
+          if (!(error instanceof UlwLoopError) || error.code !== "ULW_LOOP_PUBLISH_CONFLICT")
+            throw error;
+          assertStateLockOwned(lockPath);
+          if (attempt !== 0)
+            throw error;
+        }
+      }
+    });
+  }, { ...lockOptions.getStore(), ...options });
   const prior = locks.get(lockKey) ?? Promise.resolve(undefined);
   const run = prior.then(locked, locked);
   const gate = run.then(() => {
@@ -588,98 +792,140 @@ async function withUlwLoopMutationLock(repoRoot, scopeOrFn, maybeFn) {
   });
   return run;
 }
-async function readUlwLoopPlan(repoRoot, scope) {
+function readUlwLoopPlanSync(repoRoot, scope) {
   const path = ulwLoopGoalsPath(repoRoot, scope);
-  let raw;
-  try {
-    raw = await readFile2(path, "utf8");
-  } catch (error) {
-    if (!hasCode2(error, "ENOENT"))
-      throw error;
-    const recovery = planMissingRecovery(listUlwLoopSessionIds(repoRoot));
-    throw new UlwLoopError(`No ulw-loop plan found at ${repoRelative(path, repoRoot)}.
-${recovery.message}`, "ULW_LOOP_PLAN_MISSING", { cause: error, ...recovery.details === undefined ? {} : { details: recovery.details } });
-  }
-  const parsed = JSON.parse(raw);
-  if (parsed.version !== 1 || !Array.isArray(parsed.goals)) {
+  const parsed = reconcilePlan(ulwLoopDir(repoRoot, scope));
+  if (parsed === undefined)
+    throw planMissingError(repoRelative(path, repoRoot), listUlwLoopSessionIds(repoRoot));
+  if (parsed.version !== 1 || !Array.isArray(parsed.goals))
     throw new UlwLoopError(`Invalid ulw-loop plan at ${repoRelative(path, repoRoot)}.`, "ULW_LOOP_PLAN_INVALID");
-  }
   const previousObjective = parsed.codexObjective;
-  if ((parsed.codexGoalMode ?? "per_story") === "aggregate" && isLegacyEnumeratedAggregateObjective(previousObjective)) {
-    if (!(heldLocks.getStore()?.has(`${repoRoot}\x00${ulwLoopRelativeDir(scope)}`) ?? false)) {
-      throw new UlwLoopError(`The ulw-loop plan at ${repoRelative(path, repoRoot)} carries a legacy enumerated aggregate objective that must be migrated before reads continue. Run any state-mutating ulw-loop command once (e.g. \`record-evidence\`, \`steer\`, \`checkpoint\`) to migrate it under the state lock, then retry.`, "ULW_LOOP_MIGRATION_REQUIRED");
-    }
-    const now = iso();
+  if ((parsed.codexGoalMode ?? "per_story") === "aggregate" && previousObjective !== undefined && (previousObjective === LEGACY_OBJECTIVE || previousObjective.startsWith(LEGACY_OBJECTIVE_PREFIX))) {
     parsed.codexObjective = aggregateCodexObjectiveForScope(scope);
     parsed.codexObjectiveAliases = [...new Set([...parsed.codexObjectiveAliases ?? [], previousObjective])];
-    parsed.updatedAt = now;
-    await writePlan(repoRoot, parsed, scope);
-    await appendLedger(repoRoot, {
-      at: now,
-      kind: "aggregate_objective_migrated",
-      message: "Migrated legacy enumerated aggregate Codex objective to the stable pointer objective.",
-      before: { codexObjective: previousObjective },
-      after: { codexObjective: parsed.codexObjective }
-    }, scope);
+    heldLocks.getStore()?.get(ulwLoopStateLockPath(repoRoot, scope))?.migrations.set(parsed.goalsPath, [
+      {
+        at: iso(),
+        kind: "aggregate_objective_migrated",
+        before: { codexObjective: previousObjective },
+        after: { codexObjective: parsed.codexObjective }
+      }
+    ]);
   }
   return parsed;
 }
+async function readUlwLoopPlan(repoRoot, scope) {
+  if (heldLocks.getStore()?.has(ulwLoopStateLockPath(repoRoot, scope))) {
+    assertStateLockOwned(ulwLoopStateLockPath(repoRoot, scope));
+    await materialize(ulwLoopDir(repoRoot, scope));
+  }
+  return readUlwLoopPlanSync(repoRoot, scope);
+}
 function listUlwLoopSessionIds(repoRoot) {
   try {
-    return readdirSync(ulwLoopDir(repoRoot), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    return readdirSync2(ulwLoopDir(repoRoot), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
   } catch {
     return [];
   }
 }
-async function writePlan(repoRoot, plan, scope) {
-  await mkdir(ulwLoopDir(repoRoot, scope), { recursive: true });
-  const path = ulwLoopGoalsPath(repoRoot, scope);
-  const tmpPath = `${path}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(tmpPath, `${JSON.stringify(plan, null, 2)}
-`, "utf8");
-  await rename(tmpPath, path);
-}
-async function appendLedger(repoRoot, entry, scope) {
-  await appendLedgerEntries(repoRoot, [entry], scope);
-}
-async function appendLedgerEntries(repoRoot, entries, scope) {
-  if (entries.length === 0)
-    return;
-  await mkdir(ulwLoopDir(repoRoot, scope), { recursive: true });
-  await appendFile(ulwLoopLedgerPath(repoRoot, scope), `${entries.map((entry) => JSON.stringify(entry)).join(`
-`)}
-`, "utf8");
-}
-async function* ledgerLines(repoRoot, scope) {
-  const stream = createReadStream(ulwLoopLedgerPath(repoRoot, scope), { encoding: "utf8" });
-  const lines = createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
-  try {
-    for await (const line of lines) {
-      if (line.trim().length > 0)
-        yield line;
-    }
-  } catch (error) {
-    if (!hasCode2(error, "ENOENT"))
-      throw error;
-  } finally {
-    lines.close();
-    stream.destroy();
-  }
+function isSteeringKind(value) {
+  return value === "steering_accepted" || value === "steering_rejected" || value === "criteria_revised" || value === "batch_updated";
 }
 async function findAcceptedSteeringLedgerEntry(repoRoot, key, scope) {
-  const probe = JSON.stringify(key);
-  for await (const line of ledgerLines(repoRoot, scope)) {
-    if (!line.includes(probe))
-      continue;
-    const entry = JSON.parse(line);
-    if (!isSteeringKind(entry.kind))
-      continue;
-    if (entry.steering?.invariant.accepted !== true)
-      continue;
-    if (entry.idempotencyKey === key || entry.steering.idempotencyKey === key || entry.steering.promptSignature === key)
-      return entry;
+  return readLedger2(repoRoot, scope).find((entry) => isSteeringKind(entry.kind) && entry.steering?.invariant.accepted === true && (entry.idempotencyKey === key || entry.steering.idempotencyKey === key || entry.steering.promptSignature === key));
+}
+
+// components/ulw-loop/src/plan-commit.ts
+var hooks = new AsyncLocalStorage2;
+async function beforePlanMutation() {
+  await hooks.getStore()?.beforeMutation?.();
+}
+async function writeViewFile(path, content) {
+  await (hooks.getStore()?.writeView ?? writeFile)(path, content);
+}
+async function commit(repoRoot, scope, mutation) {
+  const { plan } = mutation;
+  const dir = ulwLoopDir(repoRoot, scope);
+  assertStateLockOwned(ulwLoopStateLockPath(repoRoot, scope));
+  await hooks.getStore()?.beforeCommit?.();
+  const next = (plan.revision ?? 0) + 1;
+  const brief = plan.brief ?? readOptional(join4(dir, "brief.md")) ?? "";
+  const entries = [...migrationEntries(plan), ...mutation.entries].map((entry, seq) => ({
+    ...entry,
+    revision: next,
+    id: `${next}-${seq}`
+  }));
+  const record = {
+    version: 1,
+    revision: next,
+    plan: { ...plan, revision: next, brief },
+    ledger: entries
+  };
+  mkdirSync2(join4(dir, "revisions"), { recursive: true });
+  mkdirSync2(join4(dir, "tmp"), { recursive: true });
+  const temp = join4(dir, "tmp", `${process.pid}-${randomUUID2()}.json`);
+  try {
+    writeFileSync(temp, `${JSON.stringify(record)}
+`, { flag: "wx" });
+    try {
+      (hooks.getStore()?.link ?? linkSync)(temp, join4(dir, "revisions", `${String(next).padStart(8, "0")}.json`));
+    } catch (error) {
+      if (hasCode(error, "EEXIST"))
+        throw new UlwLoopError("Another writer published the read revision.", "ULW_LOOP_PUBLISH_CONFLICT", {
+          cause: error
+        });
+      if (["EPERM", "ENOTSUP", "EXDEV"].some((code) => hasCode(error, code)))
+        throw new UlwLoopError("Immutable ulw-loop publication requires atomic hard links.", "ULW_LOOP_PUBLISH_UNSUPPORTED_FS", { cause: error });
+      throw error;
+    }
+  } finally {
+    rmSync(temp, { force: true });
   }
-  return;
+  plan.revision = next;
+  plan.brief = brief;
+  for (const [index, entry] of mutation.entries.entries())
+    Object.assign(entry, entries[index + entries.length - mutation.entries.length]);
+  await hooks.getStore()?.afterCommit?.();
+  await materialize(dir);
+}
+function viewContents(dir) {
+  const plan = reconcilePlan(dir);
+  if (plan === undefined || readRecords(dir).length === 0)
+    return [];
+  const ledger = readLedgerAt(dir);
+  const views = [
+    ["goals.json", `${JSON.stringify(plan, null, 2)}
+`],
+    ["ledger.jsonl", ledger.length === 0 ? "" : `${ledger.map((entry) => JSON.stringify(entry)).join(`
+`)}
+`],
+    ["brief.md", plan.brief ?? readOptional(join4(dir, "brief.md")) ?? ""]
+  ];
+  return views.filter(([name, content]) => readOptional(join4(dir, name)) !== content);
+}
+function materializeSync(dir) {
+  for (const [name, content] of viewContents(dir)) {
+    mkdirSync2(join4(dir, "tmp"), { recursive: true });
+    const temp = join4(dir, "tmp", `${process.pid}-${randomUUID2()}-${name}`);
+    try {
+      writeFileSync(temp, content, { flag: "wx" });
+      renameSync(temp, join4(dir, name));
+    } finally {
+      rmSync(temp, { force: true });
+    }
+  }
+}
+async function materialize(dir) {
+  for (const [name, content] of viewContents(dir)) {
+    mkdirSync2(join4(dir, "tmp"), { recursive: true });
+    const temp = join4(dir, "tmp", `${process.pid}-${randomUUID2()}-${name}`);
+    try {
+      await writeViewFile(temp, content);
+      await rename(temp, join4(dir, name));
+    } finally {
+      rmSync(temp, { force: true });
+    }
+  }
 }
 
 // components/ulw-loop/src/evidence.ts
@@ -729,7 +975,6 @@ async function recordEvidence(repoRoot, args, scope) {
       criterion.notes = args.notes;
     goal.updatedAt = capturedAt;
     plan.updatedAt = capturedAt;
-    await writePlan(repoRoot, plan, scope);
     const ledgerEntry = {
       at: capturedAt,
       kind,
@@ -741,7 +986,7 @@ async function recordEvidence(repoRoot, args, scope) {
       before: { status: prevStatus },
       after: { goalId: goal.id, criterionId: criterion.id, status: args.status, evidence, capturedAt, prevStatus }
     };
-    await appendLedger(repoRoot, ledgerEntry, scope);
+    await commit(repoRoot, scope, { plan, entries: [ledgerEntry] });
     return { plan, goal, criterion, ledgerEntry };
   });
 }
@@ -1011,8 +1256,8 @@ function adversarialVerdict(row, field) {
 }
 
 // components/ulw-loop/src/surface.ts
-import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
-import { dirname as dirname2, join as join2 } from "node:path";
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
+import { dirname as dirname2, join as join5 } from "node:path";
 import { fileURLToPath } from "node:url";
 var REVIEWER_ROLES_BY_SURFACE = {
   lazycodex: {
@@ -1066,14 +1311,14 @@ function resolveToolkitSurface(options) {
   if (fromEnv !== null)
     return fromEnv;
   const entryDir = options?.entryDir ?? dirname2(fileURLToPath(import.meta.url));
-  const markerPath = join2(entryDir, SURFACE_MARKER_FILENAME);
+  const markerPath = join5(entryDir, SURFACE_MARKER_FILENAME);
   return readMarkerSurface(markerPath) ?? "lazycodex";
 }
 function readMarkerSurface(markerPath) {
   try {
-    if (!existsSync2(markerPath))
+    if (!existsSync3(markerPath))
       return null;
-    const parsed = JSON.parse(readFileSync2(markerPath, "utf8"));
+    const parsed = JSON.parse(readFileSync3(markerPath, "utf8"));
     return parseSurface(parsed["surface"]);
   } catch (error) {
     if (error instanceof Error)
@@ -1274,7 +1519,7 @@ function parseAdversarialCases(value, byId) {
 }
 
 // components/ulw-loop/src/cli-arg-parser.ts
-import { readFile as readFile3 } from "node:fs/promises";
+import { readFile as readFile2 } from "node:fs/promises";
 var VALUE_FLAGS = new Set("--brief --brief-file --session-id --codex-goal-mode --validation-batch-json --goal --goal-id --criterion-id --status --evidence --notes --codex-goal-json --quality-gate-json --kind --rationale --title --objective --target-goal-id --source --after-json --directive-json --directive-file --idempotency-key --proposals-json".split(" "));
 var SUBCOMMANDS = new Set("create-goals status complete-goals criteria record-evidence checkpoint steer add-goal record-review-blockers".split(" "));
 function hasFlag(argv, flag) {
@@ -1322,7 +1567,7 @@ async function readJsonInput(value) {
   if (value === undefined)
     return;
   try {
-    return JSON.parse(looksLikeJson(value) ? value : await readFile3(value, "utf8"));
+    return JSON.parse(looksLikeJson(value) ? value : await readFile2(value, "utf8"));
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
     throw new UlwLoopError(`Invalid JSON input: ${message}`, "ULW_LOOP_JSON_INPUT_INVALID", { cause: error });
@@ -1332,7 +1577,7 @@ async function parseCodexGoalJson(value) {
   if (value === undefined)
     return;
   try {
-    const raw = looksLikeJson(value) ? value : await readFile3(value, "utf8");
+    const raw = looksLikeJson(value) ? value : await readFile2(value, "utf8");
     JSON.parse(raw);
     return raw;
   } catch (error) {
@@ -1483,7 +1728,7 @@ function fail(message, code = "ULW_LOOP_VALIDATION_BATCH_INVALID") {
 }
 
 // components/ulw-loop/src/checkpoint.ts
-var QUALITY_GATE_FS = { existsSync: existsSync3, statSync: statSync2 };
+var QUALITY_GATE_FS = { existsSync: existsSync4, statSync: statSync2 };
 function ulwLoopFail2(message, code) {
   throw new UlwLoopError(message, code);
 }
@@ -1506,10 +1751,10 @@ async function readJsonInput2(raw, repoRoot) {
       throw error;
   }
   const path = resolve3(repoRoot, trimmed);
-  if (!existsSync3(path))
+  if (!existsSync4(path))
     return ulwLoopFail2("Quality gate JSON is neither valid JSON nor a readable path.", "ulw_loop_json_input_invalid");
   try {
-    return JSON.parse(await readFile4(path, "utf8"));
+    return JSON.parse(await readFile3(path, "utf8"));
   } catch (error) {
     return ulwLoopFail2(`Quality gate path does not contain valid JSON${error instanceof Error ? `: ${error.message}` : "."}`, "ulw_loop_json_input_invalid");
   }
@@ -1649,12 +1894,12 @@ async function checkpointUlwLoop(repoRoot, args, scope, dependencies) {
     if (aggregateCompletion !== undefined)
       nextActions = [...nextActions, 'aggregate complete — now update_goal({status:"complete"})'];
     plan.updatedAt = now;
-    await writePlan(repoRoot, plan, scope);
     const ledgerEntry = buildLedger(now, args, goal, qualityGate, codexGoal, aggregateCompletion);
-    await appendLedger(repoRoot, ledgerEntry, scope);
+    const entries = [ledgerEntry];
     const closedBatch = args.status === "complete" ? batchClosedBy(plan, goal.id) : undefined;
     if (closedBatch !== undefined)
-      await appendLedger(repoRoot, { at: now, kind: "batch_closed", goalId: goal.id, message: closedBatch.batchId }, scope);
+      entries.push({ at: now, kind: "batch_closed", goalId: goal.id, message: closedBatch.batchId });
+    await commit(repoRoot, scope, { plan, entries });
     return aggregateCompletion === undefined ? { plan, goal, ledgerEntry, nextActions, warnings } : { plan, goal, ledgerEntry, aggregateCompletion, nextActions, warnings };
   });
 }
@@ -1990,10 +2235,6 @@ function joinLines(lines) {
 `);
 }
 
-// components/ulw-loop/src/plan-crud.ts
-import { existsSync as existsSync4 } from "node:fs";
-import { mkdir as mkdir2, writeFile as writeFile2 } from "node:fs/promises";
-
 // components/ulw-loop/src/plan-goal-factory.ts
 function cleanLine(line) {
   return line.replace(/^\s*(?:[-*+]\s+|\d+[.)]\s+)/, "").trim();
@@ -2099,18 +2340,31 @@ function clearGoalBlockerFields2(goal) {
   ])
     delete goal[key];
 }
-async function createUlwLoopPlan(repoRoot, args, scope) {
+async function createUlwLoopPlan(repoRoot, args, scope, surface = "lazycodex") {
   return withUlwLoopMutationLock(repoRoot, scope, async () => {
-    if (!args.force && existsSync4(ulwLoopGoalsPath(repoRoot, scope))) {
-      const existing = await readUlwLoopPlan(repoRoot, scope);
+    let existing;
+    if (planExists(repoRoot, scope)) {
+      try {
+        existing = await readUlwLoopPlan(repoRoot, scope);
+      } catch (error) {
+        if (!args.force)
+          throw error;
+      }
+    }
+    if (!args.force && existing !== undefined) {
       if (isUlwLoopDone(existing))
-        throw completedPlanExistsError(scope);
+        throw completedPlanExistsError(scope, surface);
       throw new UlwLoopError(`Refusing to overwrite existing ${ulwLoopGoalsRelativePath(scope)}; pass --force to recreate it.`, "ULW_LOOP_PLAN_EXISTS");
     }
     const now = iso();
     const goals = deriveGoalCandidates(args.brief).map((goal, index) => makeGoal(goal.title, goal.objective, index, now));
     const plan = {
       version: 1,
+      revision: existing?.revision ?? 0,
+      ledgerResetRevision: (existing?.revision ?? 0) + 1,
+      brief: args.brief.endsWith(`
+`) ? args.brief : `${args.brief}
+`,
       evidenceLayoutVersion: 2,
       createdAt: now,
       updatedAt: now,
@@ -2125,21 +2379,23 @@ async function createUlwLoopPlan(repoRoot, args, scope) {
       plan.validationBatches = validationBatches;
     if (plan.codexGoalMode === "aggregate")
       plan.codexObjective = aggregateCodexObjectiveForScope(scope);
-    await mkdir2(ulwLoopDir(repoRoot, scope), { recursive: true });
-    await writeFile2(ulwLoopBriefPath(repoRoot, scope), args.brief.endsWith(`
-`) ? args.brief : `${args.brief}
-`, "utf8");
-    await writePlan(repoRoot, plan, scope);
-    await writeFile2(ulwLoopLedgerPath(repoRoot, scope), "", "utf8");
-    await appendLedger(repoRoot, { at: now, kind: "plan_created", message: `${goals.length} goal(s) created` }, scope);
+    await beforePlanMutation();
+    await commit(repoRoot, scope, {
+      plan,
+      entries: [{ at: now, kind: "plan_created", message: `${goals.length} goal(s) created` }]
+    });
     return plan;
   });
 }
-function completedPlanExistsError(scope) {
+function completedPlanExistsError(scope, surface) {
   return new UlwLoopError([
     `Existing ulw-loop aggregate is already complete at ${ulwLoopGoalsRelativePath(scope)}.`,
-    "Start a new run with `omo-agent-toolkit ulw-loop create-goals --session-id <new-id> ...` to isolate fresh state.",
-    "Use --force only when you intentionally want to overwrite the completed evidence."
+    ...surface === "omo-senpi" ? [
+      "Start a new run under a fresh session id (a new senpi session) or call agentToolkit.createGoals({ brief, force: true }) to recreate."
+    ] : [
+      "Start a new run with `omo-agent-toolkit ulw-loop create-goals --session-id <new-id> ...` to isolate fresh state.",
+      "Use --force only when you intentionally want to overwrite the completed evidence."
+    ]
   ].join(" "), "ULW_LOOP_PLAN_EXISTS_COMPLETE");
 }
 async function addUlwLoopGoal(repoRoot, args, scope) {
@@ -2147,8 +2403,10 @@ async function addUlwLoopGoal(repoRoot, args, scope) {
     const plan = await readUlwLoopPlan(repoRoot, scope);
     const now = iso();
     const goal = appendGoalToPlan(plan, args.title, args.objective, now);
-    await writePlan(repoRoot, plan, scope);
-    await appendLedger(repoRoot, { at: now, kind: "goal_added", goalId: goal.id, status: goal.status, message: goal.title }, scope);
+    await commit(repoRoot, scope, {
+      plan,
+      entries: [{ at: now, kind: "goal_added", goalId: goal.id, status: goal.status, message: goal.title }]
+    });
     return { plan, goal };
   });
 }
@@ -2161,17 +2419,18 @@ async function startNextUlwLoop(repoRoot, args = {}, scope) {
     const existing = plan.goals.find((goal) => goal.status === "in_progress" && isScheduleEligible(goal));
     if (existing)
       return { plan, goal: existing, resumed: true };
+    const entries = [];
     let next = plan.goals.find((goal) => goal.status === "pending" && isScheduleEligible(goal));
     if (!next && args.retryFailed) {
       next = plan.goals.find((goal) => goal.status === "failed" && !goal.nonRetriable && isScheduleEligible(goal));
       if (next)
-        await appendLedger(repoRoot, {
+        entries.push({
           at: now,
           kind: "goal_retried",
           goalId: next.id,
           status: "pending",
           ...next.failureReason ? { message: next.failureReason } : {}
-        }, scope);
+        });
     }
     if (!next)
       return { done: true, plan };
@@ -2182,8 +2441,14 @@ async function startNextUlwLoop(repoRoot, args = {}, scope) {
     next.updatedAt = now;
     plan.activeGoalId = next.id;
     plan.updatedAt = now;
-    await writePlan(repoRoot, plan, scope);
-    await appendLedger(repoRoot, { at: now, kind: "goal_started", goalId: next.id, status: next.status, message: `Attempt ${next.attempt}` }, scope);
+    entries.push({
+      at: now,
+      kind: "goal_started",
+      goalId: next.id,
+      status: next.status,
+      message: `Attempt ${next.attempt}`
+    });
+    await commit(repoRoot, scope, { plan, entries });
     return { plan, goal: next, resumed: false };
   });
 }
@@ -2279,7 +2544,7 @@ function checkpointStatus(value) {
 }
 
 // components/ulw-loop/src/cli-subcommands.ts
-import { readFile as readFile5 } from "node:fs/promises";
+import { readFile as readFile4 } from "node:fs/promises";
 
 // components/ulw-loop/src/cli-steering.ts
 var SOURCES = ["user_prompt_submit", "finding", "cli"];
@@ -2649,9 +2914,7 @@ async function recordFinalReviewBlockers(repoRoot, args, scope) {
     const summaryEntry = { at: now, kind: "goal_review_blocked", goalId: goal.id, status: goal.status, evidence: args.evidence, codexGoal, message: `Review blockers recorded; appended ${newGoal.id}.` };
     Reflect.set(summaryEntry, "kind", "blocker_recorded");
     const ledgerEntries = [blockedEntry, addedEntry, summaryEntry];
-    await writePlan(repoRoot, plan, scope);
-    for (const entry of ledgerEntries)
-      await appendLedger(repoRoot, entry, scope);
+    await commit(repoRoot, scope, { plan, entries: ledgerEntries });
     return {
       plan,
       blockedGoal: goal,
@@ -2664,31 +2927,31 @@ async function recordFinalReviewBlockers(repoRoot, args, scope) {
 }
 
 // components/ulw-loop/src/status-next-actions.ts
-function statusNextActions(plan) {
+function statusNextActions(plan, surface = "lazycodex") {
   const actions = [];
   const active = plan.goals.find((goal) => goal.id === plan.activeGoalId);
   if (plan.goals.length === 0)
-    actions.push(`No goals yet: bootstrap with \`${ULW_LOOP_CREATE_GOALS_COMMAND}\`.`);
+    actions.push(`No goals yet: bootstrap with \`${createGoalsAction(surface)}\`.`);
   else if (active !== undefined)
-    actions.push(...activeGoalActions(plan, active));
+    actions.push(...activeGoalActions(plan, active, surface));
   for (const goal of plan.goals.filter((candidate) => candidate.status === "review_blocked"))
-    actions.push(`${goal.id} is review_blocked: capture the reviewer verdict with \`omo-agent-toolkit ulw-loop record-review-blockers --goal-id ${goal.id} --title "<title>" --objective "<objective>" --evidence "<verdict>" --codex-goal-json '<get_goal json>'\`.`);
+    actions.push(surface === "omo-senpi" ? `${goal.id} is review_blocked: capture the reviewer verdict with \`agentToolkit.recordReviewBlockers({ goalId: "${goal.id}", title: "<title>", objective: "<objective>", evidence: "<verdict>" })\`.` : `${goal.id} is review_blocked: capture the reviewer verdict with \`omo-agent-toolkit ulw-loop record-review-blockers --goal-id ${goal.id} --title "<title>" --objective "<objective>" --evidence "<verdict>" --codex-goal-json '<get_goal json>'\`.`);
   if (plan.evidenceLayoutVersion !== 2 || active === undefined)
     actions.push("plan is evidence-layout v1; artifacts go under .omo/evidence/");
   return actions;
 }
-function activeGoalActions(plan, active) {
+function activeGoalActions(plan, active, surface) {
   const unresolved = active.successCriteria.filter((criterion) => criterion.status !== "pass");
   if (unresolved.length > 0)
     return [
-      `${active.id} has ${unresolved.length} unresolved criterion(s) (${unresolved.map((criterion) => criterion.id).join(", ")}): record proof with \`omo-agent-toolkit ulw-loop record-evidence --goal-id ${active.id} --criterion-id <id> --status pass --evidence "<observable proof>"\`.`
+      surface === "omo-senpi" ? `${active.id} has ${unresolved.length} unresolved criterion(s) (${unresolved.map((criterion) => criterion.id).join(", ")}): record proof with \`agentToolkit.recordEvidence({ goalId: "${active.id}", criterionId: "<id>", status: "pass", evidence: "<observable proof>" })\`.` : `${active.id} has ${unresolved.length} unresolved criterion(s) (${unresolved.map((criterion) => criterion.id).join(", ")}): record proof with \`omo-agent-toolkit ulw-loop record-evidence --goal-id ${active.id} --criterion-id <id> --status pass --evidence "<observable proof>"\`.`
     ];
   if (hasAllCriteriaPass(active) && isFinalRunCompletionCandidate(plan, active))
     return [
-      `${active.id} passes every criterion and is the final story: update_goal complete, then checkpoint --print-template to build the final quality gate. Use status --json's currentAttemptDir for all quality-gate artifacts.`
+      surface === "omo-senpi" ? `${active.id} passes every criterion and is the final story: complete the driver goal, then call \`agentToolkit.checkpoint({ goalId: "${active.id}", printTemplate: true })\` to build the final quality gate. Use status().result.currentAttemptDir for all quality-gate artifacts.` : `${active.id} passes every criterion and is the final story: update_goal complete, then checkpoint --print-template to build the final quality gate. Use status --json's currentAttemptDir for all quality-gate artifacts.`
     ];
   return [
-    `${active.id} passes every criterion: close it with \`omo-agent-toolkit ulw-loop checkpoint --goal-id ${active.id} --status complete --evidence "<proof>" --codex-goal-json '<get_goal json>'\`. Put quality-gate artifacts under the currentAttemptDir shown by status --json.`
+    surface === "omo-senpi" ? `${active.id} passes every criterion: close it with \`agentToolkit.checkpoint({ goalId: "${active.id}", status: "complete", evidence: "<proof>" })\`. Put quality-gate artifacts under status().result.currentAttemptDir.` : `${active.id} passes every criterion: close it with \`omo-agent-toolkit ulw-loop checkpoint --goal-id ${active.id} --status complete --evidence "<proof>" --codex-goal-json '<get_goal json>'\`. Put quality-gate artifacts under the currentAttemptDir shown by status --json.`
   ];
 }
 
@@ -3020,11 +3283,10 @@ async function steerUlwLoop(repoRoot, proposal, scope) {
     }
     const at = proposal.now?.toISOString() ?? iso();
     const batchEntry = accepted ? batchUpdateLedgerEntry(plan, next, at) : null;
-    if (accepted)
-      await writePlan(repoRoot, next, scope);
-    await appendLedger(repoRoot, ledgerEntry(proposal, finalAudit, at), scope);
+    const entries = [ledgerEntry(proposal, finalAudit, at)];
     if (batchEntry !== null)
-      await appendLedger(repoRoot, batchEntry, scope);
+      entries.push(batchEntry);
+    await commit(repoRoot, scope, { plan: next, entries });
     return { plan: next, accepted, audit: finalAudit, rejectedReasons: audit.invariant.rejectedReasons, deduped: false };
   });
 }
@@ -3071,8 +3333,12 @@ function validateCodexGoalJson(raw) {
 function validateContext(context) {
   if (!context.cwd.trim())
     throw new UlwLoopError("cwd is required.", "ULW_LOOP_CWD_REQUIRED");
-  if (!context.sessionId.trim())
+  const sessionId = context.sessionId.trim();
+  if (!sessionId)
     throw new UlwLoopError("ULW_LOOP_SESSION_ID_REQUIRED: sessionId is required.", "ULW_LOOP_SESSION_ID_REQUIRED");
+  const normalizedSessionId = normalizeUlwLoopSessionId(sessionId);
+  if (normalizedSessionId === null || /(?:^|[\\/])\.\.(?:[\\/]|$)/.test(sessionId))
+    throw new UlwLoopError("ULW_LOOP_SESSION_ID_INVALID: sessionId normalizes to null.", "ULW_LOOP_SESSION_ID_INVALID");
   if (context.surface !== "omo-senpi" && context.surface !== "lazycodex")
     throw new UlwLoopError("surface must be omo-senpi or lazycodex.", "ULW_LOOP_SURFACE_INVALID");
 }
@@ -3115,6 +3381,8 @@ function createAgentToolkit(context, deps = {}) {
       const nextActions = typeof result === "object" && result !== null ? nextActionsFrom(result) : [];
       return await notify(operation, { ok: true, operation, result, nextActions });
     } catch (error) {
+      if (error instanceof UlwLoopError && error.code === "ULW_LOOP_PLAN_MISSING" && context.surface === "omo-senpi")
+        return notify(operation, failure(operation, planMissingError(ulwLoopGoalsRelativePath(scope), listUlwLoopSessionIds(context.cwd), context.surface)));
       const response = caught(operation, error instanceof Error ? error : new Error("ULW_LOOP_ERROR"));
       return notify(operation, response);
     }
@@ -3149,14 +3417,14 @@ function createAgentToolkit(context, deps = {}) {
       }
     },
     help: () => invoke("help", async () => ULW_LOOP_MANIFEST),
-    createGoals: (args) => invoke("create-goals", () => createUlwLoopPlan(context.cwd, args, scope)),
+    createGoals: (args) => invoke("create-goals", () => createUlwLoopPlan(context.cwd, args, scope, context.surface)),
     status: () => invoke("status", async () => {
       const plan = await readUlwLoopPlan(context.cwd, scope);
       const active = plan.goals.find((goal) => goal.id === plan.activeGoalId);
       return {
         plan,
         summary: summarizeUlwLoopPlan(plan),
-        nextActions: statusNextActions(plan),
+        nextActions: statusNextActions(plan, context.surface),
         ...active === undefined || plan.evidenceLayoutVersion !== 2 ? {} : { currentAttemptDir: ulwLoopAttemptEvidenceDir(active.id, active.attempt, scope) }
       };
     }),
@@ -3184,7 +3452,7 @@ async function steerUlwLoopBatch(repoRoot, proposals, scope) {
     const failed = prepared.results.find((item) => !item.accepted);
     if (failed !== undefined) {
       const entry = rejectedLedgerEntry(prepared.results);
-      await appendLedger(repoRoot, entry, scope);
+      await commit(repoRoot, scope, { plan, entries: [entry] });
       return rejected(plan, prepared.results, failed.rejectedReasons);
     }
     let next = plan;
@@ -3193,10 +3461,9 @@ async function steerUlwLoopBatch(repoRoot, proposals, scope) {
         next = item.prepared.next;
     const fresh = prepared.items.filter((item) => item.kind === "fresh");
     if (fresh.length > 0) {
-      await writePlan(repoRoot, next, scope);
       const entries = fresh.map((item) => ledgerEntry2(item.prepared.proposal, item.prepared.audit, item.prepared.proposal.now?.toISOString() ?? iso()));
       const batchEntry = batchUpdateLedgerEntry(plan, next, iso());
-      await appendLedgerEntries(repoRoot, batchEntry === null ? entries : [...entries, batchEntry], scope);
+      await commit(repoRoot, scope, { plan: next, entries: batchEntry === null ? entries : [...entries, batchEntry] });
     }
     return { plan: next, accepted: true, results: prepared.results, rejectedReasons: [] };
   });
@@ -3260,7 +3527,7 @@ function ledgerEntry2(proposal, audit, at) {
 // components/ulw-loop/src/cli-subcommands.ts
 async function createGoals(repoRoot, argv, json, scope) {
   const briefFile = readValue(argv, "--brief-file");
-  const brief = readValue(argv, "--brief") ?? (briefFile === undefined ? undefined : await readFile5(briefFile, "utf8")) ?? (hasFlag(argv, "--from-stdin") ? await readStdin() : undefined) ?? positionalText(argv);
+  const brief = readValue(argv, "--brief") ?? (briefFile === undefined ? undefined : await readFile4(briefFile, "utf8")) ?? (hasFlag(argv, "--from-stdin") ? await readStdin() : undefined) ?? positionalText(argv);
   if (!brief.trim()) {
     throw new UlwLoopError("Missing brief text. Pass --brief, --brief-file, --from-stdin, or positional text.", "ULW_LOOP_BRIEF_REQUIRED");
   }
@@ -3528,10 +3795,10 @@ function commandScope(repoRoot, argv) {
 }
 
 // components/ulw-loop/src/ultrawork-directive.ts
-import { readFileSync as readFileSync4 } from "node:fs";
+import { readFileSync as readFileSync5 } from "node:fs";
 
 // components/ulw-loop/src/ultrawork-skill-pointer.ts
-import { existsSync as existsSync5, readFileSync as readFileSync3 } from "node:fs";
+import { existsSync as existsSync5, readFileSync as readFileSync4 } from "node:fs";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var ULTRAWORK_SKILL_POINTER_TEMPLATE = `<ultrawork-mode>
 ULTRAWORK MODE IS ACTIVE FOR THIS TASK.
@@ -3563,7 +3830,7 @@ Do not start the requested work until all three steps are complete.
 `;
 var ULTRAWORK_SKILL_PATH_PLACEHOLDER = "{{ULTRAWORK_SKILL_PATH}}";
 var ULTRAWORK_SKILL_FILE_URL = new URL("../../../skills/ultrawork/SKILL.md", import.meta.url);
-var ULTRAWORK_DIRECTIVE = readFileSync3(new URL("../directive.md", import.meta.url), "utf8");
+var ULTRAWORK_DIRECTIVE = readFileSync4(new URL("../directive.md", import.meta.url), "utf8");
 function resolveUltraworkSkillFilePath() {
   return fileURLToPath2(ULTRAWORK_SKILL_FILE_URL);
 }
@@ -3626,7 +3893,7 @@ function hasUltraworkDirectiveAlreadyInTranscript(transcriptPath) {
   return false;
 }
 function readTranscriptTail(transcriptPath) {
-  const rawTranscript = readFileSync4(transcriptPath);
+  const rawTranscript = readFileSync5(transcriptPath);
   return rawTranscript.subarray(Math.max(0, rawTranscript.byteLength - TRANSCRIPT_SEARCH_BYTES)).toString("utf8");
 }
 function isUltraworkPrompt(prompt) {
@@ -3819,9 +4086,64 @@ function readAll(stdin) {
 }
 
 // components/ulw-loop/src/spawn-guard.ts
+import { mkdirSync as mkdirSync3 } from "node:fs";
+import { join as join7 } from "node:path";
+
+// components/ulw-loop/src/spawn-budget-io.ts
 import { randomBytes } from "node:crypto";
-import { existsSync as existsSync6, mkdirSync as mkdirSync2, readFileSync as readFileSync5, renameSync, statSync as statSync3, writeFileSync } from "node:fs";
-import { dirname as dirname3, join as join3 } from "node:path";
+import { existsSync as existsSync6, readFileSync as readFileSync6, renameSync as renameSync2, statSync as statSync3, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname as dirname3, join as join6 } from "node:path";
+function readAdmissionBreaker(sessionId) {
+  const dataDir = process.env["PLUGIN_DATA"];
+  if (typeof dataDir !== "string")
+    return null;
+  try {
+    const value = JSON.parse(readFileSync6(join6(dataDir, "spawn-breaker", `${sessionId}.json`), "utf8"));
+    return typeof value === "object" && value !== null && "reason" in value && typeof value.reason === "string" ? value.reason : "capacity limit";
+  } catch {
+    return null;
+  }
+}
+function atomicWriteJson(targetPath, data) {
+  const tmp = join6(dirname3(targetPath), `.tmp-${randomBytes(6).toString("hex")}`);
+  writeFileSync2(tmp, JSON.stringify(data));
+  renameSync2(tmp, targetPath);
+}
+function isNonEmptyFile(path) {
+  try {
+    return existsSync6(path) && statSync3(path).size > 0;
+  } catch (error) {
+    if (error instanceof Error)
+      return false;
+    throw error;
+  }
+}
+function readCount(counterPath) {
+  try {
+    const parsed = JSON.parse(readFileSync6(counterPath, "utf8"));
+    return typeof parsed === "object" && parsed !== null && "count" in parsed && typeof parsed.count === "number" && parsed.count >= 0 ? parsed.count : 0;
+  } catch (error) {
+    if (error instanceof Error)
+      return 0;
+    throw error;
+  }
+}
+function readCounts(counterPath) {
+  try {
+    const parsed = JSON.parse(readFileSync6(counterPath, "utf8"));
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      return {};
+    const counts = {};
+    for (const [key, value] of Object.entries(parsed))
+      if (typeof value === "number" && value >= 0)
+        counts[key] = value;
+    return counts;
+  } catch (error) {
+    if (error instanceof Error)
+      return {};
+    throw error;
+  }
+}
 
 // components/ulw-loop/src/spawn-role-guard.ts
 var LAZYCODEX_SPAWN_ROLES = new Set([
@@ -3879,7 +4201,7 @@ function applySpawnBudgetGuards(payload, options = {}) {
     return deny(`Subagent admission failed earlier in this session (${breaker}). Do not spawn more workers or reviewers; report the capacity block and wait for the user.`);
   const scope = { sessionId: payload.session_id };
   const stateDir = ulwLoopDir(payload.cwd, scope);
-  const plan = readPlan(join3(stateDir, "goals.json"));
+  const plan = readPlan(payload.cwd, payload.session_id);
   if (plan === null)
     return "";
   const lockOptions = options.lockTimeoutMs === undefined ? {} : { timeoutMs: options.lockTimeoutMs };
@@ -3918,10 +4240,10 @@ async function runSpawnAdmissionRecorderCli(stdin, stdout) {
     const dataDir = process.env["PLUGIN_DATA"];
     if (typeof dataDir !== "string" || typeof payload["session_id"] !== "string")
       return;
-    const markerDir = join3(dataDir, "spawn-breaker");
+    const markerDir = join7(dataDir, "spawn-breaker");
     try {
-      mkdirSync2(markerDir, { recursive: true });
-      atomicWriteJson(join3(markerDir, `${payload["session_id"]}.json`), {
+      mkdirSync3(markerDir, { recursive: true });
+      atomicWriteJson(join7(markerDir, `${payload["session_id"]}.json`), {
         reason: response,
         at: new Date().toISOString()
       });
@@ -3950,7 +4272,7 @@ async function runSpawnGuardCli(stdin, stdout) {
   }
 }
 function peekFanOutBudget(stateDir) {
-  const counterPath = join3(stateDir, "spawn-count.json");
+  const counterPath = join7(stateDir, "spawn-count.json");
   const count = readCount(counterPath) + 1;
   const limit = fanOutLimit();
   if (count <= limit)
@@ -3958,7 +4280,7 @@ function peekFanOutBudget(stateDir) {
   return `ulw-loop spawn fan-out cap reached (${count}/${limit}). Consolidate work into the agents already running, or raise OMO_SPAWN_FANOUT_LIMIT if this volume is intentional.`;
 }
 function consumeFanOutBudget(stateDir) {
-  const counterPath = join3(stateDir, "spawn-count.json");
+  const counterPath = join7(stateDir, "spawn-count.json");
   const count = readCount(counterPath) + 1;
   atomicWriteJson(counterPath, { count });
   const limit = fanOutLimit();
@@ -3973,7 +4295,7 @@ function consumeReviewSpawnBudget(payload, plan, stateDir) {
   const goal = plan.goals.find((candidate) => candidate.id === plan.activeGoalId) ?? plan.goals.find((candidate) => isFinalRunCompletionCandidate(plan, candidate));
   if (goal === undefined)
     return null;
-  const counterPath = join3(stateDir, "review-spawn-counts.json");
+  const counterPath = join7(stateDir, "review-spawn-counts.json");
   const limit = reviewSpawnLimit();
   const counts = readCounts(counterPath);
   const key = `${agentType}:${goal.id}:a${goal.attempt}`;
@@ -3998,13 +4320,13 @@ function missingGateArtifact(payload, plan) {
     const attemptDir = ulwLoopAttemptEvidenceDir(goal.id, goal.attempt, scope);
     for (const name of requiredArtifacts) {
       const relative = `${attemptDir}/${name}`;
-      if (!isNonEmptyFile(join3(payload.cwd, relative)))
+      if (!isNonEmptyFile(join7(payload.cwd, relative)))
         return relative;
     }
     return null;
   }
   const manualQa = `.omo/evidence/${goal.id}-manual-qa.md`;
-  return isNonEmptyFile(join3(payload.cwd, manualQa)) ? null : manualQa;
+  return isNonEmptyFile(join7(payload.cwd, manualQa)) ? null : manualQa;
 }
 function isGateReviewerSpawn(toolInput) {
   const agentType = reviewAgentType(toolInput);
@@ -4051,11 +4373,6 @@ function activeSurfaceReviewerAlias(reviewer) {
   }
   return reviewer;
 }
-function atomicWriteJson(targetPath, data) {
-  const tmp = join3(dirname3(targetPath), `.tmp-${randomBytes(6).toString("hex")}`);
-  writeFileSync(tmp, JSON.stringify(data));
-  renameSync(tmp, targetPath);
-}
 function deny(reason) {
   return `${JSON.stringify({
     hookSpecificOutput: {
@@ -4066,17 +4383,6 @@ function deny(reason) {
     }
   })}
 `;
-}
-function readAdmissionBreaker(sessionId) {
-  const dataDir = process.env["PLUGIN_DATA"];
-  if (typeof dataDir !== "string")
-    return null;
-  try {
-    const value = JSON.parse(readFileSync5(join3(dataDir, "spawn-breaker", `${sessionId}.json`), "utf8"));
-    return typeof value.reason === "string" ? value.reason : "capacity limit";
-  } catch {
-    return null;
-  }
 }
 function fanOutLimit() {
   const raw = process.env["OMO_SPAWN_FANOUT_LIMIT"];
@@ -4092,45 +4398,9 @@ function reviewSpawnLimit() {
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_REVIEW_SPAWN_LIMIT;
 }
-function isNonEmptyFile(path) {
+function readPlan(repoRoot, sessionId) {
   try {
-    return existsSync6(path) && statSync3(path).size > 0;
-  } catch (error) {
-    if (error instanceof Error)
-      return false;
-    throw error;
-  }
-}
-function readCount(counterPath) {
-  try {
-    const parsed = JSON.parse(readFileSync5(counterPath, "utf8"));
-    return typeof parsed["count"] === "number" && parsed["count"] >= 0 ? parsed["count"] : 0;
-  } catch (error) {
-    if (error instanceof Error)
-      return 0;
-    throw error;
-  }
-}
-function readCounts(counterPath) {
-  try {
-    const parsed = JSON.parse(readFileSync5(counterPath, "utf8"));
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
-      return {};
-    const counts = {};
-    for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value === "number" && value >= 0)
-        counts[key] = value;
-    }
-    return counts;
-  } catch (error) {
-    if (error instanceof Error)
-      return {};
-    throw error;
-  }
-}
-function readPlan(goalsPath) {
-  try {
-    return JSON.parse(readFileSync5(goalsPath, "utf8"));
+    return readUlwLoopPlanSync(repoRoot, { sessionId });
   } catch (error) {
     if (error instanceof Error)
       return null;
@@ -4139,8 +4409,8 @@ function readPlan(goalsPath) {
 }
 
 // components/ulw-loop/src/stop-resume-hook.ts
-import { existsSync as existsSync7, readFileSync as readFileSync6, writeFileSync as writeFileSync2 } from "node:fs";
-import { isAbsolute as isAbsolute2, join as join4, resolve as resolve4, sep as sep2 } from "node:path";
+import { existsSync as existsSync7, readFileSync as readFileSync7, writeFileSync as writeFileSync3 } from "node:fs";
+import { isAbsolute as isAbsolute2, join as join8, resolve as resolve4, sep as sep2 } from "node:path";
 var RESUME_CAP = 2;
 var CONTEXT_PRESSURE_MARKERS2 = [
   "context compacted",
@@ -4161,7 +4431,7 @@ function runStopResumeHook(input) {
     return "";
   const scope = { sessionId: payload.session_id };
   const stateDir = ulwLoopDir(payload.cwd, scope);
-  const plan = readPlan2(join4(stateDir, "goals.json"));
+  const plan = readPlan2(payload.cwd, payload.session_id);
   if (plan === null || plan.aggregateCompletion?.status === "complete")
     return "";
   const goal = resumableGoal(plan);
@@ -4207,7 +4477,7 @@ function consumeResumeBudgetLocked(lockPath, stateDir, goalId) {
   }
 }
 function consumeResumeBudget(stateDir, goalId) {
-  const ledgerLineCount = countLedgerLines(join4(stateDir, "ledger.jsonl"));
+  const ledgerLineCount = readLedgerAt(stateDir).length;
   const counterPath = resolve4(stateDir, `auto-resume-${goalId}.json`);
   const stuckPath = resolve4(stateDir, `auto-resume-${goalId}.stuck`);
   if (!isInsideDir(stateDir, counterPath) || !isInsideDir(stateDir, stuckPath))
@@ -4215,11 +4485,11 @@ function consumeResumeBudget(stateDir, goalId) {
   const previous = readCounter(counterPath);
   const count = previous !== null && previous.ledgerLineCount === ledgerLineCount ? previous.count : 0;
   if (count >= RESUME_CAP) {
-    writeFileSync2(stuckPath, `no ledger progress after ${count} resumes
+    writeFileSync3(stuckPath, `no ledger progress after ${count} resumes
 `);
     return false;
   }
-  writeFileSync2(counterPath, JSON.stringify({ count: count + 1, ledgerLineCount }));
+  writeFileSync3(counterPath, JSON.stringify({ count: count + 1, ledgerLineCount }));
   return true;
 }
 function isInsideDir(dir, candidate) {
@@ -4238,22 +4508,12 @@ function renderResumeDirective(plan, goal, sessionId) {
   ].join(`
 `);
 }
-function readPlan2(goalsPath) {
+function readPlan2(repoRoot, sessionId) {
   try {
-    return JSON.parse(readFileSync6(goalsPath, "utf8"));
+    return readUlwLoopPlanSync(repoRoot, { sessionId });
   } catch (error) {
     if (error instanceof Error)
       return null;
-    throw error;
-  }
-}
-function countLedgerLines(ledgerPath) {
-  try {
-    return readFileSync6(ledgerPath, "utf8").split(`
-`).filter(Boolean).length;
-  } catch (error) {
-    if (error instanceof Error)
-      return 0;
     throw error;
   }
 }
@@ -4261,7 +4521,7 @@ function readCounter(counterPath) {
   try {
     if (!existsSync7(counterPath))
       return null;
-    const parsed = JSON.parse(readFileSync6(counterPath, "utf8"));
+    const parsed = JSON.parse(readFileSync7(counterPath, "utf8"));
     if (typeof parsed["count"] !== "number" || typeof parsed["ledgerLineCount"] !== "number")
       return null;
     return { count: parsed["count"], ledgerLineCount: parsed["ledgerLineCount"] };
@@ -4273,7 +4533,7 @@ function readCounter(counterPath) {
 }
 function boulderContinuationWillFire(cwd, sessionId) {
   try {
-    const raw = JSON.parse(readFileSync6(join4(cwd, ".omo", "boulder.json"), "utf8"));
+    const raw = JSON.parse(readFileSync7(join8(cwd, ".omo", "boulder.json"), "utf8"));
     const works = raw["works"];
     const entries = typeof works === "object" && works !== null ? Object.values(works) : [raw];
     return entries.some((work) => {
@@ -4292,7 +4552,7 @@ function boulderContinuationWillFire(cwd, sessionId) {
 }
 function transcriptShowsContextPressure(transcriptPath) {
   try {
-    const transcript = readFileSync6(transcriptPath, "utf8").toLowerCase();
+    const transcript = readFileSync7(transcriptPath, "utf8").toLowerCase();
     return CONTEXT_PRESSURE_MARKERS2.some((marker) => transcript.includes(marker));
   } catch (error) {
     if (error instanceof Error)
@@ -4304,12 +4564,12 @@ function boulderPlanHasChecklist(cwd, entry) {
   const activePlan = entry["active_plan"];
   if (typeof activePlan !== "string" || activePlan.trim().length === 0)
     return false;
-  const planPath = isAbsolute2(activePlan) ? activePlan : join4(cwd, activePlan);
+  const planPath = isAbsolute2(activePlan) ? activePlan : join8(cwd, activePlan);
   const worktree = entry["worktree_path"];
-  const candidates = typeof worktree === "string" && worktree.trim().length > 0 && !isAbsolute2(activePlan) ? [join4(isAbsolute2(worktree) ? worktree : join4(cwd, worktree), activePlan), planPath] : [planPath];
+  const candidates = typeof worktree === "string" && worktree.trim().length > 0 && !isAbsolute2(activePlan) ? [join8(isAbsolute2(worktree) ? worktree : join8(cwd, worktree), activePlan), planPath] : [planPath];
   for (const candidate of candidates) {
     try {
-      return readFileSync6(candidate, "utf8").split(/\r?\n/).some((line) => line.startsWith("- [ ] ") || line.startsWith("- [x] ") || line.startsWith("- [X] "));
+      return readFileSync7(candidate, "utf8").split(/\r?\n/).some((line) => line.startsWith("- [ ] ") || line.startsWith("- [x] ") || line.startsWith("- [X] "));
     } catch (error) {
       if (!(error instanceof Error))
         throw error;

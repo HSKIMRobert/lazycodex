@@ -1,5 +1,6 @@
 import { essentialCriteriaOf, hasAllCriteriaPass, hasEssentialCriteriaPass } from "./goal-status.js";
-import { appendLedger, readUlwLoopPlan, withUlwLoopMutationLock, writePlan } from "./plan-io.js";
+import { commit } from "./plan-commit.js";
+import { readUlwLoopPlan, withUlwLoopMutationLock } from "./plan-io.js";
 import { iso, UlwLoopError } from "./types.js";
 function ulwLoopFail(message, code, details) {
     throw new UlwLoopError(message, code, { details });
@@ -48,7 +49,6 @@ export async function recordEvidence(repoRoot, args, scope) {
             criterion.notes = args.notes;
         goal.updatedAt = capturedAt;
         plan.updatedAt = capturedAt;
-        await writePlan(repoRoot, plan, scope);
         const ledgerEntry = {
             at: capturedAt,
             kind,
@@ -60,7 +60,7 @@ export async function recordEvidence(repoRoot, args, scope) {
             before: { status: prevStatus },
             after: { goalId: goal.id, criterionId: criterion.id, status: args.status, evidence, capturedAt, prevStatus },
         };
-        await appendLedger(repoRoot, ledgerEntry, scope);
+        await commit(repoRoot, scope, { plan, entries: [ledgerEntry] });
         return { plan, goal, criterion, ledgerEntry };
     });
 }
@@ -83,15 +83,19 @@ export async function markCriteriaPendingResetForGoal(repoRoot, goalId, scope) {
         }
         goal.updatedAt = now;
         plan.updatedAt = now;
-        await writePlan(repoRoot, plan, scope);
-        await appendLedger(repoRoot, {
-            at: now,
-            kind: "criteria_revised",
-            goalId,
-            message: `Reset ${goal.successCriteria.length} criteria to pending.`,
-            before,
-            after: { resetCount: goal.successCriteria.length },
-        }, scope);
+        await commit(repoRoot, scope, {
+            plan,
+            entries: [
+                {
+                    at: now,
+                    kind: "criteria_revised",
+                    goalId,
+                    message: `Reset ${goal.successCriteria.length} criteria to pending.`,
+                    before,
+                    after: { resetCount: goal.successCriteria.length },
+                },
+            ],
+        });
         return { plan, resetCount: goal.successCriteria.length };
     });
 }
