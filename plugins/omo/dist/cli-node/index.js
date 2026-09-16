@@ -65,7 +65,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.64",
+    version: "5.0.0-beta.65",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -286,18 +286,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.64",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.64",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.64",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.64",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.64",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.64",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.64",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.64",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.64",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.64",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.64",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.64"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.65",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.65",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.65",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.65",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.65",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.65",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.65",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.65",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.65",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.65",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.65",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.65"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -73152,7 +73152,7 @@ var init_format_on_mutation = __esm(() => {
 });
 
 // packages/omo-config-core/src/schema/config.ts
-var OmoOpenCodeHarnessConfigSchema, OmoTypedHarnessConfigSchema, OmoConfigProfileSchema, OmoConfigSchema, OmoConfigLayerSchema;
+var OmoOpenCodeHarnessConfigSchema, OmoDisabledSkillsSchema, OmoTypedHarnessConfigSchema, OmoConfigProfileSchema, OmoConfigSchema, OmoConfigLayerSchema;
 var init_config = __esm(() => {
   init_zod();
   init_agent();
@@ -73166,6 +73166,7 @@ var init_config = __esm(() => {
   init_telemetry();
   init_format_on_mutation();
   OmoOpenCodeHarnessConfigSchema = record(string2(), unknown());
+  OmoDisabledSkillsSchema = array(string2());
   OmoTypedHarnessConfigSchema = object({
     formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
     categories: OmoCategoriesConfigSchema.optional(),
@@ -73177,7 +73178,8 @@ var init_config = __esm(() => {
     model_profiles: OmoModelProfilesLayerSchema.optional(),
     model_profile: string2().optional(),
     memory: OmoMemorySettingsLayerSchema.optional(),
-    telemetry: OmoTelemetrySettingsLayerSchema.optional()
+    telemetry: OmoTelemetrySettingsLayerSchema.optional(),
+    disabled_skills: OmoDisabledSkillsSchema.optional()
   }).strict();
   OmoConfigProfileSchema = object({
     formatOnMutation: OmoFormatOnMutationLayerSchema.optional(),
@@ -73191,6 +73193,7 @@ var init_config = __esm(() => {
     model_profile: string2().optional(),
     memory: OmoMemorySettingsLayerSchema.optional(),
     telemetry: OmoTelemetrySettingsLayerSchema.optional(),
+    disabled_skills: OmoDisabledSkillsSchema.optional(),
     "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
     "[senpi]": OmoTypedHarnessConfigSchema.optional(),
     "[codex]": OmoTypedHarnessConfigSchema.optional()
@@ -73208,6 +73211,7 @@ var init_config = __esm(() => {
     model_profile: string2().optional(),
     memory: OmoMemorySettingsSchema.optional(),
     telemetry: OmoTelemetrySettingsSchema.optional(),
+    disabled_skills: OmoDisabledSkillsSchema.optional(),
     "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
     "[senpi]": OmoTypedHarnessConfigSchema.optional(),
     "[codex]": OmoTypedHarnessConfigSchema.optional(),
@@ -73228,6 +73232,7 @@ var init_config = __esm(() => {
     model_profile: string2().optional(),
     memory: OmoMemorySettingsLayerSchema.optional(),
     telemetry: OmoTelemetrySettingsLayerSchema.optional(),
+    disabled_skills: OmoDisabledSkillsSchema.optional(),
     "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
     "[senpi]": OmoTypedHarnessConfigSchema.optional(),
     "[codex]": OmoTypedHarnessConfigSchema.optional(),
@@ -84621,7 +84626,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.64",
+    version: "5.0.0-beta.65",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
