@@ -14,6 +14,7 @@ export declare function ulwLoopGoalsPath(repoRoot: string, scope?: UlwLoopScope)
 export declare function ulwLoopLedgerPath(repoRoot: string, scope?: UlwLoopScope): string;
 export declare function ulwLoopStateLockPath(repoRoot: string, scope?: UlwLoopScope): string;
 export declare function repoRelative(absolutePath: string, repoRoot: string): string;
+export declare function ulwLoopEvidenceRoot(scope?: UlwLoopScope): string;
 export declare function ulwLoopAttemptEvidenceDir(goalId: string, attempt: number, scope?: UlwLoopScope): string;
 interface AttemptPathApi {
     relative(from: string, to: string): string;

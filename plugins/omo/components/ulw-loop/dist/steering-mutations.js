@@ -29,11 +29,11 @@ function nextId(plan, offset) {
     const max = plan.goals.reduce((current, item) => { const digits = /^G(\d+)(?:-|$)/u.exec(item.id)?.[1]; return digits === undefined ? current : Math.max(current, Number(digits)); }, 0);
     return `G${String(max + offset).padStart(3, "0")}`;
 }
-export function makeGoal(plan, childGoal, evidence, now, offset) {
+export function makeGoal(plan, childGoal, evidence, now, offset, surface = "lazycodex") {
     const id = nextId(plan, offset);
     const digits = /^G(\d+)/u.exec(id)?.[1];
     const goalIndex = digits === undefined ? plan.goals.length + offset - 1 : Number(digits) - 1;
-    return { id, title: childGoal.title, objective: childGoal.objective, status: "pending", successCriteria: seedDefaultSuccessCriteria(goalIndex, childGoal.objective), attempt: 0, createdAt: now, updatedAt: now, evidence };
+    return { id, title: childGoal.title, objective: childGoal.objective, status: "pending", successCriteria: seedDefaultSuccessCriteria(goalIndex, childGoal.objective, { goalId: id, surface }), attempt: 0, createdAt: now, updatedAt: now, evidence };
 }
 export function reviseWording(plan, proposal, now) {
     const target = goal(plan, targets(proposal)[0]);
@@ -45,11 +45,11 @@ export function reviseWording(plan, proposal, now) {
     target.steeringRationale = proposal.rationale;
     target.updatedAt = now;
 }
-export function splitOrBlock(plan, proposal, now) {
+export function splitOrBlock(plan, proposal, now, surface = "lazycodex") {
     const target = goal(plan, targets(proposal)[0]);
     if (target === undefined)
         return;
-    const replacements = children(proposal).map((item, index) => makeGoal(plan, item, proposal.evidence, now, index + 1));
+    const replacements = children(proposal).map((item, index) => makeGoal(plan, item, proposal.evidence, now, index + 1, surface));
     target.steeringEvidence = proposal.evidence;
     target.steeringRationale = proposal.rationale;
     target.updatedAt = now;

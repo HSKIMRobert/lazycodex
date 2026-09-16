@@ -73,29 +73,37 @@ export function reconcileCodexGoalSnapshot(snapshot, options) {
     const effectiveSnapshot = snapshot ?? { available: false, raw: null };
     const errors = [];
     const warnings = [];
+    const nextActions = [];
     const expected = options.expectedObjective;
-    const normalizedExpected = normalizeObjective(expected);
     if (!effectiveSnapshot.available) {
-        warnings.push(`call get_goal; if none, create_goal with codexObjective "${expected}" verbatim`);
-        return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, errors };
+        nextActions.push(`call get_goal; if none, create_goal with codexObjective "${expected}" verbatim`);
+        return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, nextActions, errors };
     }
-    const accepted = new Set([
-        normalizedExpected,
-        ...(options.acceptedObjectives ?? []).map((objective) => normalizeObjective(objective)),
-    ].filter(Boolean));
+    const normalized = (objectives) => new Set(objectives.map(normalizeObjective).filter(Boolean));
+    const accepted = normalized([expected, ...(options.acceptedObjectives ?? [])]);
+    const acknowledged = normalized(options.acknowledgedObjectives ?? []);
     const actual = normalizeObjective(effectiveSnapshot.objective ?? "");
-    if (actual && !accepted.has(normalizeObjective(actual))) {
+    let unacknowledgedObjective;
+    if (actual && !accepted.has(actual) && !acknowledged.has(actual)) {
         warnings.push(`driver_objective_differs: expected "${expected}", got "${actual}".`);
+        unacknowledgedObjective = actual;
     }
     const actualStatus = effectiveSnapshot.status ?? "unknown";
     if (actualStatus === "paused" || actualStatus === "usage_limited" || actualStatus === "budget_limited") {
-        warnings.push("/goal resume or raise the budget");
+        nextActions.push("/goal resume or raise the budget");
     }
     if (actualStatus === "complete")
-        warnings.push(`driver closed early: call create_goal with codexObjective "${expected}" verbatim`);
-    return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, errors };
+        nextActions.push(`driver closed early: call create_goal with codexObjective "${expected}" verbatim`);
+    return {
+        ok: errors.length === 0,
+        snapshot: effectiveSnapshot,
+        warnings,
+        nextActions,
+        errors,
+        ...(unacknowledgedObjective === undefined ? {} : { unacknowledgedObjective }),
+    };
 }
 export function formatCodexGoalReconciliation(reconciliation) {
-    const parts = [...reconciliation.errors, ...reconciliation.warnings];
+    const parts = [...reconciliation.errors, ...reconciliation.nextActions, ...reconciliation.warnings];
     return parts.join(" ");
 }

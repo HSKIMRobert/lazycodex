@@ -1,7 +1,9 @@
 import { type UlwLoopScope } from "./paths.js";
+import type { SuccessCriterionInput } from "./success-criteria-input.js";
 import type { UlwLoopToolkitSurface } from "./surface.js";
 import type { UlwLoopCodexGoalMode, UlwLoopItem, UlwLoopPlan } from "./types.js";
 export { deriveGoalCandidates, seedDefaultSuccessCriteria } from "./plan-goal-factory.js";
+export type { SuccessCriterionInput } from "./success-criteria-input.js";
 export type UlwLoopPlanSummary = {
     readonly total: number;
     readonly pending: number;
@@ -29,7 +31,8 @@ export declare function createUlwLoopPlan(repoRoot: string, args: {
 export declare function addUlwLoopGoal(repoRoot: string, args: {
     title: string;
     objective: string;
-}, scope?: UlwLoopScope): Promise<{
+    successCriteria?: readonly SuccessCriterionInput[];
+}, scope?: UlwLoopScope, surface?: UlwLoopToolkitSurface): Promise<{
     plan: UlwLoopPlan;
     goal: UlwLoopItem;
 }>;

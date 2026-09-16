@@ -5839,8 +5839,8 @@ var OmoGitMasterSettingsShape = {
 };
 var OmoGitMasterSettingsLayerSchema = object(OmoGitMasterSettingsShape).partial().strict();
 var OmoGitMasterSettingsSchema = OmoGitMasterSettingsLayerSchema.extend({
-  commit_footer: union([boolean2(), string2()]).default(true),
-  include_co_authored_by: boolean2().default(true)
+  commit_footer: union([boolean2(), string2()]).default(false),
+  include_co_authored_by: boolean2().default(false)
 }).strict();
 
 // ../../omo-config-core/src/schema/harness.ts

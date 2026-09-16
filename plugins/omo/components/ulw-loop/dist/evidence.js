@@ -1,3 +1,4 @@
+import { resolveEvidenceArtifacts } from "./evidence-artifacts.js";
 import { essentialCriteriaOf, hasAllCriteriaPass, hasEssentialCriteriaPass } from "./goal-status.js";
 import { commit } from "./plan-commit.js";
 import { readUlwLoopPlan, withUlwLoopMutationLock } from "./plan-io.js";
@@ -39,6 +40,7 @@ export async function recordEvidence(repoRoot, args, scope) {
         const goal = findGoal(plan, args.goalId);
         const criterion = findCriterion(goal, args.criterionId);
         const evidence = nonEmptyEvidence(args.evidence);
+        const artifacts = resolveEvidenceArtifacts(repoRoot, args.artifacts);
         const kind = ledgerKind(args.status);
         const prevStatus = criterion.status;
         const capturedAt = iso();
@@ -47,6 +49,10 @@ export async function recordEvidence(repoRoot, args, scope) {
         criterion.capturedAt = capturedAt;
         if (args.notes !== undefined)
             criterion.notes = args.notes;
+        if (artifacts !== undefined)
+            criterion.artifacts = artifacts;
+        else
+            delete criterion.artifacts;
         goal.updatedAt = capturedAt;
         plan.updatedAt = capturedAt;
         const ledgerEntry = {
@@ -57,6 +63,7 @@ export async function recordEvidence(repoRoot, args, scope) {
             criterionStatus: args.status,
             evidence,
             capturedEvidence: evidence,
+            ...(artifacts === undefined ? {} : { artifacts }),
             before: { status: prevStatus },
             after: { goalId: goal.id, criterionId: criterion.id, status: args.status, evidence, capturedAt, prevStatus },
         };
@@ -80,6 +87,7 @@ export async function markCriteriaPendingResetForGoal(repoRoot, goalId, scope) {
             criterion.capturedEvidence = null;
             delete criterion.capturedAt;
             delete criterion.notes;
+            delete criterion.artifacts;
         }
         goal.updatedAt = now;
         plan.updatedAt = now;

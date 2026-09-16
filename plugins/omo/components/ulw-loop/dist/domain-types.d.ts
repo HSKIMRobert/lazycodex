@@ -10,6 +10,7 @@ export interface UlwLoopSuccessCriterion {
     status: UlwLoopCriterionStatus;
     capturedAt?: string;
     notes?: string;
+    artifacts?: string[];
 }
 export interface UlwLoopItem {
     id: string;
@@ -62,6 +63,7 @@ export interface UlwLoopPlan {
     codexGoalMode?: UlwLoopCodexGoalMode;
     codexObjective?: string;
     codexObjectiveAliases?: string[];
+    acknowledgedDriverObjectives?: string[];
     aggregateCompletion?: UlwLoopAggregateCompletion;
     activeGoalId?: string;
     validationBatches?: readonly UlwLoopValidationBatch[];
@@ -151,6 +153,7 @@ export interface UlwLoopLedgerEntry {
     codexGoal?: unknown;
     evidence?: string;
     capturedEvidence?: string;
+    artifacts?: string[];
     qualityGate?: unknown;
     steering?: UlwLoopSteeringAudit;
     before?: unknown;

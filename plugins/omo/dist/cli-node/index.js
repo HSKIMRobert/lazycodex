@@ -65,7 +65,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.63",
+    version: "5.0.0-beta.64",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -247,7 +247,7 @@ var init_package = __esm(() => {
       zod: "^4.4.3"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.15-2",
+      "@code-yeongyu/senpi": "2026.9.16",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -286,18 +286,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.63",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.63",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.63",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.63",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.63",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.63",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.63",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.63",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.63",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.63",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.63",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.63"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.64",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.64",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.64",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.64",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.64",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.64",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.64",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.64",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.64",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.64",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.64",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.64"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -72714,8 +72714,8 @@ var init_git_master = __esm(() => {
   };
   OmoGitMasterSettingsLayerSchema = object(OmoGitMasterSettingsShape).partial().strict();
   OmoGitMasterSettingsSchema = OmoGitMasterSettingsLayerSchema.extend({
-    commit_footer: union([boolean2(), string2()]).default(true),
-    include_co_authored_by: boolean2().default(true)
+    commit_footer: union([boolean2(), string2()]).default(false),
+    include_co_authored_by: boolean2().default(false)
   }).strict();
 });
 
@@ -84621,7 +84621,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.63",
+    version: "5.0.0-beta.64",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -97292,8 +97292,8 @@ var GitEnvPrefixSchema = string2().refine(isValidGitEnvPrefix, { message: GIT_EN
 // packages/omo-opencode/src/config/schema/git-master.ts
 init_zod();
 var GitMasterConfigSchema = object({
-  commit_footer: union([boolean2(), string2()]).default(true),
-  include_co_authored_by: boolean2().default(true),
+  commit_footer: union([boolean2(), string2()]).default(false),
+  include_co_authored_by: boolean2().default(false),
   git_env_prefix: GitEnvPrefixSchema
 });
 // packages/omo-opencode/src/config/schema/hooks.ts
@@ -97600,8 +97600,8 @@ var OhMyOpenCodeConfigSchema = object({
   keyword_detector: KeywordDetectorConfigSchema.optional(),
   babysitting: BabysittingConfigSchema.optional(),
   git_master: GitMasterConfigSchema.default({
-    commit_footer: true,
-    include_co_authored_by: true,
+    commit_footer: false,
+    include_co_authored_by: false,
     git_env_prefix: "GIT_MASTER=1"
   }),
   browser_automation_engine: BrowserAutomationConfigSchema.optional(),

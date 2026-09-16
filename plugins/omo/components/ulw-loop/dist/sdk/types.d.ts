@@ -82,11 +82,14 @@ export interface ToolkitFailure<Operation extends string = string> {
     readonly ok: false;
     readonly operation: Operation;
     readonly error: ToolkitError;
+    readonly warnings?: readonly string[];
 }
 type StatusResult = {
     readonly plan: UlwLoopPlan;
     readonly summary: ReturnType<typeof summarizeUlwLoopPlan>;
     readonly nextActions: readonly string[];
+    /** Plan-level evidence directory, stable for the whole run (relative to the session cwd). */
+    readonly evidenceRoot: string;
     readonly currentAttemptDir?: string;
 };
 type ResultFor<Operation extends UlwLoopOperation> = Operation extends "help" ? typeof ULW_LOOP_MANIFEST : Operation extends "create-goals" ? Awaited<ReturnType<typeof createUlwLoopPlan>> : Operation extends "status" ? StatusResult : Operation extends "complete-goals" ? Awaited<ReturnType<typeof startNextUlwLoop>> : Operation extends "checkpoint" ? CheckpointUlwLoopResult | CheckpointTemplate : Operation extends "steer" ? Awaited<ReturnType<typeof steerUlwLoop>> : Operation extends "add-goal" ? Awaited<ReturnType<typeof addUlwLoopGoal>> : Operation extends "criteria" ? {

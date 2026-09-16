@@ -1,4 +1,5 @@
 import { CodexGoalSnapshotError, formatCodexGoalReconciliation, readCodexGoalSnapshotInput, reconcileCodexGoalSnapshot, } from "./codex-goal-snapshot.js";
+import { acknowledgedDriverObjectives } from "./driver-objective-ack.js";
 import { codexGoalMode, compatibleCodexObjectives, expectedCodexObjective } from "./goal-status.js";
 import { UlwLoopError } from "./types.js";
 export async function validateCheckpointCodexGoal(input) {
@@ -6,6 +7,7 @@ export async function validateCheckpointCodexGoal(input) {
     const expected = expectedCodexObjective(input.plan, input.goal);
     const reconciliation = reconcileCodexGoalSnapshot(snapshot, {
         expectedObjective: expected,
+        acknowledgedObjectives: acknowledgedDriverObjectives(input.plan),
         ...(codexGoalMode(input.plan) === "aggregate"
             ? { acceptedObjectives: compatibleCodexObjectives(input.plan) }
             : {}),
@@ -14,8 +16,11 @@ export async function validateCheckpointCodexGoal(input) {
         throw new CodexGoalSnapshotError(formatCodexGoalReconciliation(reconciliation));
     return {
         raw: snapshot?.raw,
-        nextActions: reconciliation.warnings,
-        warnings: reconciliation.warnings.filter((warning) => warning.startsWith("driver_objective_differs")),
+        nextActions: reconciliation.nextActions,
+        warnings: reconciliation.warnings,
+        ...(reconciliation.unacknowledgedObjective === undefined
+            ? {}
+            : { unacknowledgedObjective: reconciliation.unacknowledgedObjective }),
     };
 }
 export function combineCheckpointValidationErrors(codexError, gateError) {

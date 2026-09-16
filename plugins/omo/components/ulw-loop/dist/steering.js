@@ -7,7 +7,7 @@ import { buildSteeringPlanSnapshot, changedGoalIdsBetween } from "./steering-sna
 import { iso, ULW_LOOP_STEERING_MUTATION_KINDS, ULW_LOOP_SUCCESS_CRITERION_USER_MODELS } from "./types.js";
 import { batchUpdateLedgerEntry } from "./validation-batch.js";
 const SOURCES = ["user_prompt_submit", "finding", "cli"];
-const PROTECTED = new Set(["aggregateCompletion", "codexObjective", "codexObjectiveAliases", "originalConstraints", "qualityGate", "status", "completedAt", "completionStatus"]);
+const PROTECTED = new Set(["aggregateCompletion", "codexObjective", "codexObjectiveAliases", "acknowledgedDriverObjectives", "originalConstraints", "qualityGate", "status", "completedAt", "completionStatus"]);
 const isObject = (value) => typeof value === "object" && value !== null;
 const isPlain = (value) => isObject(value) && !Array.isArray(value);
 const read = (value, key) => Object.entries(value).find(([name]) => name === key)?.[1];
@@ -164,13 +164,13 @@ function validateCriterion(plan, proposal, reasons) {
     if (model !== undefined && !isModel(model))
         reasons.push("invalid userModel");
 }
-export function applySteeringMutation(plan, proposal, audit) {
+export function applySteeringMutation(plan, proposal, audit, surface = "lazycodex") {
     const next = structuredClone(plan);
     if (!audit.invariant.accepted)
         return next;
     const now = proposal.now?.toISOString() ?? iso();
     if (proposal.kind === "add_subgoal")
-        next.goals.push(makeGoal(next, { title: proposal.title ?? "", objective: proposal.objective ?? "" }, proposal.evidence, now, 1));
+        next.goals.push(makeGoal(next, { title: proposal.title ?? "", objective: proposal.objective ?? "" }, proposal.evidence, now, 1, surface));
     if (proposal.kind === "reorder_pending") {
         const order = pendingOrder(proposal);
         next.goals = [...order.map((id) => goal(next, id)).filter((item) => item !== undefined), ...next.goals.filter((item) => !order.includes(item.id))];
@@ -178,7 +178,7 @@ export function applySteeringMutation(plan, proposal, audit) {
     if (proposal.kind === "revise_pending_wording")
         reviseWording(next, proposal, now);
     if (proposal.kind === "split_subgoal" || proposal.kind === "mark_blocked_superseded")
-        splitOrBlock(next, proposal, now);
+        splitOrBlock(next, proposal, now, surface);
     if (proposal.kind === "revise_criterion")
         reviseCriterion(next, proposal, now);
     if (proposal.kind !== "annotate_ledger")
@@ -202,7 +202,7 @@ export function parseUlwLoopSteeringDirective(text) {
         throw error;
     }
 }
-export async function steerUlwLoop(repoRoot, proposal, scope) {
+export async function steerUlwLoop(repoRoot, proposal, scope, surface = "lazycodex") {
     return withUlwLoopMutationLock(repoRoot, scope, async () => {
         const plan = await readUlwLoopPlan(repoRoot, scope);
         const key = proposal.idempotencyKey ?? proposal.promptSignature;
@@ -215,7 +215,7 @@ export async function steerUlwLoop(repoRoot, proposal, scope) {
         }
         const audit = validateUlwLoopSteeringProposal(plan, proposal);
         const accepted = audit.invariant.accepted;
-        const next = accepted ? applySteeringMutation(plan, proposal, audit) : plan;
+        const next = accepted ? applySteeringMutation(plan, proposal, audit, surface) : plan;
         const finalAudit = { ...audit };
         if (accepted) {
             const changed = changedGoalIdsBetween(plan, next);

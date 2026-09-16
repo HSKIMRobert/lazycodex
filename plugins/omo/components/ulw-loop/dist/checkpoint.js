@@ -3,6 +3,7 @@ import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { combineCheckpointValidationErrors, validateCheckpointCodexGoal, } from "./checkpoint-codex-validation.js";
+import { acknowledgeDriverObjective } from "./driver-objective-ack.js";
 import { requireAllCriteriaPass, requireAllPlanCriteriaPass, requireEssentialCriteriaPass } from "./evidence.js";
 import { codexGoalMode, isFinalRunCompletionCandidate } from "./goal-status.js";
 import { ulwLoopAttemptEvidenceDir } from "./paths.js";
@@ -139,6 +140,7 @@ export async function checkpointUlwLoop(repoRoot, args, scope, dependencies) {
                 codexGoal = validation.raw;
                 nextActions = validation.nextActions;
                 warnings = validation.warnings;
+                acknowledgeDriverObjective(plan, validation.unacknowledgedObjective);
             }
             catch (error) {
                 if (!(error instanceof UlwLoopError))

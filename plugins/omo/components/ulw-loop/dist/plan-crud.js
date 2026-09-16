@@ -39,7 +39,7 @@ export async function createUlwLoopPlan(repoRoot, args, scope, surface = "lazyco
             throw new UlwLoopError(`Refusing to overwrite existing ${ulwLoopGoalsRelativePath(scope)}; pass --force to recreate it.`, "ULW_LOOP_PLAN_EXISTS");
         }
         const now = iso();
-        const goals = deriveGoalCandidates(args.brief).map((goal, index) => makeGoal(goal.title, goal.objective, index, now));
+        const goals = deriveGoalCandidates(args.brief).map((goal, index) => makeGoal(goal.title, goal.objective, index, now, { surface }));
         const plan = {
             version: 1,
             revision: existing?.revision ?? 0,
@@ -80,11 +80,14 @@ function completedPlanExistsError(scope, surface) {
             ]),
     ].join(" "), "ULW_LOOP_PLAN_EXISTS_COMPLETE");
 }
-export async function addUlwLoopGoal(repoRoot, args, scope) {
+export async function addUlwLoopGoal(repoRoot, args, scope, surface = "lazycodex") {
     return withUlwLoopMutationLock(repoRoot, scope, async () => {
         const plan = await readUlwLoopPlan(repoRoot, scope);
         const now = iso();
-        const goal = appendGoalToPlan(plan, args.title, args.objective, now);
+        const goal = appendGoalToPlan(plan, args.title, args.objective, now, {
+            surface,
+            ...(args.successCriteria === undefined ? {} : { successCriteria: args.successCriteria }),
+        });
         await commit(repoRoot, scope, {
             plan,
             entries: [{ at: now, kind: "goal_added", goalId: goal.id, status: goal.status, message: goal.title }],

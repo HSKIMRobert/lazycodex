@@ -1,5 +1,6 @@
 // biome-ignore-all format: compact port must stay within the requested pure LOC budget.
 import { CodexGoalSnapshotError, formatCodexGoalReconciliation, readCodexGoalSnapshotInput, reconcileCodexGoalSnapshot, } from "./codex-goal-snapshot.js";
+import { acknowledgeDriverObjective, acknowledgedDriverObjectives } from "./driver-objective-ack.js";
 import { compatibleCodexObjectives, expectedCodexObjective, isFinalRunCompletionCandidate } from "./goal-status.js";
 import { commit } from "./plan-commit.js";
 import { seedDefaultSuccessCriteria } from "./plan-crud.js";
@@ -18,12 +19,13 @@ function nextGoalId(plan) {
 }
 function appendBlockerGoal(plan, args, now) {
     const index = plan.goals.length;
+    const id = nextGoalId(plan);
     const goal = {
-        id: nextGoalId(plan),
+        id,
         title: args.title,
         objective: args.objective,
         status: "pending",
-        successCriteria: seedDefaultSuccessCriteria(index, args.objective),
+        successCriteria: seedDefaultSuccessCriteria(index, args.objective, { goalId: id }),
         attempt: 0,
         createdAt: now,
         updatedAt: now,
@@ -45,9 +47,11 @@ export async function recordFinalReviewBlockers(repoRoot, args, scope) {
         const reconciliation = reconcileCodexGoalSnapshot(snapshot, {
             expectedObjective: expectedCodexObjective(plan, goal),
             acceptedObjectives: compatibleCodexObjectives(plan),
+            acknowledgedObjectives: acknowledgedDriverObjectives(plan),
         });
         if (!reconciliation.ok)
             throw new CodexGoalSnapshotError(formatCodexGoalReconciliation(reconciliation));
+        acknowledgeDriverObjective(plan, reconciliation.unacknowledgedObjective);
         const now = iso();
         for (const field of BLOCKER_FIELDS)
             Reflect.deleteProperty(goal, field);
@@ -71,8 +75,8 @@ export async function recordFinalReviewBlockers(repoRoot, args, scope) {
             blockedGoal: goal,
             newGoal,
             ledgerEntries,
-            nextActions: reconciliation.warnings,
-            warnings: reconciliation.warnings.filter((warning) => warning.startsWith("driver_objective_differs")),
+            nextActions: reconciliation.nextActions,
+            warnings: reconciliation.warnings,
         };
     });
 }

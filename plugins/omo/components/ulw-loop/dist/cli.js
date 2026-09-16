@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 // components/ulw-loop/src/checkpoint.ts
-import { existsSync as existsSync4, statSync as statSync2 } from "node:fs";
+import { existsSync as existsSync5, statSync as statSync2 } from "node:fs";
 import { readFile as readFile3 } from "node:fs/promises";
-import { resolve as resolve3 } from "node:path";
+import { resolve as resolve4 } from "node:path";
 
 // components/ulw-loop/src/codex-goal-snapshot.ts
 import { existsSync } from "node:fs";
@@ -80,31 +80,56 @@ function reconcileCodexGoalSnapshot(snapshot, options) {
   const effectiveSnapshot = snapshot ?? { available: false, raw: null };
   const errors = [];
   const warnings = [];
+  const nextActions = [];
   const expected = options.expectedObjective;
-  const normalizedExpected = normalizeObjective(expected);
   if (!effectiveSnapshot.available) {
-    warnings.push(`call get_goal; if none, create_goal with codexObjective "${expected}" verbatim`);
-    return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, errors };
+    nextActions.push(`call get_goal; if none, create_goal with codexObjective "${expected}" verbatim`);
+    return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, nextActions, errors };
   }
-  const accepted = new Set([
-    normalizedExpected,
-    ...(options.acceptedObjectives ?? []).map((objective) => normalizeObjective(objective))
-  ].filter(Boolean));
+  const normalized = (objectives) => new Set(objectives.map(normalizeObjective).filter(Boolean));
+  const accepted = normalized([expected, ...options.acceptedObjectives ?? []]);
+  const acknowledged = normalized(options.acknowledgedObjectives ?? []);
   const actual = normalizeObjective(effectiveSnapshot.objective ?? "");
-  if (actual && !accepted.has(normalizeObjective(actual))) {
+  let unacknowledgedObjective;
+  if (actual && !accepted.has(actual) && !acknowledged.has(actual)) {
     warnings.push(`driver_objective_differs: expected "${expected}", got "${actual}".`);
+    unacknowledgedObjective = actual;
   }
   const actualStatus = effectiveSnapshot.status ?? "unknown";
   if (actualStatus === "paused" || actualStatus === "usage_limited" || actualStatus === "budget_limited") {
-    warnings.push("/goal resume or raise the budget");
+    nextActions.push("/goal resume or raise the budget");
   }
   if (actualStatus === "complete")
-    warnings.push(`driver closed early: call create_goal with codexObjective "${expected}" verbatim`);
-  return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, errors };
+    nextActions.push(`driver closed early: call create_goal with codexObjective "${expected}" verbatim`);
+  return {
+    ok: errors.length === 0,
+    snapshot: effectiveSnapshot,
+    warnings,
+    nextActions,
+    errors,
+    ...unacknowledgedObjective === undefined ? {} : { unacknowledgedObjective }
+  };
 }
 function formatCodexGoalReconciliation(reconciliation) {
-  const parts = [...reconciliation.errors, ...reconciliation.warnings];
+  const parts = [...reconciliation.errors, ...reconciliation.nextActions, ...reconciliation.warnings];
   return parts.join(" ");
+}
+
+// components/ulw-loop/src/driver-objective-ack.ts
+function normalizeDriverObjective(value) {
+  return value.replace(/\s+/g, " ").trim();
+}
+function acknowledgedDriverObjectives(plan) {
+  return plan.acknowledgedDriverObjectives ?? [];
+}
+function acknowledgeDriverObjective(plan, objective) {
+  if (objective === undefined)
+    return false;
+  const normalized = normalizeDriverObjective(objective);
+  if (!normalized || acknowledgedDriverObjectives(plan).includes(normalized))
+    return false;
+  plan.acknowledgedDriverObjectives = [...acknowledgedDriverObjectives(plan), normalized];
+  return true;
 }
 
 // components/ulw-loop/src/paths.ts
@@ -192,6 +217,10 @@ function repoRelative(absolutePath, repoRoot) {
   if (absolutePath.startsWith(backslashPrefix))
     return absolutePath.slice(backslashPrefix.length).split("\\").join("/");
   return absolutePath.split("\\").join("/");
+}
+function ulwLoopEvidenceRoot(scope) {
+  const sessionId = normalizeUlwLoopSessionId(scope?.sessionId);
+  return sessionId === null ? ".omo/evidence" : `.omo/evidence/ulw/${sessionId}`;
 }
 function ulwLoopAttemptEvidenceDir(goalId, attempt, scope) {
   const sessionId = normalizeUlwLoopSessionId(scope?.sessionId);
@@ -299,14 +328,16 @@ async function validateCheckpointCodexGoal(input) {
   const expected = expectedCodexObjective(input.plan, input.goal);
   const reconciliation = reconcileCodexGoalSnapshot(snapshot, {
     expectedObjective: expected,
+    acknowledgedObjectives: acknowledgedDriverObjectives(input.plan),
     ...codexGoalMode(input.plan) === "aggregate" ? { acceptedObjectives: compatibleCodexObjectives(input.plan) } : {}
   });
   if (!reconciliation.ok)
     throw new CodexGoalSnapshotError(formatCodexGoalReconciliation(reconciliation));
   return {
     raw: snapshot?.raw,
-    nextActions: reconciliation.warnings,
-    warnings: reconciliation.warnings.filter((warning) => warning.startsWith("driver_objective_differs"))
+    nextActions: reconciliation.nextActions,
+    warnings: reconciliation.warnings,
+    ...reconciliation.unacknowledgedObjective === undefined ? {} : { unacknowledgedObjective: reconciliation.unacknowledgedObjective }
   };
 }
 function combineCheckpointValidationErrors(codexError, gateError) {
@@ -314,6 +345,41 @@ function combineCheckpointValidationErrors(codexError, gateError) {
 ${gateError.message}`, "ULW_LOOP_QUALITY_GATE_INVALID", {
     details: { ...codexError.details ?? {}, ...gateError.details ?? {} }
   });
+}
+
+// components/ulw-loop/src/evidence-artifacts.ts
+import { existsSync as existsSync2 } from "node:fs";
+import { isAbsolute as isAbsolute2, relative as relative2, resolve as resolve2, sep as sep2 } from "node:path";
+function fail(message, code, details) {
+  throw new UlwLoopError(message, code, { details });
+}
+function stored(repoRoot, absolute) {
+  const rel = relative2(repoRoot, absolute);
+  const inside = rel !== "" && !rel.startsWith("..") && !isAbsolute2(rel);
+  return inside ? rel.split(sep2).join("/") : absolute;
+}
+function resolveEvidenceArtifacts(repoRoot, artifacts) {
+  if (artifacts === undefined)
+    return;
+  const seen = new Set;
+  const resolved = [];
+  for (const [index, candidate] of artifacts.entries()) {
+    const path = typeof candidate === "string" ? candidate.trim() : "";
+    if (!path)
+      fail(`Artifact ${index + 1} must be a non-empty path.`, "ULW_LOOP_ARGUMENT_INVALID", { index });
+    const absolute = resolve2(repoRoot, path);
+    if (!existsSync2(absolute))
+      fail(`Evidence artifact does not exist: ${path} (resolved to ${absolute}).`, "ULW_LOOP_EVIDENCE_ARTIFACT_MISSING", {
+        path,
+        resolved: absolute
+      });
+    const value = stored(repoRoot, absolute);
+    if (!seen.has(value)) {
+      seen.add(value);
+      resolved.push(value);
+    }
+  }
+  return resolved;
 }
 
 // components/ulw-loop/src/plan-commit.ts
@@ -327,7 +393,7 @@ import { join as join4 } from "node:path";
 import { join as join3 } from "node:path";
 
 // components/ulw-loop/src/plan-log.ts
-import { existsSync as existsSync2, readdirSync, readFileSync } from "node:fs";
+import { existsSync as existsSync3, readdirSync, readFileSync } from "node:fs";
 import { join as join2 } from "node:path";
 function hasCode(error, code) {
   return error instanceof Error && "code" in error && error.code === code;
@@ -394,7 +460,7 @@ function reconcilePlan(dir) {
 }
 function planExists(repoRoot, scope) {
   const dir = ulwLoopDir(repoRoot, scope);
-  return existsSync2(join2(dir, "goals.json")) || logNames(dir).length > 0;
+  return existsSync3(join2(dir, "goals.json")) || logNames(dir).length > 0;
 }
 
 // components/ulw-loop/src/ledger.ts
@@ -965,6 +1031,7 @@ async function recordEvidence(repoRoot, args, scope) {
     const goal = findGoal(plan, args.goalId);
     const criterion = findCriterion(goal, args.criterionId);
     const evidence = nonEmptyEvidence(args.evidence);
+    const artifacts = resolveEvidenceArtifacts(repoRoot, args.artifacts);
     const kind = ledgerKind(args.status);
     const prevStatus = criterion.status;
     const capturedAt = iso();
@@ -973,6 +1040,10 @@ async function recordEvidence(repoRoot, args, scope) {
     criterion.capturedAt = capturedAt;
     if (args.notes !== undefined)
       criterion.notes = args.notes;
+    if (artifacts !== undefined)
+      criterion.artifacts = artifacts;
+    else
+      delete criterion.artifacts;
     goal.updatedAt = capturedAt;
     plan.updatedAt = capturedAt;
     const ledgerEntry = {
@@ -983,6 +1054,7 @@ async function recordEvidence(repoRoot, args, scope) {
       criterionStatus: args.status,
       evidence,
       capturedEvidence: evidence,
+      ...artifacts === undefined ? {} : { artifacts },
       before: { status: prevStatus },
       after: { goalId: goal.id, criterionId: criterion.id, status: args.status, evidence, capturedAt, prevStatus }
     };
@@ -1034,7 +1106,7 @@ function requireEssentialCriteriaPass(goal) {
 }
 
 // components/ulw-loop/src/quality-gate-artifacts.ts
-import { resolve as resolve2 } from "node:path";
+import { resolve as resolve3 } from "node:path";
 
 // components/ulw-loop/src/quality-gate-fields.ts
 var PLACEHOLDER_PATTERN = /^(?:<replace:[^>]+>|placeholder|todo|tbd|n\/a|stub)$/i;
@@ -1173,14 +1245,14 @@ function artifactCompatible(surface, kind) {
 function checkFile(path, field, opts) {
   if (opts?.repoRoot === undefined || opts.fs === undefined || isPoisoned(field))
     return;
-  const absolute = resolve2(opts.repoRoot, path);
+  const absolute = resolve3(opts.repoRoot, path);
   if (!opts.fs.existsSync(absolute)) {
     invalid(`${field} must point to an existing artifact.`, field);
     return;
   }
   if (opts.fs.statSync(absolute).size <= 0)
     invalid(`${field} must point to a non-empty artifact.`, field);
-  if (opts.currentAttemptDir !== undefined && !isWithinAttemptDir(absolute, resolve2(opts.repoRoot, opts.currentAttemptDir)))
+  if (opts.currentAttemptDir !== undefined && !isWithinAttemptDir(absolute, resolve3(opts.repoRoot, opts.currentAttemptDir)))
     invalid(`${field} (${path}) must point to an artifact from the current attempt (${opts.currentAttemptDir}).`, field);
 }
 function artifactMap(refs) {
@@ -1256,7 +1328,7 @@ function adversarialVerdict(row, field) {
 }
 
 // components/ulw-loop/src/surface.ts
-import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
+import { existsSync as existsSync4, readFileSync as readFileSync3 } from "node:fs";
 import { dirname as dirname2, join as join5 } from "node:path";
 import { fileURLToPath } from "node:url";
 var REVIEWER_ROLES_BY_SURFACE = {
@@ -1316,7 +1388,7 @@ function resolveToolkitSurface(options) {
 }
 function readMarkerSurface(markerPath) {
   try {
-    if (!existsSync3(markerPath))
+    if (!existsSync4(markerPath))
       return null;
     const parsed = JSON.parse(readFileSync3(markerPath, "utf8"));
     return parseSurface(parsed["surface"]);
@@ -1629,23 +1701,23 @@ async function parseValidationBatches(input, goals) {
   if (raw === undefined)
     return;
   if (!Array.isArray(raw))
-    fail("--validation-batch-json must be a JSON array.");
+    fail2("--validation-batch-json must be a JSON array.");
   const batches = raw.map(batchFromObject);
   validateBatches(batches, goals);
   return batches;
 }
 function batchFromObject(value) {
   if (!isObject(value))
-    fail("validation batch entries must be objects.");
+    fail2("validation batch entries must be objects.");
   const batchId = text(value, "batchId");
   const memberIds = strings(value, "memberIds");
   const finalGoalId = text(value, "finalGoalId");
   if (batchId === undefined)
-    fail("validation batch requires batchId.");
+    fail2("validation batch requires batchId.");
   if (memberIds === undefined || memberIds.length < 2)
-    fail("validation batch requires at least two memberIds.");
+    fail2("validation batch requires at least two memberIds.");
   if (finalGoalId === undefined)
-    fail("validation batch requires finalGoalId.");
+    fail2("validation batch requires finalGoalId.");
   return { batchId, memberIds, finalGoalId };
 }
 function validateBatches(batches, goals) {
@@ -1654,17 +1726,17 @@ function validateBatches(batches, goals) {
   const members = new Set;
   for (const batch of batches) {
     if (batchIds.has(batch.batchId))
-      fail(`duplicate validation batch id: ${batch.batchId}.`);
+      fail2(`duplicate validation batch id: ${batch.batchId}.`);
     batchIds.add(batch.batchId);
     if (new Set(batch.memberIds).size !== batch.memberIds.length)
-      fail(`validation batch ${batch.batchId} has duplicate memberIds.`);
+      fail2(`validation batch ${batch.batchId} has duplicate memberIds.`);
     if (!batch.memberIds.includes(batch.finalGoalId))
-      fail(`validation batch ${batch.batchId} finalGoalId must be a member.`, "ULW_LOOP_VALIDATION_BATCH_FINAL_NOT_MEMBER");
+      fail2(`validation batch ${batch.batchId} finalGoalId must be a member.`, "ULW_LOOP_VALIDATION_BATCH_FINAL_NOT_MEMBER");
     for (const memberId of batch.memberIds) {
       if (!goalIds.has(memberId))
-        fail(`validation batch ${batch.batchId} references unknown goal: ${memberId}.`, "ULW_LOOP_VALIDATION_BATCH_MEMBER_UNKNOWN");
+        fail2(`validation batch ${batch.batchId} references unknown goal: ${memberId}.`, "ULW_LOOP_VALIDATION_BATCH_MEMBER_UNKNOWN");
       if (members.has(memberId))
-        fail(`goal appears in multiple validation batches: ${memberId}.`, "ULW_LOOP_VALIDATION_BATCH_OVERLAP");
+        fail2(`goal appears in multiple validation batches: ${memberId}.`, "ULW_LOOP_VALIDATION_BATCH_OVERLAP");
       members.add(memberId);
     }
   }
@@ -1723,12 +1795,12 @@ function memberResolved(plan, goalId) {
   const goal = plan.goals.find((candidate) => candidate.id === goalId);
   return goal !== undefined && isMemberResolved(goal, plan);
 }
-function fail(message, code = "ULW_LOOP_VALIDATION_BATCH_INVALID") {
+function fail2(message, code = "ULW_LOOP_VALIDATION_BATCH_INVALID") {
   throw new UlwLoopError(message, code);
 }
 
 // components/ulw-loop/src/checkpoint.ts
-var QUALITY_GATE_FS = { existsSync: existsSync4, statSync: statSync2 };
+var QUALITY_GATE_FS = { existsSync: existsSync5, statSync: statSync2 };
 function ulwLoopFail2(message, code) {
   throw new UlwLoopError(message, code);
 }
@@ -1750,8 +1822,8 @@ async function readJsonInput2(raw, repoRoot) {
     if (!(error instanceof SyntaxError))
       throw error;
   }
-  const path = resolve3(repoRoot, trimmed);
-  if (!existsSync4(path))
+  const path = resolve4(repoRoot, trimmed);
+  if (!existsSync5(path))
     return ulwLoopFail2("Quality gate JSON is neither valid JSON nor a readable path.", "ulw_loop_json_input_invalid");
   try {
     return JSON.parse(await readFile3(path, "utf8"));
@@ -1850,6 +1922,7 @@ async function checkpointUlwLoop(repoRoot, args, scope, dependencies) {
         codexGoal = validation.raw;
         nextActions = validation.nextActions;
         warnings = validation.warnings;
+        acknowledgeDriverObjective(plan, validation.unacknowledgedObjective);
       } catch (error) {
         if (!(error instanceof UlwLoopError))
           throw error;
@@ -2235,6 +2308,48 @@ function joinLines(lines) {
 `);
 }
 
+// components/ulw-loop/src/success-criteria-input.ts
+function invalid2(message, details) {
+  throw new UlwLoopError(`Invalid successCriteria: ${message}`, "ULW_LOOP_ARGUMENT_INVALID", { details });
+}
+function isUserModel(value) {
+  return typeof value === "string" && ULW_LOOP_SUCCESS_CRITERION_USER_MODELS.some((model) => model === value);
+}
+function requireText(value, field, index) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed || invalid2(`entry ${index + 1} needs a non-empty ${field}.`, { index, field });
+}
+function criterionId(index) {
+  return `C${String(index + 1).padStart(3, "0")}`;
+}
+function criteriaFromInput(input) {
+  if (input.length === 0)
+    invalid2("provide at least one criterion or omit the field for placeholders.", { count: 0 });
+  return input.map((entry, index) => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry))
+      return invalid2(`entry ${index + 1} must be an object.`, { index });
+    const record = { ...entry };
+    const userModel = record["userModel"] ?? "happy";
+    if (!isUserModel(userModel))
+      return invalid2(`entry ${index + 1} userModel must be one of ${ULW_LOOP_SUCCESS_CRITERION_USER_MODELS.join(", ")}.`, {
+        index,
+        userModel: String(userModel)
+      });
+    const essential = record["essential"];
+    if (essential !== undefined && typeof essential !== "boolean")
+      return invalid2(`entry ${index + 1} essential must be a boolean.`, { index });
+    return {
+      id: criterionId(index),
+      scenario: requireText(record["scenario"], "scenario", index),
+      userModel,
+      expectedEvidence: requireText(record["expectedEvidence"], "expectedEvidence", index),
+      essential: essential ?? true,
+      capturedEvidence: null,
+      status: "pending"
+    };
+  });
+}
+
 // components/ulw-loop/src/plan-goal-factory.ts
 function cleanLine(line) {
   return line.replace(/^\s*(?:[-*+]\s+|\d+[.)]\s+)/, "").trim();
@@ -2259,40 +2374,35 @@ function assertNonEmpty(value, label) {
 function truncateObjective(objective) {
   return objective.length > 80 ? `${objective.slice(0, 77).trimEnd()}...` : objective;
 }
-function seedDefaultSuccessCriteria(goalIndex, objective) {
+function replaceVia(goalId, id, surface) {
+  return surface === "omo-senpi" ? `Replace via agentToolkit.steer({ kind: "revise_criterion", source: "finding", goalId: "${goalId}", criterionId: "${id}", scenario, expectedEvidence, evidence, rationale }) (or pass successCriteria to addGoal)` : `Replace via omo-agent-toolkit ulw-loop steer --kind revise_criterion --goal-id ${goalId} --criterion-id ${id} --scenario "<scenario>" --expected-evidence "<proof>" --evidence "<why>" --rationale "<why>"`;
+}
+function seedDefaultSuccessCriteria(goalIndex, objective, options = {}) {
   const subject = truncateObjective(normalizeObjective2(objective) || `Goal ${goalIndex + 1}`);
+  const goalId = options.goalId ?? `G${String(goalIndex + 1).padStart(3, "0")}`;
+  const surface = options.surface ?? "lazycodex";
   const rows = [
+    ["happy", `happy path for: ${subject}`, `observable happy-path proof for goal ${goalIndex + 1}`, true],
+    ["edge", "edge case (boundary/empty/malformed)", `boundary or malformed-input proof for: ${subject}`, true],
     [
-      "C001",
-      "happy",
-      `happy path for: ${subject}`,
-      `Replace via revise_criterion with observable happy-path proof for goal ${goalIndex + 1}.`,
-      true
-    ],
-    [
-      "C002",
-      "edge",
-      "edge case (boundary/empty/malformed)",
-      `Replace via revise_criterion with boundary or malformed-input proof for: ${subject}.`,
-      true
-    ],
-    [
-      "C003",
       "regression",
       "regression: adjacent surface still works",
-      `Replace via revise_criterion with regression proof for neighboring behavior after: ${subject}.`,
+      `regression proof for neighboring behavior after: ${subject}`,
       false
     ]
   ];
-  return rows.map(([id, userModel, scenario, expectedEvidence, essential]) => ({
-    id,
-    scenario,
-    userModel,
-    expectedEvidence,
-    essential,
-    capturedEvidence: null,
-    status: "pending"
-  }));
+  return rows.map(([userModel, scenario, proof, essential], index) => {
+    const id = criterionId(index);
+    return {
+      id,
+      scenario,
+      userModel,
+      expectedEvidence: `${replaceVia(goalId, id, surface)} with ${proof}.`,
+      essential,
+      capturedEvidence: null,
+      status: "pending"
+    };
+  });
 }
 function deriveGoalCandidates(brief) {
   const bulletGoals = brief.split(/\r?\n/).map((line) => ({ original: line, cleaned: normalizeObjective2(cleanLine(line)) })).filter(({ cleaned }) => cleaned.length > 0 && cleaned.length <= 1200).filter(({ original, cleaned }, index, all) => /^\s*(?:[-*+]\s+|\d+[.)]\s+)/.test(original) && all.findIndex((candidate) => candidate.cleaned === cleaned) === index).map(({ cleaned }) => cleaned);
@@ -2303,22 +2413,27 @@ function deriveGoalCandidates(brief) {
     objective
   }));
 }
-function makeGoal(title, objective, index, now) {
+function makeGoal(title, objective, index, now, options = {}) {
   const cleanTitle = assertNonEmpty(title, "title");
   const cleanObjective = assertNonEmpty(objective, "objective");
+  const id = normalizeGoalId(cleanTitle, index);
+  const successCriteria = options.successCriteria === undefined ? seedDefaultSuccessCriteria(index, cleanObjective, {
+    goalId: id,
+    ...options.surface === undefined ? {} : { surface: options.surface }
+  }) : criteriaFromInput(options.successCriteria);
   return {
-    id: normalizeGoalId(cleanTitle, index),
+    id,
     title: cleanTitle,
     objective: cleanObjective,
     status: "pending",
-    successCriteria: seedDefaultSuccessCriteria(index, cleanObjective),
+    successCriteria,
     attempt: 0,
     createdAt: now,
     updatedAt: now
   };
 }
-function appendGoalToPlan(plan, title, objective, now) {
-  const goal = makeGoal(title, objective, plan.goals.length, now);
+function appendGoalToPlan(plan, title, objective, now, options = {}) {
+  const goal = makeGoal(title, objective, plan.goals.length, now, options);
   plan.goals.push(goal);
   plan.updatedAt = now;
   return goal;
@@ -2357,7 +2472,7 @@ async function createUlwLoopPlan(repoRoot, args, scope, surface = "lazycodex") {
       throw new UlwLoopError(`Refusing to overwrite existing ${ulwLoopGoalsRelativePath(scope)}; pass --force to recreate it.`, "ULW_LOOP_PLAN_EXISTS");
     }
     const now = iso();
-    const goals = deriveGoalCandidates(args.brief).map((goal, index) => makeGoal(goal.title, goal.objective, index, now));
+    const goals = deriveGoalCandidates(args.brief).map((goal, index) => makeGoal(goal.title, goal.objective, index, now, { surface }));
     const plan = {
       version: 1,
       revision: existing?.revision ?? 0,
@@ -2398,11 +2513,14 @@ function completedPlanExistsError(scope, surface) {
     ]
   ].join(" "), "ULW_LOOP_PLAN_EXISTS_COMPLETE");
 }
-async function addUlwLoopGoal(repoRoot, args, scope) {
+async function addUlwLoopGoal(repoRoot, args, scope, surface = "lazycodex") {
   return withUlwLoopMutationLock(repoRoot, scope, async () => {
     const plan = await readUlwLoopPlan(repoRoot, scope);
     const now = iso();
-    const goal = appendGoalToPlan(plan, args.title, args.objective, now);
+    const goal = appendGoalToPlan(plan, args.title, args.objective, now, {
+      surface,
+      ...args.successCriteria === undefined ? {} : { successCriteria: args.successCriteria }
+    });
     await commit(repoRoot, scope, {
       plan,
       entries: [{ at: now, kind: "goal_added", goalId: goal.id, status: goal.status, message: goal.title }]
@@ -2570,7 +2688,7 @@ function isSource(value) {
 function isModel(value) {
   return ULW_LOOP_SUCCESS_CRITERION_USER_MODELS.some((model) => model === value);
 }
-function fail2(message, code, details) {
+function fail3(message, code, details) {
   throw new UlwLoopError(message, code, { details });
 }
 function kindMessage(prefix) {
@@ -2584,15 +2702,15 @@ function text2(value, field) {
   const trimmed = value.trim();
   if (trimmed.length > 0)
     return trimmed;
-  return fail2(`Empty ${field}.`, "ULW_LOOP_STEERING_FIELD_EMPTY", { field });
+  return fail3(`Empty ${field}.`, "ULW_LOOP_STEERING_FIELD_EMPTY", { field });
 }
 function required3(argv, flag) {
   const value = text2(readValue(argv, flag), flag);
-  return value ?? fail2(`Missing ${flag}.`, "ULW_LOOP_STEERING_FIELD_REQUIRED", { flag });
+  return value ?? fail3(`Missing ${flag}.`, "ULW_LOOP_STEERING_FIELD_REQUIRED", { flag });
 }
 function requiredGoal(argv) {
   const value = text2(parseGoalArg(argv), "--goal-id");
-  return value ?? fail2("Missing --goal-id.", "ULW_LOOP_GOAL_ID_REQUIRED", { flag: "--goal-id" });
+  return value ?? fail3("Missing --goal-id.", "ULW_LOOP_GOAL_ID_REQUIRED", { flag: "--goal-id" });
 }
 function readObject(value, key) {
   return Object.entries(value).find(([name]) => name === key)?.[1];
@@ -2616,7 +2734,7 @@ function objectChildren(value, key) {
   for (const item of candidate) {
     const next = child(item);
     if (next === null)
-      return fail2(`${key} entries require title/objective.`, "ULW_LOOP_STEERING_CHILD_INVALID", { key });
+      return fail3(`${key} entries require title/objective.`, "ULW_LOOP_STEERING_CHILD_INVALID", { key });
     parsed.push(next);
   }
   return parsed;
@@ -2631,13 +2749,13 @@ function parseSteeringKind(argv) {
   const value = readValue(argv, "--kind");
   if (isKind(value))
     return value;
-  return value === undefined ? fail2(kindMessage("Missing --kind."), "ULW_LOOP_STEERING_KIND_REQUIRED", { flag: "--kind", expected: ULW_LOOP_STEERING_MUTATION_KINDS, usage: STEERING_KIND_HELP }) : fail2(kindMessage(`Invalid --kind: ${value}.`), "ULW_LOOP_STEERING_KIND_INVALID", { value, expected: ULW_LOOP_STEERING_MUTATION_KINDS, usage: STEERING_KIND_HELP });
+  return value === undefined ? fail3(kindMessage("Missing --kind."), "ULW_LOOP_STEERING_KIND_REQUIRED", { flag: "--kind", expected: ULW_LOOP_STEERING_MUTATION_KINDS, usage: STEERING_KIND_HELP }) : fail3(kindMessage(`Invalid --kind: ${value}.`), "ULW_LOOP_STEERING_KIND_INVALID", { value, expected: ULW_LOOP_STEERING_MUTATION_KINDS, usage: STEERING_KIND_HELP });
 }
 function parseSteeringSource(argv) {
   const value = readValue(argv, "--source");
   if (value === undefined)
     return "cli";
-  return isSource(value) ? value : fail2(`Invalid --source: ${value}.`, "ULW_LOOP_STEERING_SOURCE_INVALID", { value, expected: SOURCES });
+  return isSource(value) ? value : fail3(`Invalid --source: ${value}.`, "ULW_LOOP_STEERING_SOURCE_INVALID", { value, expected: SOURCES });
 }
 function child(value) {
   if (!isPlain(value))
@@ -2654,12 +2772,12 @@ async function children(argv, flag, needed) {
     return [];
   const raw = await readJsonInput(input);
   if (!Array.isArray(raw))
-    return fail2(`${flag} must be a JSON array.`, "ULW_LOOP_STEERING_JSON_ARRAY_REQUIRED", { flag });
+    return fail3(`${flag} must be a JSON array.`, "ULW_LOOP_STEERING_JSON_ARRAY_REQUIRED", { flag });
   const parsed = [];
   for (const item of raw) {
     const next = child(item);
     if (next === null)
-      return fail2(`${flag} entries require title/objective.`, "ULW_LOOP_STEERING_CHILD_INVALID", { flag });
+      return fail3(`${flag} entries require title/objective.`, "ULW_LOOP_STEERING_CHILD_INVALID", { flag });
     parsed.push(next);
   }
   return parsed;
@@ -2667,11 +2785,11 @@ async function children(argv, flag, needed) {
 async function stringArray2(argv, flag) {
   const raw = await readJsonInput(required3(argv, flag));
   if (!Array.isArray(raw))
-    return fail2(`${flag} must be a JSON array.`, "ULW_LOOP_STEERING_JSON_ARRAY_REQUIRED", { flag });
+    return fail3(`${flag} must be a JSON array.`, "ULW_LOOP_STEERING_JSON_ARRAY_REQUIRED", { flag });
   const values = [];
   for (const item of raw) {
     if (typeof item !== "string")
-      return fail2(`${flag} entries must be strings.`, "ULW_LOOP_STEERING_STRING_ARRAY_REQUIRED", { flag });
+      return fail3(`${flag} entries must be strings.`, "ULW_LOOP_STEERING_STRING_ARRAY_REQUIRED", { flag });
     values.push(text2(item, flag) ?? "");
   }
   return values;
@@ -2680,10 +2798,10 @@ function model(value) {
   const trimmed = text2(value, "--user-model");
   if (trimmed === undefined)
     return;
-  return isModel(trimmed) ? trimmed : fail2(`Invalid --user-model: ${trimmed}.`, "ULW_LOOP_STEERING_USER_MODEL_INVALID", { value: trimmed, expected: ULW_LOOP_SUCCESS_CRITERION_USER_MODELS });
+  return isModel(trimmed) ? trimmed : fail3(`Invalid --user-model: ${trimmed}.`, "ULW_LOOP_STEERING_USER_MODEL_INVALID", { value: trimmed, expected: ULW_LOOP_SUCCESS_CRITERION_USER_MODELS });
 }
 function neverKind(kind) {
-  return fail2(`Unsupported steering kind: ${String(kind)}.`, "ULW_LOOP_STEERING_KIND_UNSUPPORTED", { kind });
+  return fail3(`Unsupported steering kind: ${String(kind)}.`, "ULW_LOOP_STEERING_KIND_UNSUPPORTED", { kind });
 }
 async function parseSteeringProposal(argv) {
   const kind = parseSteeringKind(argv);
@@ -2704,7 +2822,7 @@ async function parseSteeringProposal(argv) {
       const revisedTitle = readValue(argv, "--title");
       const revisedObjective = readValue(argv, "--objective");
       if (revisedTitle === undefined && revisedObjective === undefined)
-        return fail2("revise_pending_wording requires --title or --objective.", "ULW_LOOP_STEERING_UPDATE_REQUIRED", { kind });
+        return fail3("revise_pending_wording requires --title or --objective.", "ULW_LOOP_STEERING_UPDATE_REQUIRED", { kind });
       return normalizeSteeringProposal({ ...base, goalId, targetGoalId: goalId, ...revisedTitle === undefined ? {} : { revisedTitle }, ...revisedObjective === undefined ? {} : { revisedObjective } });
     }
     case "revise_criterion": {
@@ -2714,7 +2832,7 @@ async function parseSteeringProposal(argv) {
       const expectedEvidence = readValue(argv, "--expected-evidence");
       const userModel = model(readValue(argv, "--user-model"));
       if (scenario === undefined && expectedEvidence === undefined && userModel === undefined)
-        return fail2("revise_criterion requires scenario, expected-evidence, or user-model.", "ULW_LOOP_STEERING_UPDATE_REQUIRED", { kind });
+        return fail3("revise_criterion requires scenario, expected-evidence, or user-model.", "ULW_LOOP_STEERING_UPDATE_REQUIRED", { kind });
       return normalizeSteeringProposal({ ...base, goalId, targetGoalId: goalId, criterionId, ...scenario === undefined ? {} : { scenario }, ...expectedEvidence === undefined ? {} : { expectedEvidence }, ...userModel === undefined ? {} : { userModel } });
     }
     case "annotate_ledger":
@@ -2764,10 +2882,10 @@ async function parseSteeringProposals(argv) {
   if (input === undefined)
     return [await parseSteeringProposal(argv)];
   if (readValue(argv, "--kind") !== undefined)
-    return fail2("--kind and --proposals-json are mutually exclusive.", "ULW_LOOP_STEERING_BATCH_CONFLICT", { flags: ["--kind", "--proposals-json"] });
+    return fail3("--kind and --proposals-json are mutually exclusive.", "ULW_LOOP_STEERING_BATCH_CONFLICT", { flags: ["--kind", "--proposals-json"] });
   const raw = await readJsonInput(input);
   if (!Array.isArray(raw) || raw.length === 0)
-    return fail2("--proposals-json must be a non-empty JSON array.", "ULW_LOOP_STEERING_BATCH_ARRAY_REQUIRED", { flag: "--proposals-json" });
+    return fail3("--proposals-json must be a non-empty JSON array.", "ULW_LOOP_STEERING_BATCH_ARRAY_REQUIRED", { flag: "--proposals-json" });
   const proposals = [];
   for (const item of raw)
     proposals.push(normalizeSteeringProposal(proposalFromObject(item)));
@@ -2775,13 +2893,13 @@ async function parseSteeringProposals(argv) {
 }
 function proposalFromObject(value) {
   if (!isPlain(value))
-    return fail2("--proposals-json entries must be objects.", "ULW_LOOP_STEERING_BATCH_ITEM_INVALID", { flag: "--proposals-json" });
+    return fail3("--proposals-json entries must be objects.", "ULW_LOOP_STEERING_BATCH_ITEM_INVALID", { flag: "--proposals-json" });
   const kind = readObject(value, "kind");
   const source = readObject(value, "source") ?? "cli";
   if (!isProposalKind(kind))
-    return fail2(`Invalid batch steering kind: ${String(kind)}.`, "ULW_LOOP_STEERING_KIND_INVALID", { value: kind });
+    return fail3(`Invalid batch steering kind: ${String(kind)}.`, "ULW_LOOP_STEERING_KIND_INVALID", { value: kind });
   if (!isProposalSource(source))
-    return fail2(`Invalid batch steering source: ${String(source)}.`, "ULW_LOOP_STEERING_SOURCE_INVALID", { value: source });
+    return fail3(`Invalid batch steering source: ${String(source)}.`, "ULW_LOOP_STEERING_SOURCE_INVALID", { value: source });
   let proposal = { kind, source, evidence: objectText(value, "evidence") ?? "", rationale: objectText(value, "rationale") ?? "" };
   const goalId = objectText(value, "goalId");
   const targetGoalId = objectText(value, "targetGoalId");
@@ -2867,12 +2985,13 @@ function nextGoalId(plan) {
 }
 function appendBlockerGoal(plan, args, now) {
   const index = plan.goals.length;
+  const id = nextGoalId(plan);
   const goal = {
-    id: nextGoalId(plan),
+    id,
     title: args.title,
     objective: args.objective,
     status: "pending",
-    successCriteria: seedDefaultSuccessCriteria(index, args.objective),
+    successCriteria: seedDefaultSuccessCriteria(index, args.objective, { goalId: id }),
     attempt: 0,
     createdAt: now,
     updatedAt: now
@@ -2893,10 +3012,12 @@ async function recordFinalReviewBlockers(repoRoot, args, scope) {
     const snapshot = await readCodexGoalSnapshotInput(args.codexGoalJson, repoRoot);
     const reconciliation = reconcileCodexGoalSnapshot(snapshot, {
       expectedObjective: expectedCodexObjective(plan, goal),
-      acceptedObjectives: compatibleCodexObjectives(plan)
+      acceptedObjectives: compatibleCodexObjectives(plan),
+      acknowledgedObjectives: acknowledgedDriverObjectives(plan)
     });
     if (!reconciliation.ok)
       throw new CodexGoalSnapshotError(formatCodexGoalReconciliation(reconciliation));
+    acknowledgeDriverObjective(plan, reconciliation.unacknowledgedObjective);
     const now = iso();
     for (const field of BLOCKER_FIELDS)
       Reflect.deleteProperty(goal, field);
@@ -2920,8 +3041,8 @@ async function recordFinalReviewBlockers(repoRoot, args, scope) {
       blockedGoal: goal,
       newGoal,
       ledgerEntries,
-      nextActions: reconciliation.warnings,
-      warnings: reconciliation.warnings.filter((warning) => warning.startsWith("driver_objective_differs"))
+      nextActions: reconciliation.nextActions,
+      warnings: reconciliation.warnings
     };
   });
 }
@@ -2992,11 +3113,11 @@ function nextId(plan, offset) {
   }, 0);
   return `G${String(max + offset).padStart(3, "0")}`;
 }
-function makeGoal2(plan, childGoal, evidence, now, offset) {
+function makeGoal2(plan, childGoal, evidence, now, offset, surface = "lazycodex") {
   const id = nextId(plan, offset);
   const digits = /^G(\d+)/u.exec(id)?.[1];
   const goalIndex = digits === undefined ? plan.goals.length + offset - 1 : Number(digits) - 1;
-  return { id, title: childGoal.title, objective: childGoal.objective, status: "pending", successCriteria: seedDefaultSuccessCriteria(goalIndex, childGoal.objective), attempt: 0, createdAt: now, updatedAt: now, evidence };
+  return { id, title: childGoal.title, objective: childGoal.objective, status: "pending", successCriteria: seedDefaultSuccessCriteria(goalIndex, childGoal.objective, { goalId: id, surface }), attempt: 0, createdAt: now, updatedAt: now, evidence };
 }
 function reviseWording(plan, proposal, now) {
   const target = goal(plan, targets(proposal)[0]);
@@ -3008,11 +3129,11 @@ function reviseWording(plan, proposal, now) {
   target.steeringRationale = proposal.rationale;
   target.updatedAt = now;
 }
-function splitOrBlock(plan, proposal, now) {
+function splitOrBlock(plan, proposal, now, surface = "lazycodex") {
   const target = goal(plan, targets(proposal)[0]);
   if (target === undefined)
     return;
-  const replacements = children2(proposal).map((item, index) => makeGoal2(plan, item, proposal.evidence, now, index + 1));
+  const replacements = children2(proposal).map((item, index) => makeGoal2(plan, item, proposal.evidence, now, index + 1, surface));
   target.steeringEvidence = proposal.evidence;
   target.steeringRationale = proposal.rationale;
   target.updatedAt = now;
@@ -3068,7 +3189,7 @@ function changedGoalIdsBetween(before, after) {
 
 // components/ulw-loop/src/steering.ts
 var SOURCES2 = ["user_prompt_submit", "finding", "cli"];
-var PROTECTED = new Set(["aggregateCompletion", "codexObjective", "codexObjectiveAliases", "originalConstraints", "qualityGate", "status", "completedAt", "completionStatus"]);
+var PROTECTED = new Set(["aggregateCompletion", "codexObjective", "codexObjectiveAliases", "acknowledgedDriverObjectives", "originalConstraints", "qualityGate", "status", "completedAt", "completionStatus"]);
 var isObject2 = (value) => typeof value === "object" && value !== null;
 var isPlain2 = (value) => isObject2(value) && !Array.isArray(value);
 var read3 = (value, key) => Object.entries(value).find(([name]) => name === key)?.[1];
@@ -3226,13 +3347,13 @@ function validateCriterion(plan, proposal, reasons) {
   if (model !== undefined && !isModel3(model))
     reasons.push("invalid userModel");
 }
-function applySteeringMutation(plan, proposal, audit) {
+function applySteeringMutation(plan, proposal, audit, surface = "lazycodex") {
   const next = structuredClone(plan);
   if (!audit.invariant.accepted)
     return next;
   const now = proposal.now?.toISOString() ?? iso();
   if (proposal.kind === "add_subgoal")
-    next.goals.push(makeGoal2(next, { title: proposal.title ?? "", objective: proposal.objective ?? "" }, proposal.evidence, now, 1));
+    next.goals.push(makeGoal2(next, { title: proposal.title ?? "", objective: proposal.objective ?? "" }, proposal.evidence, now, 1, surface));
   if (proposal.kind === "reorder_pending") {
     const order = pendingOrder(proposal);
     next.goals = [...order.map((id) => goal2(next, id)).filter((item) => item !== undefined), ...next.goals.filter((item) => !order.includes(item.id))];
@@ -3240,7 +3361,7 @@ function applySteeringMutation(plan, proposal, audit) {
   if (proposal.kind === "revise_pending_wording")
     reviseWording(next, proposal, now);
   if (proposal.kind === "split_subgoal" || proposal.kind === "mark_blocked_superseded")
-    splitOrBlock(next, proposal, now);
+    splitOrBlock(next, proposal, now, surface);
   if (proposal.kind === "revise_criterion")
     reviseCriterion(next, proposal, now);
   if (proposal.kind !== "annotate_ledger")
@@ -3263,7 +3384,7 @@ function parseUlwLoopSteeringDirective(text) {
     throw error;
   }
 }
-async function steerUlwLoop(repoRoot, proposal, scope) {
+async function steerUlwLoop(repoRoot, proposal, scope, surface = "lazycodex") {
   return withUlwLoopMutationLock(repoRoot, scope, async () => {
     const plan = await readUlwLoopPlan(repoRoot, scope);
     const key = proposal.idempotencyKey ?? proposal.promptSignature;
@@ -3274,7 +3395,7 @@ async function steerUlwLoop(repoRoot, proposal, scope) {
     }
     const audit = validateUlwLoopSteeringProposal(plan, proposal);
     const accepted = audit.invariant.accepted;
-    const next = accepted ? applySteeringMutation(plan, proposal, audit) : plan;
+    const next = accepted ? applySteeringMutation(plan, proposal, audit, surface) : plan;
     const finalAudit = { ...audit };
     if (accepted) {
       const changed = changedGoalIdsBetween(plan, next);
@@ -3303,20 +3424,119 @@ function ledgerEntry(proposal, audit, at) {
 }
 
 // components/ulw-loop/src/sdk/manifest.ts
+var CRITERION_INPUT = '{ scenario: string, expectedEvidence: string, userModel?: "happy" | "edge" | "regression" | "adversarial", essential?: boolean }';
+var STEER_KINDS = '"add_subgoal" | "split_subgoal" | "reorder_pending" | "revise_pending_wording" | "revise_criterion" | "annotate_ledger" | "mark_blocked_superseded"';
 var ULW_LOOP_MANIFEST = {
   version: 1,
   name: "ulw-loop",
   operations: [
-    { name: "help", mutating: false },
-    { name: "create-goals", mutating: true },
-    { name: "status", mutating: false },
-    { name: "complete-goals", mutating: true },
-    { name: "checkpoint", mutating: true },
-    { name: "steer", mutating: true },
-    { name: "add-goal", mutating: true },
-    { name: "criteria", mutating: false },
-    { name: "record-evidence", mutating: true },
-    { name: "record-review-blockers", mutating: true }
+    {
+      name: "help",
+      method: "help",
+      mutating: false,
+      description: "Return this manifest: every operation with its method name, argument fields, and what it does.",
+      args: {}
+    },
+    {
+      name: "create-goals",
+      method: "createGoals",
+      mutating: true,
+      description: "Create the session plan from a brief; one goal per bullet, each seeded with placeholder criteria until revised.",
+      args: {
+        brief: "string",
+        codexGoalMode: '"aggregate" | "per_story"?',
+        force: "boolean?",
+        validationBatchesJson: "string?"
+      }
+    },
+    {
+      name: "status",
+      method: "status",
+      mutating: false,
+      description: "Read the plan, its summary, structured nextActions, the stable evidenceRoot, and the active goal's currentAttemptDir.",
+      args: {}
+    },
+    {
+      name: "complete-goals",
+      method: "completeGoals",
+      mutating: true,
+      description: "Acquire the next eligible goal or resume the in-progress one; returns { done: true } once the aggregate is complete.",
+      args: { retryFailed: "boolean?" }
+    },
+    {
+      name: "checkpoint",
+      method: "checkpoint",
+      mutating: true,
+      description: "Close the goal as complete, failed, or blocked with evidence; the final goal also needs the quality gate. printTemplate returns that gate's template instead.",
+      args: {
+        goalId: "string",
+        status: '"complete" | "failed" | "blocked"',
+        evidence: "string",
+        codexGoalJson: "string?",
+        qualityGateJson: "string?",
+        printTemplate: "true? (with goalId? only)"
+      }
+    },
+    {
+      name: "steer",
+      method: "steer",
+      mutating: true,
+      description: "Propose an evidence-backed plan mutation; revise_criterion replaces a criterion's scenario, expectedEvidence, or userModel.",
+      args: {
+        kind: STEER_KINDS,
+        source: '"finding" | "user_prompt_submit" | "cli"',
+        evidence: "string",
+        rationale: "string",
+        goalId: "string?",
+        criterionId: "string? (revise_criterion)",
+        scenario: "string? (revise_criterion)",
+        expectedEvidence: "string? (revise_criterion)",
+        userModel: '"happy" | "edge" | "regression" | "adversarial"? (revise_criterion)',
+        title: "string? (add_subgoal)",
+        objective: "string? (add_subgoal)",
+        childGoals: "{ title: string, objective: string }[]? (split_subgoal)",
+        revisedTitle: "string? (revise_pending_wording)",
+        revisedObjective: "string? (revise_pending_wording)",
+        pendingOrder: "string[]? (reorder_pending)",
+        blockedReason: "string? (mark_blocked_superseded)",
+        idempotencyKey: "string?"
+      }
+    },
+    {
+      name: "add-goal",
+      method: "addGoal",
+      mutating: true,
+      description: "Append a goal; pass successCriteria to define its criteria in the same call, otherwise placeholders name the revise call.",
+      args: { title: "string", objective: "string", successCriteria: `${CRITERION_INPUT}[]?` }
+    },
+    {
+      name: "criteria",
+      method: "criteria",
+      mutating: false,
+      description: "List one goal's success criteria with their status and captured evidence.",
+      args: { goalId: "string" }
+    },
+    {
+      name: "record-evidence",
+      method: "recordEvidence",
+      mutating: true,
+      description: "Record a criterion's pass, fail, or blocked evidence; artifacts must exist (resolved against the session cwd) and are stored with the criterion and the ledger entry.",
+      args: {
+        goalId: "string",
+        criterionId: "string",
+        status: '"pass" | "fail" | "blocked"',
+        evidence: "string",
+        notes: "string?",
+        artifacts: "string[]?"
+      }
+    },
+    {
+      name: "record-review-blockers",
+      method: "recordReviewBlockers",
+      mutating: true,
+      description: "Mark the final goal review_blocked and append the blocker goal the reviewer verdict names.",
+      args: { goalId: "string", title: "string", objective: "string", evidence: "string", codexGoalJson: "string?" }
+    }
   ]
 };
 
@@ -3358,10 +3578,11 @@ function isKnownRequest(request) {
 function unreachable(value) {
   throw new UlwLoopError(`Unhandled operation: ${String(value)}`, "ULW_LOOP_OPERATION_UNHANDLED");
 }
-function nextActionsFrom(result) {
-  if (!("nextActions" in result) || !Array.isArray(result.nextActions))
+function stringsFrom(result, key) {
+  if (!(key in result))
     return [];
-  return result.nextActions.filter((action) => typeof action === "string").slice(0, 8);
+  const value = Object.entries(result).find(([name]) => name === key)?.[1];
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string").slice(0, 8) : [];
 }
 function checkpointWithValidatedSnapshot(context, scope, args) {
   validateCodexGoalJson(args.codexGoalJson);
@@ -3378,8 +3599,15 @@ function createAgentToolkit(context, deps = {}) {
   const invoke = async (operation, fn) => {
     try {
       const result = await fn();
-      const nextActions = typeof result === "object" && result !== null ? nextActionsFrom(result) : [];
-      return await notify(operation, { ok: true, operation, result, nextActions });
+      const nextActions = typeof result === "object" && result !== null ? stringsFrom(result, "nextActions") : [];
+      const warnings = typeof result === "object" && result !== null ? stringsFrom(result, "warnings") : [];
+      return await notify(operation, {
+        ok: true,
+        operation,
+        result,
+        nextActions,
+        ...warnings.length === 0 ? {} : { warnings }
+      });
     } catch (error) {
       if (error instanceof UlwLoopError && error.code === "ULW_LOOP_PLAN_MISSING" && context.surface === "omo-senpi")
         return notify(operation, failure(operation, planMissingError(ulwLoopGoalsRelativePath(scope), listUlwLoopSessionIds(context.cwd), context.surface)));
@@ -3425,13 +3653,14 @@ function createAgentToolkit(context, deps = {}) {
         plan,
         summary: summarizeUlwLoopPlan(plan),
         nextActions: statusNextActions(plan, context.surface),
+        evidenceRoot: ulwLoopEvidenceRoot(scope),
         ...active === undefined || plan.evidenceLayoutVersion !== 2 ? {} : { currentAttemptDir: ulwLoopAttemptEvidenceDir(active.id, active.attempt, scope) }
       };
     }),
     completeGoals: (args = {}) => invoke("complete-goals", () => startNextUlwLoop(context.cwd, args, scope)),
     checkpoint: (args) => invoke("checkpoint", () => args.printTemplate === true ? checkpointTemplate(context.cwd, scope, args.goalId, { surface: context.surface }) : checkpointWithValidatedSnapshot(context, scope, args)),
-    steer: (args) => invoke("steer", () => steerUlwLoop(context.cwd, args, scope)),
-    addGoal: (args) => invoke("add-goal", () => addUlwLoopGoal(context.cwd, args, scope)),
+    steer: (args) => invoke("steer", () => steerUlwLoop(context.cwd, args, scope, context.surface)),
+    addGoal: (args) => invoke("add-goal", () => addUlwLoopGoal(context.cwd, args, scope, context.surface)),
     criteria: (args) => invoke("criteria", async () => {
       const plan = await readUlwLoopPlan(context.cwd, scope);
       const goal = plan.goals.find((candidate) => candidate.id === args.goalId);
@@ -3798,7 +4027,7 @@ function commandScope(repoRoot, argv) {
 import { readFileSync as readFileSync5 } from "node:fs";
 
 // components/ulw-loop/src/ultrawork-skill-pointer.ts
-import { existsSync as existsSync5, readFileSync as readFileSync4 } from "node:fs";
+import { existsSync as existsSync6, readFileSync as readFileSync4 } from "node:fs";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var ULTRAWORK_SKILL_POINTER_TEMPLATE = `<ultrawork-mode>
 ULTRAWORK MODE IS ACTIVE FOR THIS TASK.
@@ -3839,7 +4068,7 @@ function buildUltraworkSkillPointer(skillFilePath) {
 }
 function buildUltraworkAdditionalContext(options = {}) {
   const skillFilePath = options.skillFilePath === undefined ? resolveUltraworkSkillFilePath() : options.skillFilePath;
-  if (skillFilePath !== null && existsSync5(skillFilePath)) {
+  if (skillFilePath !== null && existsSync6(skillFilePath)) {
     return buildUltraworkSkillPointer(skillFilePath);
   }
   return ULTRAWORK_DIRECTIVE;
@@ -4091,7 +4320,7 @@ import { join as join7 } from "node:path";
 
 // components/ulw-loop/src/spawn-budget-io.ts
 import { randomBytes } from "node:crypto";
-import { existsSync as existsSync6, readFileSync as readFileSync6, renameSync as renameSync2, statSync as statSync3, writeFileSync as writeFileSync2 } from "node:fs";
+import { existsSync as existsSync7, readFileSync as readFileSync6, renameSync as renameSync2, statSync as statSync3, writeFileSync as writeFileSync2 } from "node:fs";
 import { dirname as dirname3, join as join6 } from "node:path";
 function readAdmissionBreaker(sessionId) {
   const dataDir = process.env["PLUGIN_DATA"];
@@ -4111,7 +4340,7 @@ function atomicWriteJson(targetPath, data) {
 }
 function isNonEmptyFile(path) {
   try {
-    return existsSync6(path) && statSync3(path).size > 0;
+    return existsSync7(path) && statSync3(path).size > 0;
   } catch (error) {
     if (error instanceof Error)
       return false;
@@ -4409,8 +4638,8 @@ function readPlan(repoRoot, sessionId) {
 }
 
 // components/ulw-loop/src/stop-resume-hook.ts
-import { existsSync as existsSync7, readFileSync as readFileSync7, writeFileSync as writeFileSync3 } from "node:fs";
-import { isAbsolute as isAbsolute2, join as join8, resolve as resolve4, sep as sep2 } from "node:path";
+import { existsSync as existsSync8, readFileSync as readFileSync7, writeFileSync as writeFileSync3 } from "node:fs";
+import { isAbsolute as isAbsolute3, join as join8, resolve as resolve5, sep as sep3 } from "node:path";
 var RESUME_CAP = 2;
 var CONTEXT_PRESSURE_MARKERS2 = [
   "context compacted",
@@ -4478,8 +4707,8 @@ function consumeResumeBudgetLocked(lockPath, stateDir, goalId) {
 }
 function consumeResumeBudget(stateDir, goalId) {
   const ledgerLineCount = readLedgerAt(stateDir).length;
-  const counterPath = resolve4(stateDir, `auto-resume-${goalId}.json`);
-  const stuckPath = resolve4(stateDir, `auto-resume-${goalId}.stuck`);
+  const counterPath = resolve5(stateDir, `auto-resume-${goalId}.json`);
+  const stuckPath = resolve5(stateDir, `auto-resume-${goalId}.stuck`);
   if (!isInsideDir(stateDir, counterPath) || !isInsideDir(stateDir, stuckPath))
     return false;
   const previous = readCounter(counterPath);
@@ -4493,7 +4722,7 @@ function consumeResumeBudget(stateDir, goalId) {
   return true;
 }
 function isInsideDir(dir, candidate) {
-  return candidate.startsWith(resolve4(dir) + sep2);
+  return candidate.startsWith(resolve5(dir) + sep3);
 }
 function renderResumeDirective(plan, goal, sessionId) {
   const normalized = normalizeUlwLoopSessionId(sessionId);
@@ -4519,7 +4748,7 @@ function readPlan2(repoRoot, sessionId) {
 }
 function readCounter(counterPath) {
   try {
-    if (!existsSync7(counterPath))
+    if (!existsSync8(counterPath))
       return null;
     const parsed = JSON.parse(readFileSync7(counterPath, "utf8"));
     if (typeof parsed["count"] !== "number" || typeof parsed["ledgerLineCount"] !== "number")
@@ -4564,9 +4793,9 @@ function boulderPlanHasChecklist(cwd, entry) {
   const activePlan = entry["active_plan"];
   if (typeof activePlan !== "string" || activePlan.trim().length === 0)
     return false;
-  const planPath = isAbsolute2(activePlan) ? activePlan : join8(cwd, activePlan);
+  const planPath = isAbsolute3(activePlan) ? activePlan : join8(cwd, activePlan);
   const worktree = entry["worktree_path"];
-  const candidates = typeof worktree === "string" && worktree.trim().length > 0 && !isAbsolute2(activePlan) ? [join8(isAbsolute2(worktree) ? worktree : join8(cwd, worktree), activePlan), planPath] : [planPath];
+  const candidates = typeof worktree === "string" && worktree.trim().length > 0 && !isAbsolute3(activePlan) ? [join8(isAbsolute3(worktree) ? worktree : join8(cwd, worktree), activePlan), planPath] : [planPath];
   for (const candidate of candidates) {
     try {
       return readFileSync7(candidate, "utf8").split(/\r?\n/).some((line) => line.startsWith("- [ ] ") || line.startsWith("- [x] ") || line.startsWith("- [X] "));
