@@ -456,7 +456,28 @@ function reconcilePlan(dir) {
     }
   }
   const latest = readNewestRecord(dir);
-  return latest !== undefined && latest.revision >= (cached?.revision ?? 0) ? latest.plan : cached;
+  if (latest === undefined)
+    return cached;
+  if (cached === undefined)
+    return latest.plan;
+  if ((cached.revision ?? 0) > latest.revision)
+    return cached;
+  if (cached.revision === undefined || cached.revision === latest.revision) {
+    const published = new Set(latest.plan.goals.map((goal) => goal.id));
+    if (Array.isArray(cached.goals) && cached.goals.some((goal) => !published.has(goal.id)))
+      return { ...cached, revision: latest.revision };
+  }
+  return latest.plan;
+}
+function assertProjectionComplete(plan, ledger) {
+  const present = new Set(plan.goals.map((goal) => goal.id));
+  const missing = new Set;
+  for (const entry of ledger)
+    if (entry.kind === "goal_added" && entry.goalId !== undefined && !present.has(entry.goalId))
+      missing.add(entry.goalId);
+  if (missing.size === 0)
+    return;
+  throw new UlwLoopError(`Refusing to rewrite goals.json: the ledger records goals the plan projection lacks (${[...missing].join(", ")}). Restore those goals into the newest revisions/ record (keeping plan.revision equal to its file number) before mutating this run.`, "ULW_LOOP_PROJECTION_TRUNCATED", { details: { missingGoalIds: [...missing] } });
 }
 function planExists(repoRoot, scope) {
   const dir = ulwLoopDir(repoRoot, scope);
@@ -467,12 +488,14 @@ function planExists(repoRoot, scope) {
 function readLedgerAt(dir) {
   const entries = new Map;
   const lines = (readOptional(join3(dir, "ledger.jsonl")) ?? "").split(/\r?\n/);
+  let reached = 0;
   for (const [index, line] of lines.entries()) {
     if (line.trim().length === 0)
       continue;
     try {
       const entry = JSON.parse(line);
-      entry.revision ??= 0;
+      entry.revision = entry.revision || reached;
+      reached = Math.max(reached, entry.revision);
       entry.id ??= `legacy-${index + 1}`;
       entries.set(entry.id, entry);
     } catch (error) {
@@ -959,6 +982,7 @@ function viewContents(dir) {
   if (plan === undefined || readRecords(dir).length === 0)
     return [];
   const ledger = readLedgerAt(dir);
+  assertProjectionComplete(plan, ledger);
   const views = [
     ["goals.json", `${JSON.stringify(plan, null, 2)}
 `],

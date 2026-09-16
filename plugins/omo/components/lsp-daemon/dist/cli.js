@@ -1770,6 +1770,8 @@ class WorkspaceDocumentState {
     const state = this.openByUri.get(normalizeDocumentUri(snapshot.uri));
     if (!state || timeoutMs <= 0)
       return Promise.resolve();
+    if (state.publishGeneration !== snapshot.publishGeneration)
+      return Promise.resolve();
     return new Promise((resolveActivity) => {
       let settled = false;
       const finish = () => {
