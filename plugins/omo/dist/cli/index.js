@@ -64,7 +64,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.72",
+    version: "5.0.0-beta.74",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -176,8 +176,8 @@ var init_package = __esm(() => {
       "install:codex-dev": "bun run script/build-codex-install.ts && bun run script/install-codex-dev.ts",
       "build:codex-plugin": "npm --prefix packages/omo-codex/plugin ci && bun run --cwd packages/omo-codex/plugin build",
       "build:senpi-plugin": "bun run build:lsp-daemon && bun run build:ast-grep-mcp && bun run build:senpi-plugin:stage",
-      "build:senpi-plugin:native": "node packages/omo-senpi/plugin/scripts/stage-lsp-daemon-runtime.mjs && node packages/omo-senpi/plugin/scripts/stage-ast-grep-mcp-runtime.mjs && node packages/omo-senpi/plugin/scripts/stage-x-search-skill.mjs && node packages/omo-senpi/plugin/scripts/build-extension.mjs && node packages/omo-senpi/plugin/scripts/sync-skills.mjs && node packages/omo-senpi/plugin/scripts/embed-directive.mjs --check && node packages/omo-senpi/plugin/scripts/build-install.mjs",
-      "build:senpi-plugin:stage": "bun run build:materialize-frontend && node packages/omo-senpi/plugin/scripts/stage-lsp-daemon-runtime.mjs && node packages/omo-senpi/plugin/scripts/stage-ast-grep-mcp-runtime.mjs && node packages/omo-senpi/plugin/scripts/stage-x-search-skill.mjs && node packages/omo-senpi/plugin/scripts/build-extension.mjs && node packages/omo-senpi/plugin/scripts/sync-skills.mjs && node packages/omo-senpi/plugin/scripts/embed-directive.mjs --check && node packages/omo-senpi/plugin/scripts/build-install.mjs",
+      "build:senpi-plugin:native": "node packages/omo-senpi/plugin/scripts/stage-lsp-daemon-runtime.mjs && node packages/omo-senpi/plugin/scripts/stage-ast-grep-mcp-runtime.mjs && node packages/omo-senpi/plugin/scripts/stage-x-search-skill.mjs && node packages/omo-senpi/plugin/scripts/build-extension.mjs && node packages/omo-senpi/plugin/scripts/build-daemon-launch-spec.mjs && node packages/omo-senpi/plugin/scripts/sync-skills.mjs && node packages/omo-senpi/plugin/scripts/embed-directive.mjs --check && node packages/omo-senpi/plugin/scripts/build-install.mjs",
+      "build:senpi-plugin:stage": "bun run build:materialize-frontend && node packages/omo-senpi/plugin/scripts/stage-lsp-daemon-runtime.mjs && node packages/omo-senpi/plugin/scripts/stage-ast-grep-mcp-runtime.mjs && node packages/omo-senpi/plugin/scripts/stage-x-search-skill.mjs && node packages/omo-senpi/plugin/scripts/build-extension.mjs && node packages/omo-senpi/plugin/scripts/build-daemon-launch-spec.mjs && node packages/omo-senpi/plugin/scripts/sync-skills.mjs && node packages/omo-senpi/plugin/scripts/embed-directive.mjs --check && node packages/omo-senpi/plugin/scripts/build-install.mjs",
       "build:materialize-frontend": "node packages/omo-codex/plugin/scripts/materialize-shared-upstreams.mjs --strict",
       "build:shared-skills-assets": "bun run build:materialize-frontend && rm -rf dist/skills && cp -R packages/shared-skills/skills dist/skills",
       "build:lsp-tools-mcp": "npm --prefix packages/lsp-tools-mcp ci && npm --prefix packages/lsp-tools-mcp run build",
@@ -246,7 +246,7 @@ var init_package = __esm(() => {
       zod: "^4.4.3"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.18-2",
+      "@code-yeongyu/senpi": "2026.9.18-3",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -285,18 +285,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.72",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.72",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.72",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.72",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.72",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.72",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.72",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.72",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.72",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.72",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.72",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.72"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.74",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.74",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.74",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.74",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.74",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.74",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.74",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.74",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.74",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.74",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.74",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.74"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -72925,7 +72925,10 @@ var init_task = __esm(() => {
     max_prompt_bytes: number2().int().positive().default(262144)
   }).strict();
   OmoTaskSettingsSchema = object({
-    default_execution_mode: _enum(["in-process", "process"]).default("in-process"),
+    default_execution_mode: _enum(["auto", "in-process", "process"]).default("auto"),
+    process_runner: _enum(["host", "child-process"]).default("host"),
+    host_engine_policy: _enum(["upgrade", "fallback"]).default("upgrade"),
+    host_idle_exit_ms: number2().int().positive().optional(),
     default_concurrency: number2().int().nonnegative().default(5),
     global_concurrency: number2().int().nonnegative().default(8),
     provider_concurrency: record(string2(), number2().int().nonnegative()).optional(),
@@ -72970,7 +72973,10 @@ var init_task = __esm(() => {
     unavailable_categories: boolean2().optional()
   }).strict();
   OmoTaskSettingsLayerSchema = object({
-    default_execution_mode: _enum(["in-process", "process"]).optional(),
+    default_execution_mode: _enum(["auto", "in-process", "process"]).optional(),
+    process_runner: _enum(["host", "child-process"]).optional(),
+    host_engine_policy: _enum(["upgrade", "fallback"]).optional(),
+    host_idle_exit_ms: number2().int().positive().optional(),
     default_concurrency: number2().int().nonnegative().optional(),
     global_concurrency: number2().int().nonnegative().optional(),
     provider_concurrency: record(string2(), number2().int().nonnegative()).optional(),
@@ -84547,7 +84553,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.72",
+    version: "5.0.0-beta.74",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -93580,7 +93586,8 @@ var REQUIRED_PLUGIN_ARTIFACTS = [
   join60("runtime", "lsp-daemon", "dist", "daemon-client.d.ts"),
   join60("runtime", "lsp-daemon", "dist", "package.json"),
   join60("runtime", "lsp-daemon", "dist", ".omo-runtime-manifest.json"),
-  join60("scripts", "install.mjs")
+  join60("scripts", "install.mjs"),
+  "daemon-launch-spec.json"
 ];
 async function ensurePluginArtifacts(context) {
   if (context.allowBuild) {
