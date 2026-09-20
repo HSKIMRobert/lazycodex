@@ -1,6 +1,6 @@
 // ../../../../telemetry-core/src/activity-state.ts
-import { existsSync, mkdirSync as mkdirSync2, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync, mkdirSync as mkdirSync3, readFileSync } from "node:fs";
+import { basename, join as join2 } from "node:path";
 
 // ../../../../utils/src/atomic-write.ts
 import {
@@ -92,36 +92,82 @@ function resolveWritableDirectory(preferredDir, fallbackSuffix, osProvider) {
   }
 }
 
+// ../../../../telemetry-core/src/day-claim.ts
+import { closeSync as closeSync2, mkdirSync as mkdirSync2, openSync as openSync2, readdirSync, rmSync as rmSync2 } from "node:fs";
+import { join } from "node:path";
+var CLAIM_PREFIX = "daily-active.";
+var CLAIM_SUFFIX = ".claim";
+function getTelemetryDayClaimFilePath(stateDir, dayUTC) {
+  return join(stateDir, `${CLAIM_PREFIX}${dayUTC}${CLAIM_SUFFIX}`);
+}
+function claimUtcDay(stateDir, dayUTC) {
+  try {
+    mkdirSync2(stateDir, { recursive: true });
+    closeSync2(openSync2(getTelemetryDayClaimFilePath(stateDir, dayUTC), "wx"));
+  } catch (error) {
+    return error.code === "EEXIST" ? "already-claimed" : "unavailable";
+  }
+  pruneSupersededClaims(stateDir, dayUTC);
+  return "claimed";
+}
+function pruneSupersededClaims(stateDir, dayUTC) {
+  const currentClaim = `${CLAIM_PREFIX}${dayUTC}${CLAIM_SUFFIX}`;
+  let entries;
+  try {
+    entries = readdirSync(stateDir);
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (entry === currentClaim)
+      continue;
+    if (!entry.startsWith(CLAIM_PREFIX) || !entry.endsWith(CLAIM_SUFFIX))
+      continue;
+    try {
+      rmSync2(join(stateDir, entry), { force: true });
+    } catch {}
+  }
+}
+
 // ../../../../telemetry-core/src/activity-state.ts
 var POSTHOG_ACTIVITY_STATE_FILE = "posthog-activity.json";
+var capturedDaysByStateDir = new Map;
 function resolveTelemetryStateDir(product, options = {}) {
   const dataDir = resolveXdgDataDir(product.cacheDirName, {
     env: options.env,
     osProvider: options.osProvider
   });
-  const xdgStateDir = options.env?.XDG_DATA_HOME === undefined ? undefined : join(options.env.XDG_DATA_HOME, product.cacheDirName);
+  const xdgStateDir = options.env?.XDG_DATA_HOME === undefined ? undefined : join2(options.env.XDG_DATA_HOME, product.cacheDirName);
   if (dataDir === xdgStateDir || xdgStateDir === undefined && basename(dataDir) === product.cacheDirName) {
     return dataDir;
   }
-  return join(dataDir, product.cacheDirName);
+  return join2(dataDir, product.cacheDirName);
 }
 function getTelemetryActivityStateFilePath(stateDir) {
-  return join(stateDir, POSTHOG_ACTIVITY_STATE_FILE);
+  return join2(stateDir, POSTHOG_ACTIVITY_STATE_FILE);
 }
 function getDailyActiveCaptureState(input) {
-  const state = readPostHogActivityState(input.stateDir, input.diagnostics);
   const dayUTC = getUtcDayString(input.now ?? new Date);
-  const captureDaily = state.lastActiveDayUTC !== dayUTC;
-  if (captureDaily) {
+  if (capturedDaysByStateDir.get(input.stateDir) === dayUTC) {
+    return { dayUTC, captureDaily: false };
+  }
+  const state = readPostHogActivityState(input.stateDir, input.diagnostics);
+  if (state.lastActiveDayUTC === dayUTC) {
+    capturedDaysByStateDir.set(input.stateDir, dayUTC);
+    return { dayUTC, captureDaily: false };
+  }
+  const claim = claimUtcDay(input.stateDir, dayUTC);
+  capturedDaysByStateDir.set(input.stateDir, dayUTC);
+  if (claim === "already-claimed") {
+    return { dayUTC, captureDaily: false };
+  }
+  if (claim === "claimed") {
     writePostHogActivityState(input.stateDir, {
       ...state,
       lastActiveDayUTC: dayUTC
     }, input.diagnostics);
   }
-  return {
-    dayUTC,
-    captureDaily
-  };
+  return { dayUTC, captureDaily: true };
 }
 function getUtcDayString(date) {
   return date.toISOString().slice(0, 10);
@@ -154,7 +200,7 @@ function readPostHogActivityState(stateDir, diagnostics) {
 function writePostHogActivityState(stateDir, nextState, diagnostics) {
   const stateFilePath = getTelemetryActivityStateFilePath(stateDir);
   try {
-    mkdirSync2(stateDir, { recursive: true });
+    mkdirSync3(stateDir, { recursive: true });
     writeFileAtomically(stateFilePath, `${JSON.stringify(nextState, null, 2)}
 `);
   } catch (error) {
@@ -173,19 +219,19 @@ var DEFAULT_POSTHOG_API_KEY = "phc_CFJhj5HyvA62QPhvyaUCtaq23aUfznnijg5VaaGkNk74"
 var UNCONFIGURED_POSTHOG_API_KEY = "phc_REPLACE_ME_OMO_NATIVE";
 
 // ../../../../telemetry-core/src/diagnostics.ts
-import { appendFileSync, existsSync as existsSync2, mkdirSync as mkdirSync3, readFileSync as readFileSync2 } from "node:fs";
-import { join as join2 } from "node:path";
+import { appendFileSync, existsSync as existsSync2, mkdirSync as mkdirSync4, readFileSync as readFileSync2 } from "node:fs";
+import { join as join3 } from "node:path";
 var DIAGNOSTICS_FILE_NAME = "telemetry-diagnostics.jsonl";
 var DIAGNOSTICS_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 var DIAGNOSTICS_MAX_BYTES = 256 * 1024;
 function getTelemetryDiagnosticsFilePath(diagnosticsDir) {
-  return join2(diagnosticsDir, DIAGNOSTICS_FILE_NAME);
+  return join3(diagnosticsDir, DIAGNOSTICS_FILE_NAME);
 }
 function writeTelemetryDiagnostic(input, options) {
   const now = options.now ?? new Date;
   try {
     cleanupTelemetryDiagnostics({ diagnosticsDir: options.diagnosticsDir, now });
-    mkdirSync3(options.diagnosticsDir, { recursive: true });
+    mkdirSync4(options.diagnosticsDir, { recursive: true });
     appendFileSync(getTelemetryDiagnosticsFilePath(options.diagnosticsDir), `${JSON.stringify(toDiagnosticRecord(input, now))}
 `, "utf-8");
   } catch (error) {

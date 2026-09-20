@@ -1382,6 +1382,8 @@ var GATE_SECTION_BY_ACCEPTOR = {
     manualQa: [REVIEWER_ROLES_BY_SURFACE.lazycodex.manualQa, "main-session"],
     gateReview: [
       REVIEWER_ROLES_BY_SURFACE.lazycodex.gateReview,
+      "category:deep-high",
+      "category:deep-low",
       "category:deep",
       "category:unspecified-high",
       "category:unspecified-low",
@@ -1390,7 +1392,13 @@ var GATE_SECTION_BY_ACCEPTOR = {
   },
   "omo-senpi": {
     manualQa: ["main-session"],
-    gateReview: ["category:deep", "category:unspecified-high", "category:unspecified-low"]
+    gateReview: [
+      "category:deep-high",
+      "category:deep-low",
+      "category:deep",
+      "category:unspecified-high",
+      "category:unspecified-low"
+    ]
   }
 };
 function reviewerRolesFor(surface) {
@@ -2058,7 +2066,7 @@ function gateTemplate(surface, base) {
   const common = {
     manualQa,
     gateReview: {
-      by: surface === "omo-senpi" ? "category:deep" : "main-session",
+      by: surface === "omo-senpi" ? "category:deep-high" : "main-session",
       recommendation: "APPROVE",
       reportPath: artifactPath(base, "gate-review.md"),
       evidence: "<replace:gate review evidence>",
@@ -2095,9 +2103,9 @@ async function checkpointTemplate(repoRoot, scope, goalId, dependencies) {
     "codex-goal-json requires goal.objective to equal the plan's codexObjective verbatim; do not paraphrase it.",
     "Fill every <replace:...> value with plausible non-empty evidence and use real, non-empty artifact files.",
     'Passing codex-goal-json example: {"goal":{"objective":"<plan codexObjective verbatim>","status":"complete"}}.',
-    'Passing quality-gate-json example requires gateReview {"by":"category:deep","recommendation":"APPROVE","evidence":"review passed","reportPath":"<attemptDir>/gate-review.md","blockers":[],"notes":[]}, manualQa.artifactRefs objects, iteration, and criteriaCoverage.',
+    'Passing quality-gate-json example requires gateReview {"by":"category:deep-high","recommendation":"APPROVE","evidence":"review passed","reportPath":"<attemptDir>/gate-review.md","blockers":[],"notes":[]}, manualQa.artifactRefs objects, iteration, and criteriaCoverage.',
     ...surface === "lazycodex" ? [
-      "Self-review defaults: manualQa.by and gateReview.by are main-session. Alternatives: manualQa.by accepts lazycodex-qa-executor; gateReview.by accepts lazycodex-gate-reviewer, category:deep, category:unspecified-high, or category:unspecified-low. Optional codeReview.by accepts lazycodex-code-reviewer or main-session."
+      "Self-review defaults: manualQa.by and gateReview.by are main-session. Alternatives: manualQa.by accepts lazycodex-qa-executor; gateReview.by accepts lazycodex-gate-reviewer, category:deep-high, category:deep-low, category:unspecified-high, or category:unspecified-low. Optional codeReview.by accepts lazycodex-code-reviewer or main-session."
     ] : [],
     ...hasAttempt ? [] : ["This plan is evidence-layout v1; artifacts go under .omo/evidence/."]
   ].join(" ");
@@ -2311,8 +2319,8 @@ function senpiFinalSection(plan, goal, aggregate) {
   return joinLines([
     "Final story — run the single-reviewer quality gate before update_goal:",
     '- Run manual QA yourself and write the non-empty artifact under currentAttemptDir; set manualQa.by to "main-session".',
-    '- Spawn exactly one gate reviewer with task(category: "deep").',
-    "- If that task fails with any model_unavailable failure, retry with category:unspecified-high, then category:unspecified-low.",
+    '- Spawn exactly one gate reviewer with task(category: "deep-high").',
+    "- If that task fails with any model_unavailable failure, retry with category:deep-low, then category:unspecified-high, then category:unspecified-low.",
     "- Set gateReview.by to the exact category:<name> literal used for the successful task.",
     "- Build the gate JSON with omo-agent-toolkit ulw-loop checkpoint --print-template, then fill manualQa, gateReview, iteration, and criteriaCoverage.",
     '- Require passed manualQa, approved gateReview, passed iteration, and complete criteriaCoverage before update_goal({status: "complete"}).',
