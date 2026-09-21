@@ -16,6 +16,7 @@ import { join as join11, resolve as resolve11 } from "node:path";
 import { statSync as statSync5 } from "node:fs";
 import { isAbsolute as isAbsolute6 } from "node:path";
 import { connect } from "node:net";
+import { setTimeout as delay } from "node:timers/promises";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -482,9 +483,11 @@ function createLineDecoder(onMessage, onParseError) {
     }
   };
 }
-var PROBE_TIMEOUT_MS = 500;
+var PROBE_TIMEOUT_MS = 2000;
 var DEFAULT_READY_TIMEOUT_MS = 5000;
 var DEFAULT_POLL_INTERVAL_MS = 100;
+var FAILED_SPAWN_COOLDOWN_MS = 5000;
+var failedSpawnUntil = new Map;
 
 class DaemonUnreachableError extends Error {
   constructor(socketPath) {
@@ -497,11 +500,22 @@ async function ensureDaemonRunning(paths, deps = defaultEnsureDaemonDeps(), opti
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const signal = options.signal;
   throwIfAborted(signal);
-  if (await awaitWithSignal(deps.probe(paths, signal), signal))
+  if (await awaitWithSignal(deps.probe(paths, signal), signal)) {
+    failedSpawnUntil.delete(paths.socket);
     return;
+  }
   throwIfAborted(signal);
+  const retryAt = failedSpawnUntil.get(paths.socket);
+  if (retryAt !== undefined && deps.now() < retryAt)
+    throw new DaemonUnreachableError(paths.socket);
+  failedSpawnUntil.delete(paths.socket);
   deps.spawnDaemon(paths);
-  await waitUntilReachable(paths, deps, readyTimeoutMs, pollIntervalMs, signal);
+  try {
+    await waitUntilReachable(paths, deps, readyTimeoutMs, pollIntervalMs, signal);
+  } catch (error) {
+    failedSpawnUntil.set(paths.socket, deps.now() + FAILED_SPAWN_COOLDOWN_MS);
+    throw error;
+  }
 }
 async function waitUntilReachable(paths, deps, readyTimeoutMs, pollIntervalMs, signal) {
   const deadline = deps.now() + readyTimeoutMs;
@@ -5544,6 +5558,7 @@ var LSP_MCP_TOOLS = [
 ];
 var CONTEXT_KEY = "_context";
 var DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+var STARTUP_BACKOFF_MS = [0, 100, 300];
 var nextProxyRequestId = 1;
 async function callToolViaDaemon(name, args, options) {
   const context = requireContext(options.context);
@@ -5551,17 +5566,31 @@ async function callToolViaDaemon(name, args, options) {
   const ensure = options.ensure ?? ((ensurePaths, signal) => ensureDaemonRunning(ensurePaths, undefined, signal === undefined ? {} : { signal }));
   const timeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const requestArgs = withContext(args, context);
+  const probe = options.probe ?? ((probePaths, signal) => probeDaemon(probePaths, undefined, signal));
+  const sleep = options.sleep ?? ((ms, signal) => delay(ms, undefined, { signal }));
   let lastError;
   let authRefreshUsed = false;
-  for (let attempt = 0;attempt < 3; attempt += 1) {
+  for (const [attempt, backoffMs] of STARTUP_BACKOFF_MS.entries()) {
     try {
-      await ensureDaemonAvailable(paths, ensure, options.signal);
+      if (backoffMs > 0)
+        await sleep(backoffMs, options.signal);
+      if (options.signal?.aborted)
+        throw new DaemonRequestCancelledError(false);
+      if (attempt === 0) {
+        await ensureDaemonAvailable(paths, ensure, options.signal);
+      } else if (!await probe(paths, options.signal)) {
+        throw new DaemonUnreachableError(paths.socket);
+      }
       const token = readAuthToken(paths);
       if (!token)
         throw new DaemonRequestError("daemon auth token missing", false);
       const sendOptions = options.signal === undefined ? { timeoutMs } : { timeoutMs, signal: options.signal };
       return await sendToolCall(paths, token, name, requestArgs, sendOptions);
     } catch (error) {
+      if (options.signal?.aborted) {
+        lastError = new DaemonRequestCancelledError(false);
+        break;
+      }
       lastError = error;
       if (error instanceof DaemonAuthenticationRejectedError && !authRefreshUsed) {
         authRefreshUsed = true;

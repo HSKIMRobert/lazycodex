@@ -3,14 +3,450 @@
 // src/cli.ts
 import { argv, stderr } from "node:process";
 
-// src/proxy.ts
-import { existsSync as existsSync13, realpathSync as realpathSync6 } from "node:fs";
-import { basename as basename4, delimiter as delimiter4, dirname as dirname11, isAbsolute as isAbsolute6 } from "node:path";
+// src/ownership.ts
+import { randomUUID } from "node:crypto";
+import { existsSync, lstatSync as lstatSync2, readFileSync as readFileSync3, statSync, unlinkSync as unlinkSync3 } from "node:fs";
+import { dirname as dirname3 } from "node:path";
+
+// src/lock.ts
+import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync, writeSync } from "node:fs";
+import { dirname } from "node:path";
+function isProcessAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0)
+    return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error instanceof Error)
+      return errorCode(error) === "EPERM";
+    throw error;
+  }
+}
+function readLockPid(lockPath) {
+  try {
+    const pid = Number.parseInt(readFileSync(lockPath, "utf8").trim(), 10);
+    return Number.isInteger(pid) ? pid : null;
+  } catch {
+    return null;
+  }
+}
+function tryAcquireLock(lockPath, ownerPid = process.pid) {
+  mkdirSync(dirname(lockPath), { recursive: true });
+  for (let attempt = 0;attempt < 2; attempt += 1) {
+    const handle = writeLockFile(lockPath, ownerPid);
+    if (handle)
+      return handle;
+    if (!reapStaleLock(lockPath))
+      return null;
+  }
+  return null;
+}
+function writeLockFile(lockPath, ownerPid) {
+  try {
+    const fd = openSync(lockPath, "wx", 384);
+    writeSync(fd, `${ownerPid}
+`);
+    closeSync(fd);
+    return { release: () => unlinkQuietly(lockPath) };
+  } catch (error) {
+    if (errorCode(error) === "EEXIST")
+      return null;
+    throw error;
+  }
+}
+function reapStaleLock(lockPath) {
+  const pid = readLockPid(lockPath);
+  if (pid !== null && isProcessAlive(pid))
+    return false;
+  unlinkQuietly(lockPath);
+  return true;
+}
+function unlinkQuietly(path) {
+  try {
+    unlinkSync(path);
+  } catch (error) {
+    if (error instanceof Error)
+      return;
+    throw error;
+  }
+}
+function errorCode(error) {
+  if (!error || typeof error !== "object" || !("code" in error))
+    return;
+  const code = Reflect.get(error, "code");
+  return typeof code === "string" ? code : undefined;
+}
+
+// src/ipc-protocol.ts
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  chmodSync,
+  closeSync as closeSync2,
+  constants,
+  fchmodSync,
+  fstatSync,
+  lstatSync,
+  mkdirSync as mkdirSync2,
+  openSync as openSync2,
+  readFileSync as readFileSync2,
+  unlinkSync as unlinkSync2,
+  writeSync as writeSync2
+} from "node:fs";
+import { dirname as dirname2 } from "node:path";
 
 // ../mcp-stdio-core/src/record.ts
 function isPlainRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+// src/ipc-protocol.ts
+var OMO_DAEMON_PROTOCOL_VERSION = 1;
+var AUTH_ERROR_CODE = -32001;
+var PROTOCOL_ERROR_CODE = -32002;
+var AUTH_TOKEN_BYTES = 32;
+
+class UnsafePrivateDirectoryError extends Error {
+  constructor(path, reason) {
+    super(`unsafe private directory ${path}: ${reason}`);
+    this.path = path;
+    this.reason = reason;
+    this.name = "UnsafePrivateDirectoryError";
+    this.code = "unsafe_private_directory";
+  }
+}
+function authEnvelope(token) {
+  return { protocolVersion: OMO_DAEMON_PROTOCOL_VERSION, token };
+}
+function readAuthToken(paths) {
+  try {
+    const token = readFileSync2(paths.auth, "utf8").trim();
+    return token.length > 0 ? token : null;
+  } catch (error) {
+    if (error instanceof Error)
+      return null;
+    throw error;
+  }
+}
+function readOrCreateAuthToken(paths) {
+  const existing = readAuthToken(paths);
+  if (existing)
+    return existing;
+  return createAuthToken(paths);
+}
+function rotateAuthToken(paths) {
+  try {
+    unlinkSync2(paths.auth);
+  } catch (error) {
+    if (!(error instanceof Error))
+      throw error;
+  }
+  return createAuthToken(paths);
+}
+function authenticateMessage(raw, expectedToken) {
+  const id = jsonRpcId(raw);
+  if (!isPlainRecord(raw))
+    return authError(id);
+  const params = raw["params"];
+  if (!isPlainRecord(params))
+    return authError(id);
+  const envelope = params["_omo"];
+  if (!isPlainRecord(envelope))
+    return authError(id);
+  const protocolVersion = envelope["protocolVersion"];
+  if (protocolVersion !== OMO_DAEMON_PROTOCOL_VERSION)
+    return protocolError(id);
+  const token = envelope["token"];
+  if (typeof token !== "string" || !tokenMatches(token, expectedToken))
+    return authError(id);
+  const cleanParams = { ...params };
+  delete cleanParams["_omo"];
+  return { input: { ...raw, params: cleanParams }, id, method: typeof raw["method"] === "string" ? raw["method"] : undefined };
+}
+function isAuthErrorResponse(message) {
+  if (!isPlainRecord(message))
+    return false;
+  const error = message["error"];
+  if (!isPlainRecord(error))
+    return false;
+  const data = error["data"];
+  return error["code"] === AUTH_ERROR_CODE && isPlainRecord(data) && data["code"] === "daemon_authentication_failed";
+}
+function writePrivateFile(path, data) {
+  const fd = openSync2(path, "w", 384);
+  try {
+    writeSync2(fd, data);
+  } finally {
+    closeSync2(fd);
+  }
+  setPrivateFileMode(path);
+}
+function ensurePrivateDirectory(path, options = {}) {
+  try {
+    mkdirSync2(path, { recursive: true, mode: 448 });
+  } catch (error) {
+    if (errorCode2(error) !== "EEXIST")
+      throw error;
+  }
+  if (process.platform === "win32")
+    return;
+  const before = validatePrivateDirectory(path, options);
+  const fd = openSync2(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  try {
+    fchmodSync(fd, 448);
+    const after = validatePrivateDirectory(path, options);
+    const openStats = fstatSync(fd);
+    if (!sameDirectory(before, after) || !sameDirectory(before, openStats)) {
+      throw new UnsafePrivateDirectoryError(path, "changed_during_chmod");
+    }
+  } finally {
+    closeSync2(fd);
+  }
+}
+function setPrivateFileMode(path) {
+  if (process.platform !== "win32")
+    chmodSync(path, 384);
+}
+function createAuthToken(paths) {
+  ensurePrivateDirectory(dirname2(paths.auth));
+  const token = randomBytes(AUTH_TOKEN_BYTES).toString("base64url");
+  let fd;
+  try {
+    fd = openSync2(paths.auth, "wx", 384);
+  } catch (error) {
+    if (errorCode2(error) === "EEXIST") {
+      const existing = readAuthToken(paths);
+      if (existing)
+        return existing;
+    }
+    throw error;
+  }
+  try {
+    writeSync2(fd, `${token}
+`);
+  } finally {
+    closeSync2(fd);
+  }
+  setPrivateFileMode(paths.auth);
+  return token;
+}
+function errorCode2(error) {
+  if (!error || typeof error !== "object" || !("code" in error))
+    return;
+  const code = Reflect.get(error, "code");
+  return typeof code === "string" ? code : undefined;
+}
+function validatePrivateDirectory(path, options) {
+  const stats = options.lstat ? options.lstat(path) : lstatPrivateDirectory(path);
+  if (stats.isSymbolicLink())
+    throw new UnsafePrivateDirectoryError(path, "symlink");
+  if (!stats.isDirectory())
+    throw new UnsafePrivateDirectoryError(path, "not_directory");
+  const currentUid = options.currentUid ? options.currentUid() : process.getuid?.();
+  if (currentUid !== undefined && stats.uid !== currentUid) {
+    throw new UnsafePrivateDirectoryError(path, "wrong_owner");
+  }
+  return stats;
+}
+function lstatPrivateDirectory(path) {
+  return lstatSync(path);
+}
+function sameDirectory(a, b) {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+function tokenMatches(candidate, expected) {
+  const candidateBytes = Buffer.from(candidate);
+  const expectedBytes = Buffer.from(expected);
+  return candidateBytes.length === expectedBytes.length && timingSafeEqual(candidateBytes, expectedBytes);
+}
+function jsonRpcId(raw) {
+  if (!isPlainRecord(raw))
+    return null;
+  const id = raw["id"];
+  return typeof id === "string" || typeof id === "number" || id === null ? id : null;
+}
+function authError(id) {
+  return {
+    jsonrpc: "2.0",
+    id,
+    error: { code: AUTH_ERROR_CODE, message: "daemon authentication failed", data: { code: "daemon_authentication_failed" } }
+  };
+}
+function protocolError(id) {
+  return {
+    jsonrpc: "2.0",
+    id,
+    error: { code: PROTOCOL_ERROR_CODE, message: "daemon protocol mismatch", data: { code: "daemon_protocol_mismatch" } }
+  };
+}
+
+// src/ownership.ts
+class DaemonAlreadyRunningError extends Error {
+  constructor() {
+    super(...arguments);
+    this.name = "DaemonAlreadyRunningError";
+    this.code = "daemon_already_running";
+  }
+}
+
+class DaemonStartupDeferredError extends Error {
+  constructor(reason) {
+    super(`LSP daemon startup deferred: ${reason}`);
+    this.reason = reason;
+    this.name = "DaemonStartupDeferredError";
+    this.code = "daemon_startup_deferred";
+  }
+}
+async function acquireStartupLease(paths, pingOwner) {
+  ensureDaemonDirectories(paths);
+  const lock = tryAcquireLock(paths.lock);
+  if (!lock) {
+    const token = readAuthToken(paths);
+    if (token && await pingOwner(token))
+      throw new DaemonAlreadyRunningError("LSP daemon already running");
+    throw new DaemonStartupDeferredError("startup_lock_busy");
+  }
+  try {
+    const token = await validateExistingOwner(paths, pingOwner);
+    return { lock, token, owner: newOwner(paths) };
+  } catch (error) {
+    lock.release();
+    throw error;
+  }
+}
+function ensureDaemonDirectories(paths) {
+  ensurePrivateDirectory(paths.dir);
+  if (process.platform !== "win32")
+    ensurePrivateDirectory(dirname3(paths.socket));
+}
+function readDaemonOwner(paths) {
+  try {
+    return parseOwner(JSON.parse(readFileSync3(paths.owner, "utf8")));
+  } catch (error) {
+    if (error instanceof Error)
+      return null;
+    throw error;
+  }
+}
+function writeDaemonOwner(paths, owner) {
+  writePrivateFile(paths.pid, `${owner.pid}
+`);
+  writePrivateFile(paths.endpoint, owner.endpoint.path);
+  writePrivateFile(paths.owner, `${JSON.stringify(owner)}
+`);
+}
+function removeDaemonMetadataForOwner(paths, owner) {
+  const current = readDaemonOwner(paths);
+  if (!current || !sameOwner(current, owner))
+    return;
+  unlinkQuietly(paths.socket);
+  unlinkQuietly(paths.pid);
+  unlinkQuietly(paths.endpoint);
+  unlinkQuietly(paths.owner);
+}
+function endpointIdentity(endpointPath) {
+  if (process.platform === "win32")
+    return { kind: "windows", path: endpointPath };
+  try {
+    const stats = statSync(endpointPath);
+    return { kind: "unix", path: endpointPath, dev: stats.dev, ino: stats.ino };
+  } catch (error) {
+    if (error instanceof Error)
+      return { kind: "missing", path: endpointPath };
+    throw error;
+  }
+}
+function sameEndpoint(a, b) {
+  if (a.kind !== b.kind || a.path !== b.path)
+    return false;
+  switch (a.kind) {
+    case "unix":
+      return b.kind === "unix" && a.dev === b.dev && a.ino === b.ino;
+    case "windows":
+      return true;
+    case "missing":
+      return true;
+  }
+}
+function sameOwner(a, b) {
+  return a.pid === b.pid && a.nonce === b.nonce && sameEndpoint(a.endpoint, b.endpoint);
+}
+async function validateExistingOwner(paths, pingOwner) {
+  let token = readOrCreateAuthToken(paths);
+  for (let attempt = 0;attempt < 2; attempt += 1) {
+    const owner = readDaemonOwner(paths);
+    if (!owner)
+      return token;
+    const ping = await pingOwner(token);
+    if (ping && owner.nonce === ping.nonce && sameEndpoint(owner.endpoint, ping.endpoint)) {
+      throw new DaemonAlreadyRunningError("LSP daemon already running");
+    }
+    if (ping)
+      continue;
+    if (isProcessAlive(owner.pid))
+      throw new DaemonStartupDeferredError("owner_pid_live_unreachable");
+    const reread = readDaemonOwner(paths);
+    if (!reread || !sameOwner(reread, owner)) {
+      throw new DaemonStartupDeferredError("owner_changed_during_cleanup");
+    }
+    cleanupDeadOwner(paths, owner);
+    token = rotateAuthToken(paths);
+    return token;
+  }
+  throw new DaemonStartupDeferredError("reachable_owner_mismatch");
+}
+function cleanupDeadOwner(paths, owner) {
+  if (process.platform !== "win32" && existsSync(owner.endpoint.path)) {
+    const stat = lstatSync2(owner.endpoint.path);
+    if (stat.isSocket())
+      unlinkSync3(owner.endpoint.path);
+  }
+  unlinkQuietly(paths.pid);
+  unlinkQuietly(paths.endpoint);
+  unlinkQuietly(paths.owner);
+}
+function newOwner(paths) {
+  return {
+    pid: process.pid,
+    nonce: randomUUID(),
+    startedAt: new Date().toISOString(),
+    endpoint: endpointIdentity(paths.socket)
+  };
+}
+function parseOwner(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return null;
+  const pid = Reflect.get(value, "pid");
+  const nonce = Reflect.get(value, "nonce");
+  const startedAt = Reflect.get(value, "startedAt");
+  const endpoint = parseEndpoint(Reflect.get(value, "endpoint"));
+  if (typeof pid !== "number" || typeof nonce !== "string" || typeof startedAt !== "string" || !endpoint)
+    return null;
+  return { pid, nonce, startedAt, endpoint };
+}
+function parseEndpoint(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return null;
+  const kind = Reflect.get(value, "kind");
+  const path = Reflect.get(value, "path");
+  if (typeof path !== "string")
+    return null;
+  if (kind === undefined)
+    return endpointIdentity(path);
+  if (kind === "windows")
+    return { kind, path };
+  if (kind === "missing")
+    return { kind, path };
+  const dev = Reflect.get(value, "dev");
+  const ino = Reflect.get(value, "ino");
+  if (kind === "unix" && typeof dev === "number" && typeof ino === "number")
+    return { kind, path, dev, ino };
+  return null;
+}
+
+// src/proxy.ts
+import { existsSync as existsSync14, realpathSync as realpathSync6 } from "node:fs";
+import { basename as basename4, delimiter as delimiter4, dirname as dirname13, isAbsolute as isAbsolute6 } from "node:path";
 // ../mcp-stdio-core/src/responses.ts
 function successResponse(id, result) {
   return { jsonrpc: "2.0", id, result };
@@ -18,7 +454,7 @@ function successResponse(id, result) {
 function errorResponse(id, code, message, data) {
   return { jsonrpc: "2.0", id, error: data === undefined ? { code, message } : { code, message, data } };
 }
-function jsonRpcId(value) {
+function jsonRpcId2(value) {
   return typeof value === "string" || typeof value === "number" || value === null ? value : null;
 }
 function messageFromError(error) {
@@ -169,7 +605,7 @@ function bufferFromChunk(chunk) {
 var DEFAULT_IDLE_TIMEOUT_MS = 10 * 60000;
 var DEFAULT_PARENT_POLL_INTERVAL_MS = 30000;
 var noopLog = () => {};
-function isProcessAlive(pid) {
+function isProcessAlive2(pid) {
   try {
     process.kill(pid, 0);
     return true;
@@ -229,7 +665,7 @@ async function handleParseError(message, config, log) {
 }
 async function handleRequest(message, config, log) {
   const parsed = message.payload;
-  const id = isPlainRecord(parsed) ? jsonRpcId(parsed["id"]) : null;
+  const id = isPlainRecord(parsed) ? jsonRpcId2(parsed["id"]) : null;
   const method = isPlainRecord(parsed) && typeof parsed["method"] === "string" ? parsed["method"] : null;
   log("request", { id: id === null ? null : String(id), method });
   let response;
@@ -278,7 +714,7 @@ function createParentWatchdog(config, onDeadParent) {
   if (pollIntervalMs <= 0)
     return { clear: () => {} };
   const parentPid = config.parentPid ?? process.ppid;
-  const probeAlive = config.probeAlive ?? isProcessAlive;
+  const probeAlive = config.probeAlive ?? isProcessAlive2;
   let fired = false;
   const timer = setInterval(() => {
     if (fired)
@@ -320,14 +756,14 @@ function createIdleTimer(idleTimeoutMs, log, onTimeout) {
   };
 }
 // ../lsp-core/src/lsp/client-wrapper.ts
-import { existsSync as existsSync10, realpathSync as realpathSync5, statSync as statSync3 } from "node:fs";
-import { basename as basename3, dirname as dirname8, join as join5, resolve as resolve8 } from "node:path";
+import { existsSync as existsSync11, realpathSync as realpathSync5, statSync as statSync4 } from "node:fs";
+import { basename as basename3, dirname as dirname11, join as join5, resolve as resolve8 } from "node:path";
 
 // ../lsp-core/src/request-context.ts
 import { AsyncLocalStorage } from "node:async_hooks";
-import { existsSync, realpathSync, statSync } from "node:fs";
+import { existsSync as existsSync2, realpathSync, statSync as statSync2 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, delimiter, dirname as dirname4, isAbsolute, join, relative, resolve } from "node:path";
 
 class LspRequestContextParseError extends Error {
   constructor(code, message) {
@@ -413,7 +849,7 @@ function translateHomeConfigEnv(value, home, fallback) {
 }
 function canonicalCwd(cwd) {
   const resolved = resolve(cwd);
-  if (!existsSync(resolved) || !statSync(resolved).isDirectory()) {
+  if (!existsSync2(resolved) || !statSync2(resolved).isDirectory()) {
     throw new LspRequestContextParseError("invalid_cwd", `LSP request cwd must be an existing directory: ${cwd}`);
   }
   return realpathSync(resolved);
@@ -428,7 +864,7 @@ function canonicalizeExistingOrNearestAncestor(path) {
     } catch (error) {
       if (!isMissingPathError(error))
         throw error;
-      const parent = dirname(current);
+      const parent = dirname4(current);
       if (parent === current)
         throw error;
       suffix.unshift(basename(current));
@@ -472,7 +908,7 @@ function isPathInside(parent, child) {
   return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute(relativePath);
 }
 function isMissingPathError(error) {
-  const code = errorCode(error);
+  const code = errorCode3(error);
   return code === "ENOENT" || code === "ENOTDIR";
 }
 function rejectUnknownFields(value, allowed, scope) {
@@ -484,7 +920,7 @@ function rejectUnknownFields(value, allowed, scope) {
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function errorCode(error) {
+function errorCode3(error) {
   if (!error || typeof error !== "object" || !("code" in error))
     return;
   const code = Reflect.get(error, "code");
@@ -939,7 +1375,7 @@ function toError(error) {
 
 // ../lsp-core/src/lsp/process.ts
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync as existsSync2, statSync as statSync2 } from "node:fs";
+import { existsSync as existsSync3, statSync as statSync3 } from "node:fs";
 import { delimiter as delimiter2, join as join2 } from "node:path";
 function isMissingProcessError(error) {
   if (!(error instanceof Error) || !("code" in error))
@@ -953,10 +1389,10 @@ function reportKillError(context, error) {
 }
 function validateCwd(cwd) {
   try {
-    if (!existsSync2(cwd)) {
+    if (!existsSync3(cwd)) {
       return { valid: false, error: `Working directory does not exist: ${cwd}` };
     }
-    const stats = statSync2(cwd);
+    const stats = statSync3(cwd);
     if (!stats.isDirectory()) {
       return { valid: false, error: `Path is not a directory: ${cwd}` };
     }
@@ -1041,7 +1477,7 @@ function resolveWindowsCommand(command, env) {
   for (const baseDirectory of baseDirectories) {
     for (const extension of extensions) {
       const candidate = baseDirectory ? join2(baseDirectory, `${command}${extension}`) : `${command}${extension}`;
-      if (existsSync2(candidate))
+      if (existsSync3(candidate))
         return candidate;
     }
   }
@@ -1460,7 +1896,7 @@ class LspClientConnection extends LspClientTransport {
 }
 
 // ../lsp-core/src/lsp/workspace-document-state.ts
-import { readFileSync, realpathSync as realpathSync2 } from "node:fs";
+import { readFileSync as readFileSync4, realpathSync as realpathSync2 } from "node:fs";
 import { relative as relative2, resolve as resolve2 } from "node:path";
 import { pathToFileURL as pathToFileURL2 } from "node:url";
 
@@ -1689,7 +2125,7 @@ class WorkspaceDocumentState {
       await existingOpen;
       return this.openFile(path);
     }
-    const text = readFileSync(path, "utf-8");
+    const text = readFileSync4(path, "utf-8");
     const existing = this.openDocuments.get(path);
     if (!existing)
       return this.openDocumentSingleFlight(path, text);
@@ -1848,7 +2284,7 @@ class WorkspaceDocumentState {
       const state = this.openDocuments.get(mutation.path);
       if (state) {
         await this.closeDocument(state);
-        await this.openDocumentSingleFlight(mutation.path, readFileSync(mutation.path, "utf-8"));
+        await this.openDocumentSingleFlight(mutation.path, readFileSync4(mutation.path, "utf-8"));
       } else {
         watched.push({ uri: pathToFileURL2(mutation.path).href, type: mutation.replaced ? 2 : 1 });
       }
@@ -1860,7 +2296,7 @@ class WorkspaceDocumentState {
         await this.closeDocument(state);
       for (const state of moved) {
         const path = movedPath(state.path, mutation.oldPath, mutation.newPath);
-        await this.openDocumentSingleFlight(path, readFileSync(path, "utf-8"));
+        await this.openDocumentSingleFlight(path, readFileSync4(path, "utf-8"));
       }
       if (moved.length === 0) {
         watched.push({ uri: pathToFileURL2(mutation.oldPath).href, type: 3 });
@@ -1936,11 +2372,11 @@ function workspaceApplyEditConcurrentFailureReason(phase) {
 }
 
 // ../lsp-core/src/lsp/workspace-edit-commit.ts
-import { existsSync as existsSync4, lstatSync as lstatSync2, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync as existsSync5, lstatSync as lstatSync4, renameSync, rmSync, writeFileSync } from "node:fs";
 
 // ../lsp-core/src/lsp/workspace-edit-path.ts
-import { existsSync as existsSync3, lstatSync, readFileSync as readFileSync2, readdirSync, realpathSync as realpathSync3 } from "node:fs";
-import { dirname as dirname2, isAbsolute as isAbsolute2, relative as relative3, resolve as resolve3 } from "node:path";
+import { existsSync as existsSync4, lstatSync as lstatSync3, readFileSync as readFileSync5, readdirSync, realpathSync as realpathSync3 } from "node:fs";
+import { dirname as dirname5, isAbsolute as isAbsolute2, relative as relative3, resolve as resolve3 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 class WorkspaceEditPathError extends Error {
@@ -1957,8 +2393,8 @@ function isPathInsideWorkspace(filePath, workspaceRoot) {
 }
 function canonicalizeMissingPath(filePath) {
   let ancestor = filePath;
-  while (!existsSync3(ancestor)) {
-    const parent = dirname2(ancestor);
+  while (!existsSync4(ancestor)) {
+    const parent = dirname5(ancestor);
     if (parent === ancestor)
       throw new WorkspaceEditPathError(filePath, "no existing ancestor");
     ancestor = parent;
@@ -1968,14 +2404,14 @@ function canonicalizeMissingPath(filePath) {
 function canonicalWorkspaceRoot(workspaceRoot) {
   try {
     const canonical = realpathSync3(resolve3(workspaceRoot));
-    if (!lstatSync(canonical).isDirectory()) {
+    if (!lstatSync3(canonical).isDirectory()) {
       return { success: false, error: `workspace root is not a directory: ${workspaceRoot}` };
     }
     return {
       success: true,
       path: canonical,
       requestedPath: resolve3(workspaceRoot),
-      followedSymbolicLink: existsSync3(resolve3(workspaceRoot)) && lstatSync(resolve3(workspaceRoot)).isSymbolicLink()
+      followedSymbolicLink: existsSync4(resolve3(workspaceRoot)) && lstatSync3(resolve3(workspaceRoot)).isSymbolicLink()
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -1995,7 +2431,7 @@ function uriToCanonicalWorkspacePath(uri, workspaceRoot) {
     return { success: false, error: `non-file URI ${uri}: ${detail}` };
   }
   try {
-    const canonical = existsSync3(requestedPath) ? realpathSync3(requestedPath) : canonicalizeMissingPath(requestedPath);
+    const canonical = existsSync4(requestedPath) ? realpathSync3(requestedPath) : canonicalizeMissingPath(requestedPath);
     if (!isPathInsideWorkspace(canonical, workspaceRoot)) {
       return { success: false, error: `${requestedPath}: outside workspace ${workspaceRoot}` };
     }
@@ -2003,7 +2439,7 @@ function uriToCanonicalWorkspacePath(uri, workspaceRoot) {
       success: true,
       path: canonical,
       requestedPath,
-      followedSymbolicLink: existsSync3(requestedPath) && lstatSync(requestedPath).isSymbolicLink()
+      followedSymbolicLink: existsSync4(requestedPath) && lstatSync3(requestedPath).isSymbolicLink()
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -2011,11 +2447,11 @@ function uriToCanonicalWorkspacePath(uri, workspaceRoot) {
   }
 }
 function snapshotPath(path, includeChildren) {
-  if (!existsSync3(path))
+  if (!existsSync4(path))
     return { kind: "missing" };
-  const stats = lstatSync(path);
+  const stats = lstatSync3(path);
   if (stats.isFile())
-    return { kind: "file", content: readFileSync2(path, "utf-8") };
+    return { kind: "file", content: readFileSync5(path, "utf-8") };
   if (stats.isDirectory()) {
     return includeChildren ? { kind: "directory", children: readdirSync(path).sort() } : { kind: "directory" };
   }
@@ -2131,7 +2567,7 @@ function commitOperation(context, operation) {
   }
   if (operation.kind === "rename") {
     if (operation.replaceDestination) {
-      const targetKind = existsSync4(operation.newPath) && lstatSync2(operation.newPath).isDirectory() ? "directory" : "file";
+      const targetKind = existsSync5(operation.newPath) && lstatSync4(operation.newPath).isDirectory() ? "directory" : "file";
       io.remove(operation.newPath, targetKind === "directory");
       accumulator.mutations.push({ kind: "delete", path: operation.newPath, targetKind });
       addModifiedPath(accumulator.filesModified, reportedPath(plan, operation.newPath));
@@ -2495,7 +2931,7 @@ function parseDocumentChange(input) {
 }
 
 // ../lsp-core/src/lsp/workspace-edit-simulation.ts
-import { dirname as dirname3, relative as relative4, resolve as resolve4 } from "node:path";
+import { dirname as dirname6, relative as relative4, resolve as resolve4 } from "node:path";
 
 // ../lsp-core/src/lsp/workspace-edit-text.ts
 function comparePosition(left, right) {
@@ -2619,7 +3055,7 @@ function virtualDirectoryHasChildren(virtual, path) {
   return false;
 }
 function requireVirtualParent(virtual, path, changeIndex) {
-  if (virtual.get(dirname3(path))?.kind !== "directory") {
+  if (virtual.get(dirname6(path))?.kind !== "directory") {
     throw new WorkspaceEditValidationError(changeIndex, `parent directory does not exist for ${path}`);
   }
 }
@@ -2739,8 +3175,8 @@ function simulateDelete(operation, virtual) {
 }
 
 // ../lsp-core/src/lsp/workspace-edit-snapshot.ts
-import { existsSync as existsSync5, lstatSync as lstatSync3, readdirSync as readdirSync2 } from "node:fs";
-import { dirname as dirname4, resolve as resolve5 } from "node:path";
+import { existsSync as existsSync6, lstatSync as lstatSync5, readdirSync as readdirSync2 } from "node:fs";
+import { dirname as dirname7, resolve as resolve5 } from "node:path";
 class WorkspaceSnapshotBuilder {
   constructor(workspaceRoot) {
     this.workspaceRoot = workspaceRoot;
@@ -2774,9 +3210,9 @@ class WorkspaceSnapshotBuilder {
       }
       if (candidate === this.workspaceRoot)
         break;
-      candidate = dirname4(candidate);
+      candidate = dirname7(candidate);
     }
-    if (!includeChildren || !existsSync5(path) || !lstatSync3(path).isDirectory())
+    if (!includeChildren || !existsSync6(path) || !lstatSync5(path).isDirectory())
       return;
     for (const child of readdirSync2(path))
       this.add(resolve5(path, child), true);
@@ -3641,8 +4077,8 @@ async function disposeDefaultLspManager() {
 }
 
 // ../lsp-core/src/lsp/outside-context-workspace.ts
-import { existsSync as existsSync6, realpathSync as realpathSync4 } from "node:fs";
-import { dirname as dirname5, join as join3 } from "node:path";
+import { existsSync as existsSync7, realpathSync as realpathSync4 } from "node:fs";
+import { dirname as dirname8, join as join3 } from "node:path";
 
 // ../lsp-core/src/lsp/workspace-markers.ts
 var GIT_WORKSPACE_MARKER = ".git";
@@ -3666,10 +4102,10 @@ function findWorkspaceRootOutsideContext(directory) {
 function nearestMarkedAncestor(directory) {
   let current = directory;
   for (;; ) {
-    if (existsSync6(current) && WORKSPACE_MARKERS.some((marker) => existsSync6(join3(current, marker)))) {
+    if (existsSync7(current) && WORKSPACE_MARKERS.some((marker) => existsSync7(join3(current, marker)))) {
       return realpathSync4(current);
     }
-    const parent = dirname5(current);
+    const parent = dirname8(current);
     if (parent === current)
       return;
     current = parent;
@@ -3677,8 +4113,8 @@ function nearestMarkedAncestor(directory) {
 }
 function nearestExistingAncestor(directory) {
   let current = directory;
-  while (!existsSync6(current)) {
-    const parent = dirname5(current);
+  while (!existsSync7(current)) {
+    const parent = dirname8(current);
     if (parent === current)
       return current;
     current = parent;
@@ -3854,17 +4290,17 @@ var BUILTIN_SERVERS = {
 };
 
 // ../lsp-core/src/lsp/server-install-state.ts
-import { existsSync as existsSync7, mkdirSync, readFileSync as readFileSync3, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { dirname as dirname6 } from "node:path";
+import { existsSync as existsSync8, mkdirSync as mkdirSync3, readFileSync as readFileSync6, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname as dirname9 } from "node:path";
 function getInstallDecisionsPath() {
   return lspRequestContext().installDecisionsPath;
 }
 function loadInstallDecisions() {
   const path = getInstallDecisionsPath();
-  if (!existsSync7(path))
+  if (!existsSync8(path))
     return {};
   try {
-    const parsed = JSON.parse(readFileSync3(path, "utf8"));
+    const parsed = JSON.parse(readFileSync6(path, "utf8"));
     return isInstallDecisions(parsed) ? parsed : {};
   } catch {
     return {};
@@ -3883,7 +4319,7 @@ function isInstallDecision(value) {
 }
 function writeInstallDecisions(decisions) {
   const path = getInstallDecisionsPath();
-  mkdirSync(dirname6(path), { recursive: true });
+  mkdirSync3(dirname9(path), { recursive: true });
   const tmpPath = `${path}.tmp`;
   writeFileSync2(tmpPath, `${JSON.stringify(decisions, null, 2)}
 `, "utf8");
@@ -3902,7 +4338,7 @@ function isRecord5(value) {
 }
 
 // ../lsp-core/src/lsp/config-loader.ts
-import { existsSync as existsSync8, readFileSync as readFileSync4 } from "node:fs";
+import { existsSync as existsSync9, readFileSync as readFileSync7 } from "node:fs";
 function getProjectConfigPaths() {
   return lspRequestContext().projectConfigPaths;
 }
@@ -3910,10 +4346,10 @@ function getUserConfigPath() {
   return lspRequestContext().userConfigPath;
 }
 function loadJsonFile(path) {
-  if (!existsSync8(path))
+  if (!existsSync9(path))
     return null;
   try {
-    const parsed = JSON.parse(readFileSync4(path, "utf-8"));
+    const parsed = JSON.parse(readFileSync7(path, "utf-8"));
     return isConfigJson(parsed) ? parsed : null;
   } catch {
     return null;
@@ -4098,8 +4534,8 @@ function getDisabledServerIds() {
 }
 
 // ../lsp-core/src/lsp/server-installation.ts
-import { existsSync as existsSync9 } from "node:fs";
-import { delimiter as delimiter3, dirname as dirname7, isAbsolute as isAbsolute3, join as join4, resolve as resolve7 } from "node:path";
+import { existsSync as existsSync10 } from "node:fs";
+import { delimiter as delimiter3, dirname as dirname10, isAbsolute as isAbsolute3, join as join4, resolve as resolve7 } from "node:path";
 var LOCAL_BIN_RULES = [
   {
     markers: ["package.json", "bun.lock", "bun.lockb", "package-lock.json", "yarn.lock", "pnpm-lock.yaml"],
@@ -4139,7 +4575,7 @@ var resolutionCache = new Map;
 var probeCount = 0;
 function probe(path) {
   probeCount += 1;
-  return existsSync9(path);
+  return existsSync10(path);
 }
 function executableSuffixes(platform, pathExt) {
   if (platform !== "win32")
@@ -4173,7 +4609,7 @@ function resolveLocal(command, workingDirectory, suffixes, stopAt) {
       return null;
     if (boundary !== undefined && current === boundary)
       return null;
-    const parent = dirname7(current);
+    const parent = dirname10(current);
     if (parent === current)
       return null;
     current = parent;
@@ -4328,7 +4764,7 @@ function getAllServers() {
 // ../lsp-core/src/lsp/client-wrapper.ts
 function isDirectoryPath(filePath) {
   try {
-    return statSync3(filePath).isDirectory();
+    return statSync4(filePath).isDirectory();
   } catch {
     return false;
   }
@@ -4338,7 +4774,7 @@ function findWorkspaceRoot(filePath) {
   const abs = resolveReadablePathInsideContext(filePath);
   let dir = abs;
   if (!isDirectoryPath(dir)) {
-    dir = dirname8(dir);
+    dir = dirname11(dir);
   }
   if (!isPathInside(cwd, abs))
     return findWorkspaceRootOutsideContext(dir);
@@ -4347,7 +4783,7 @@ function findWorkspaceRoot(filePath) {
   while (isPathInside(cwd, dir)) {
     const canonicalDir = existingDirectoryInsideContext(dir, cwd);
     if (canonicalDir !== undefined) {
-      if (existsSync10(join5(dir, GIT_WORKSPACE_MARKER))) {
+      if (existsSync11(join5(dir, GIT_WORKSPACE_MARKER))) {
         return canonicalDir;
       }
       if (nearestPackageRoot === undefined && hasProjectWorkspaceMarker(dir)) {
@@ -4356,12 +4792,12 @@ function findWorkspaceRoot(filePath) {
     }
     if (dir === cwd)
       break;
-    dir = dirname8(dir);
+    dir = dirname11(dir);
   }
   return nearestPackageRoot ?? fallbackRoot;
 }
 function hasProjectWorkspaceMarker(directory) {
-  return PROJECT_WORKSPACE_MARKERS.some((marker) => existsSync10(join5(directory, marker)));
+  return PROJECT_WORKSPACE_MARKERS.some((marker) => existsSync11(join5(directory, marker)));
 }
 function resolveReadablePathInsideContext(filePath) {
   const cwd = contextCwd();
@@ -4386,12 +4822,12 @@ function rebaseThroughCanonicalAncestor(path, cwd) {
   let current = path;
   const suffix = [];
   while (true) {
-    if (existsSync10(current)) {
+    if (existsSync11(current)) {
       const canonical = realpathSync5(current);
       if (isPathInside(cwd, canonical))
         return suffix.length === 0 ? canonical : join5(canonical, ...suffix);
     }
-    const parent = dirname8(current);
+    const parent = dirname11(current);
     if (parent === current)
       return;
     suffix.unshift(basename3(current));
@@ -4399,10 +4835,10 @@ function rebaseThroughCanonicalAncestor(path, cwd) {
   }
 }
 function existingDirectoryInsideContext(directory, cwd) {
-  if (!existsSync10(directory))
+  if (!existsSync11(directory))
     return;
   const canonical = realpathSync5(directory);
-  if (!statSync3(canonical).isDirectory())
+  if (!statSync4(canonical).isDirectory())
     return;
   return isPathInside(cwd, canonical) ? canonical : undefined;
 }
@@ -4414,7 +4850,7 @@ function nearestExistingDirectoryInsideContext(directory, cwd) {
       return canonical;
     if (current === cwd)
       return;
-    current = dirname8(current);
+    current = dirname11(current);
   }
   return;
 }
@@ -4544,7 +4980,7 @@ async function withLspClient(filePath, fn, toolName, options = {}) {
 }
 
 // ../lsp-core/src/lsp/directory-diagnostics.ts
-import { existsSync as existsSync11, lstatSync as lstatSync4, readdirSync as readdirSync3 } from "node:fs";
+import { existsSync as existsSync12, lstatSync as lstatSync6, readdirSync as readdirSync3 } from "node:fs";
 import { join as join6, resolve as resolve9 } from "node:path";
 
 // ../lsp-core/src/lsp/formatters.ts
@@ -4678,7 +5114,7 @@ function collectFilesWithExtension(dir, extension, maxFiles) {
       const fullPath = join6(currentDir, entry);
       let stat;
       try {
-        stat = lstatSync4(fullPath);
+        stat = lstatSync6(fullPath);
       } catch {
         continue;
       }
@@ -4701,7 +5137,7 @@ async function aggregateDiagnosticsForDirectory(directory, extension, severity, 
     throw new LspInvalidPathError(`Extension must start with a dot (e.g., ".ts", not "${extension}"). Use ".${extension}" instead.`);
   }
   const absDir = resolve9(options.workspaceRoot ?? contextCwd(), directory);
-  if (!existsSync11(absDir)) {
+  if (!existsSync12(absDir)) {
     throw new LspInvalidPathError(`Directory does not exist: ${absDir}`);
   }
   const serverResult = options.server === undefined ? findServerForExtension(extension) : { status: "found", server: options.server };
@@ -4787,7 +5223,7 @@ async function aggregateDiagnosticsForDirectory(directory, extension, severity, 
 }
 
 // ../lsp-core/src/lsp/infer-extension.ts
-import { lstatSync as lstatSync5, readdirSync as readdirSync4 } from "node:fs";
+import { lstatSync as lstatSync7, readdirSync as readdirSync4 } from "node:fs";
 import { join as join7 } from "node:path";
 var SKIP_DIRECTORIES2 = new Set(["node_modules", ".git", "dist", "build", ".next", "out"]);
 var MAX_SCAN_ENTRIES = 500;
@@ -4809,7 +5245,7 @@ function inferExtensionFromDirectory(directory) {
       const fullPath = join7(dir, entry);
       let stat;
       try {
-        stat = lstatSync5(fullPath);
+        stat = lstatSync7(fullPath);
       } catch {
         continue;
       }
@@ -5058,7 +5494,7 @@ async function executeLspDiagnostics(params, signal) {
   }
 }
 // ../lsp-core/src/lsp/format-document.ts
-import { readFileSync as readFileSync5, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync3 } from "node:fs";
+import { readFileSync as readFileSync8, renameSync as renameSync3, unlinkSync as unlinkSync4, writeFileSync as writeFileSync3 } from "node:fs";
 var DEFAULT_FORMATTING_OPTIONS = {
   tabSize: 4,
   insertSpaces: false,
@@ -5073,7 +5509,7 @@ async function formatDocumentWithClient(client, filePath, options = {}) {
     return { status: "unavailable", reason: "capability_not_advertised" };
   if (edits.length === 0)
     return UNCHANGED;
-  const before = readFileSync5(filePath, "utf-8");
+  const before = readFileSync8(filePath, "utf-8");
   const normalized = normalizeTextEdits(before, edits, 0);
   if (normalized.text === before)
     return UNCHANGED;
@@ -5101,7 +5537,7 @@ function writeAtomically(filePath, content) {
     renameSync3(tempPath, filePath);
   } catch (error) {
     try {
-      unlinkSync(tempPath);
+      unlinkSync4(tempPath);
     } catch {}
     throw error;
   }
@@ -5528,7 +5964,7 @@ async function handleLspMcpRequest(input, options = {}) {
   if (!isPlainRecord(input)) {
     return errorResponse(null, -32600, "Invalid Request");
   }
-  const id = jsonRpcId(input["id"]);
+  const id = jsonRpcId2(input["id"]);
   const method = input["method"];
   if (method === "notifications/initialized")
     return;
@@ -5589,6 +6025,7 @@ function requestedProtocolVersion(params) {
 import { connect } from "node:net";
 import { homedir as homedir3 } from "node:os";
 import { join as join8 } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 // src/daemon-request-error.ts
 class DaemonRequestError extends Error {
@@ -5665,205 +6102,10 @@ function errorText(error) {
 
 // src/ensure-daemon.ts
 import { spawn as spawn2 } from "node:child_process";
-import { closeSync as closeSync2, existsSync as existsSync12, mkdirSync as mkdirSync3, openSync as openSync2, writeSync as writeSync2 } from "node:fs";
+import { closeSync as closeSync3, existsSync as existsSync13, mkdirSync as mkdirSync4, openSync as openSync3, writeSync as writeSync3 } from "node:fs";
 import { Socket } from "node:net";
-import { dirname as dirname10, isAbsolute as isAbsolute5 } from "node:path";
+import { dirname as dirname12, isAbsolute as isAbsolute5 } from "node:path";
 import { argv0, execPath } from "node:process";
-
-// src/ipc-protocol.ts
-import { randomBytes, timingSafeEqual } from "node:crypto";
-import {
-  chmodSync,
-  closeSync,
-  constants,
-  fchmodSync,
-  fstatSync,
-  lstatSync as lstatSync6,
-  mkdirSync as mkdirSync2,
-  openSync,
-  readFileSync as readFileSync6,
-  unlinkSync as unlinkSync2,
-  writeSync
-} from "node:fs";
-import { dirname as dirname9 } from "node:path";
-var OMO_DAEMON_PROTOCOL_VERSION = 1;
-var AUTH_ERROR_CODE = -32001;
-var PROTOCOL_ERROR_CODE = -32002;
-var AUTH_TOKEN_BYTES = 32;
-
-class UnsafePrivateDirectoryError extends Error {
-  constructor(path, reason) {
-    super(`unsafe private directory ${path}: ${reason}`);
-    this.path = path;
-    this.reason = reason;
-    this.name = "UnsafePrivateDirectoryError";
-    this.code = "unsafe_private_directory";
-  }
-}
-function authEnvelope(token) {
-  return { protocolVersion: OMO_DAEMON_PROTOCOL_VERSION, token };
-}
-function readAuthToken(paths) {
-  try {
-    const token = readFileSync6(paths.auth, "utf8").trim();
-    return token.length > 0 ? token : null;
-  } catch (error) {
-    if (error instanceof Error)
-      return null;
-    throw error;
-  }
-}
-function readOrCreateAuthToken(paths) {
-  const existing = readAuthToken(paths);
-  if (existing)
-    return existing;
-  return createAuthToken(paths);
-}
-function rotateAuthToken(paths) {
-  try {
-    unlinkSync2(paths.auth);
-  } catch (error) {
-    if (!(error instanceof Error))
-      throw error;
-  }
-  return createAuthToken(paths);
-}
-function authenticateMessage(raw, expectedToken) {
-  const id = jsonRpcId2(raw);
-  if (!isPlainRecord(raw))
-    return authError(id);
-  const params = raw["params"];
-  if (!isPlainRecord(params))
-    return authError(id);
-  const envelope = params["_omo"];
-  if (!isPlainRecord(envelope))
-    return authError(id);
-  const protocolVersion = envelope["protocolVersion"];
-  if (protocolVersion !== OMO_DAEMON_PROTOCOL_VERSION)
-    return protocolError(id);
-  const token = envelope["token"];
-  if (typeof token !== "string" || !tokenMatches(token, expectedToken))
-    return authError(id);
-  const cleanParams = { ...params };
-  delete cleanParams["_omo"];
-  return { input: { ...raw, params: cleanParams }, id, method: typeof raw["method"] === "string" ? raw["method"] : undefined };
-}
-function isAuthErrorResponse(message) {
-  if (!isPlainRecord(message))
-    return false;
-  const error = message["error"];
-  if (!isPlainRecord(error))
-    return false;
-  const data = error["data"];
-  return error["code"] === AUTH_ERROR_CODE && isPlainRecord(data) && data["code"] === "daemon_authentication_failed";
-}
-function writePrivateFile(path, data) {
-  const fd = openSync(path, "w", 384);
-  try {
-    writeSync(fd, data);
-  } finally {
-    closeSync(fd);
-  }
-  setPrivateFileMode(path);
-}
-function ensurePrivateDirectory(path, options = {}) {
-  try {
-    mkdirSync2(path, { recursive: true, mode: 448 });
-  } catch (error) {
-    if (errorCode2(error) !== "EEXIST")
-      throw error;
-  }
-  if (process.platform === "win32")
-    return;
-  const before = validatePrivateDirectory(path, options);
-  const fd = openSync(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
-  try {
-    fchmodSync(fd, 448);
-    const after = validatePrivateDirectory(path, options);
-    const openStats = fstatSync(fd);
-    if (!sameDirectory(before, after) || !sameDirectory(before, openStats)) {
-      throw new UnsafePrivateDirectoryError(path, "changed_during_chmod");
-    }
-  } finally {
-    closeSync(fd);
-  }
-}
-function setPrivateFileMode(path) {
-  if (process.platform !== "win32")
-    chmodSync(path, 384);
-}
-function createAuthToken(paths) {
-  ensurePrivateDirectory(dirname9(paths.auth));
-  const token = randomBytes(AUTH_TOKEN_BYTES).toString("base64url");
-  let fd;
-  try {
-    fd = openSync(paths.auth, "wx", 384);
-  } catch (error) {
-    if (errorCode2(error) === "EEXIST") {
-      const existing = readAuthToken(paths);
-      if (existing)
-        return existing;
-    }
-    throw error;
-  }
-  try {
-    writeSync(fd, `${token}
-`);
-  } finally {
-    closeSync(fd);
-  }
-  setPrivateFileMode(paths.auth);
-  return token;
-}
-function errorCode2(error) {
-  if (!error || typeof error !== "object" || !("code" in error))
-    return;
-  const code = Reflect.get(error, "code");
-  return typeof code === "string" ? code : undefined;
-}
-function validatePrivateDirectory(path, options) {
-  const stats = options.lstat ? options.lstat(path) : lstatPrivateDirectory(path);
-  if (stats.isSymbolicLink())
-    throw new UnsafePrivateDirectoryError(path, "symlink");
-  if (!stats.isDirectory())
-    throw new UnsafePrivateDirectoryError(path, "not_directory");
-  const currentUid = options.currentUid ? options.currentUid() : process.getuid?.();
-  if (currentUid !== undefined && stats.uid !== currentUid) {
-    throw new UnsafePrivateDirectoryError(path, "wrong_owner");
-  }
-  return stats;
-}
-function lstatPrivateDirectory(path) {
-  return lstatSync6(path);
-}
-function sameDirectory(a, b) {
-  return a.dev === b.dev && a.ino === b.ino;
-}
-function tokenMatches(candidate, expected) {
-  const candidateBytes = Buffer.from(candidate);
-  const expectedBytes = Buffer.from(expected);
-  return candidateBytes.length === expectedBytes.length && timingSafeEqual(candidateBytes, expectedBytes);
-}
-function jsonRpcId2(raw) {
-  if (!isPlainRecord(raw))
-    return null;
-  const id = raw["id"];
-  return typeof id === "string" || typeof id === "number" || id === null ? id : null;
-}
-function authError(id) {
-  return {
-    jsonrpc: "2.0",
-    id,
-    error: { code: AUTH_ERROR_CODE, message: "daemon authentication failed", data: { code: "daemon_authentication_failed" } }
-  };
-}
-function protocolError(id) {
-  return {
-    jsonrpc: "2.0",
-    id,
-    error: { code: PROTOCOL_ERROR_CODE, message: "daemon protocol mismatch", data: { code: "daemon_protocol_mismatch" } }
-  };
-}
 
 // src/paths.ts
 import { createHash as createHash2 } from "node:crypto";
@@ -5873,7 +6115,7 @@ import * as path from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // src/runtime-contract.ts
-import { statSync as statSync4 } from "node:fs";
+import { statSync as statSync5 } from "node:fs";
 import { isAbsolute as isAbsolute4 } from "node:path";
 var OMO_LSP_DAEMON_DIR = "OMO_LSP_DAEMON_DIR";
 var OMO_LSP_DAEMON_CLI = "OMO_LSP_DAEMON_CLI";
@@ -5921,7 +6163,7 @@ function resolveDaemonRuntime(env, defaults) {
   }
   let cliStats;
   try {
-    cliStats = statSync4(cliOverride);
+    cliStats = statSync5(cliOverride);
   } catch (error) {
     if (!(error instanceof Error))
       throw error;
@@ -6055,9 +6297,11 @@ function createLineDecoder(onMessage, onParseError) {
 }
 
 // src/ensure-daemon.ts
-var PROBE_TIMEOUT_MS = 500;
+var PROBE_TIMEOUT_MS = 2000;
 var DEFAULT_READY_TIMEOUT_MS = 5000;
 var DEFAULT_POLL_INTERVAL_MS = 100;
+var FAILED_SPAWN_COOLDOWN_MS = 5000;
+var failedSpawnUntil = new Map;
 
 class DaemonUnreachableError extends Error {
   constructor(socketPath) {
@@ -6070,11 +6314,22 @@ async function ensureDaemonRunning(paths, deps = defaultEnsureDaemonDeps(), opti
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const signal = options.signal;
   throwIfAborted(signal);
-  if (await awaitWithSignal2(deps.probe(paths, signal), signal))
+  if (await awaitWithSignal2(deps.probe(paths, signal), signal)) {
+    failedSpawnUntil.delete(paths.socket);
     return;
+  }
   throwIfAborted(signal);
+  const retryAt = failedSpawnUntil.get(paths.socket);
+  if (retryAt !== undefined && deps.now() < retryAt)
+    throw new DaemonUnreachableError(paths.socket);
+  failedSpawnUntil.delete(paths.socket);
   deps.spawnDaemon(paths);
-  await waitUntilReachable(paths, deps, readyTimeoutMs, pollIntervalMs, signal);
+  try {
+    await waitUntilReachable(paths, deps, readyTimeoutMs, pollIntervalMs, signal);
+  } catch (error) {
+    failedSpawnUntil.set(paths.socket, deps.now() + FAILED_SPAWN_COOLDOWN_MS);
+    throw error;
+  }
 }
 async function waitUntilReachable(paths, deps, readyTimeoutMs, pollIntervalMs, signal) {
   const deadline = deps.now() + readyTimeoutMs;
@@ -6130,8 +6385,8 @@ function pingDaemon(paths, token, timeoutMs = PROBE_TIMEOUT_MS, signal) {
   });
 }
 function spawnDaemonProcess(paths, deps = {}) {
-  mkdirSync3(dirname10(paths.log), { recursive: true });
-  const logFd = openSync2(paths.log, "a");
+  mkdirSync4(dirname12(paths.log), { recursive: true });
+  const logFd = openSync3(paths.log, "a");
   try {
     const spawnDaemonChild = deps.spawn ?? spawn2;
     const executable = deps.resolveExecutable?.() ?? resolveDaemonNodeExecutable();
@@ -6141,19 +6396,19 @@ function spawnDaemonProcess(paths, deps = {}) {
       windowsHide: true,
       env: { ...process.env, BUN_BE_BUN: "1" }
     });
-    child.once("spawn", () => closeSync2(logFd));
+    child.once("spawn", () => closeSync3(logFd));
     child.once("error", (error) => {
-      writeSync2(logFd, `[lsp-daemon] failed to spawn daemon: ${error.message}
+      writeSync3(logFd, `[lsp-daemon] failed to spawn daemon: ${error.message}
 `);
-      closeSync2(logFd);
+      closeSync3(logFd);
     });
     child.unref();
   } catch (error) {
-    closeSync2(logFd);
+    closeSync3(logFd);
     throw error;
   }
 }
-function resolveDaemonNodeExecutable(cachedExecPath = execPath, originalArgv0 = argv0, pathExists = existsSync12) {
+function resolveDaemonNodeExecutable(cachedExecPath = execPath, originalArgv0 = argv0, pathExists = existsSync13) {
   if (pathExists(cachedExecPath))
     return cachedExecPath;
   if (isAbsolute5(originalArgv0) && pathExists(originalArgv0))
@@ -6337,6 +6592,7 @@ function parseContext(value) {
 
 // src/daemon-client.ts
 var DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+var STARTUP_BACKOFF_MS = [0, 100, 300];
 var nextProxyRequestId = 1;
 async function callToolViaDaemon(name, args, options) {
   const context = requireContext(options.context);
@@ -6344,17 +6600,31 @@ async function callToolViaDaemon(name, args, options) {
   const ensure = options.ensure ?? ((ensurePaths, signal) => ensureDaemonRunning(ensurePaths, undefined, signal === undefined ? {} : { signal }));
   const timeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const requestArgs = withContext(args, context);
+  const probe = options.probe ?? ((probePaths, signal) => probeDaemon(probePaths, undefined, signal));
+  const sleep = options.sleep ?? ((ms, signal) => delay(ms, undefined, { signal }));
   let lastError;
   let authRefreshUsed = false;
-  for (let attempt = 0;attempt < 3; attempt += 1) {
+  for (const [attempt, backoffMs] of STARTUP_BACKOFF_MS.entries()) {
     try {
-      await ensureDaemonAvailable(paths, ensure, options.signal);
+      if (backoffMs > 0)
+        await sleep(backoffMs, options.signal);
+      if (options.signal?.aborted)
+        throw new DaemonRequestCancelledError(false);
+      if (attempt === 0) {
+        await ensureDaemonAvailable(paths, ensure, options.signal);
+      } else if (!await probe(paths, options.signal)) {
+        throw new DaemonUnreachableError(paths.socket);
+      }
       const token = readAuthToken(paths);
       if (!token)
         throw new DaemonRequestError("daemon auth token missing", false);
       const sendOptions = options.signal === undefined ? { timeoutMs } : { timeoutMs, signal: options.signal };
       return await sendToolCall(paths, token, name, requestArgs, sendOptions);
     } catch (error) {
+      if (options.signal?.aborted) {
+        lastError = new DaemonRequestCancelledError(false);
+        break;
+      }
       lastError = error;
       if (error instanceof DaemonAuthenticationRejectedError && !authRefreshUsed) {
         authRefreshUsed = true;
@@ -6610,7 +6880,7 @@ function asToolCall(parsed) {
   if (!isPlainRecord(params) || typeof params["name"] !== "string")
     return null;
   const args = params["arguments"];
-  return { id: jsonRpcId(parsed["id"]), name: params["name"], args: isPlainRecord(args) ? args : {} };
+  return { id: jsonRpcId2(parsed["id"]), name: params["name"], args: isPlainRecord(args) ? args : {} };
 }
 function inferOpenCodeProjectCwd(projectConfigEnv) {
   if (!projectConfigEnv)
@@ -6636,262 +6906,23 @@ function canonicalizePathList(value) {
   return value.split(delimiter4).map((entry) => canonicalizePath(entry) ?? entry).join(delimiter4);
 }
 function canonicalizePath(value) {
-  if (value === undefined || !isAbsolute6(value) || !existsSync13(value))
+  if (value === undefined || !isAbsolute6(value) || !existsSync14(value))
     return value;
   return realpathSync6(value);
 }
 function projectRootFromOpenCodeConfigPath(path) {
   if (basename4(path) !== "lsp.json" && basename4(path) !== "lsp-client.json")
     return;
-  const configDir = dirname11(path);
+  const configDir = dirname13(path);
   const configDirName = basename4(configDir);
   if (configDirName !== ".opencode" && configDirName !== ".omo")
     return;
-  return dirname11(configDir);
+  return dirname13(configDir);
 }
 
 // src/daemon-server.ts
 import { chmodSync as chmodSync2 } from "node:fs";
 import { createServer as createServer2 } from "node:net";
-
-// src/ownership.ts
-import { randomUUID } from "node:crypto";
-import { existsSync as existsSync14, lstatSync as lstatSync7, readFileSync as readFileSync8, statSync as statSync5, unlinkSync as unlinkSync4 } from "node:fs";
-import { dirname as dirname13 } from "node:path";
-
-// src/lock.ts
-import { closeSync as closeSync3, mkdirSync as mkdirSync4, openSync as openSync3, readFileSync as readFileSync7, unlinkSync as unlinkSync3, writeSync as writeSync3 } from "node:fs";
-import { dirname as dirname12 } from "node:path";
-function isProcessAlive2(pid) {
-  if (!Number.isInteger(pid) || pid <= 0)
-    return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (error instanceof Error)
-      return errorCode3(error) === "EPERM";
-    throw error;
-  }
-}
-function readLockPid(lockPath) {
-  try {
-    const pid = Number.parseInt(readFileSync7(lockPath, "utf8").trim(), 10);
-    return Number.isInteger(pid) ? pid : null;
-  } catch {
-    return null;
-  }
-}
-function tryAcquireLock(lockPath, ownerPid = process.pid) {
-  mkdirSync4(dirname12(lockPath), { recursive: true });
-  for (let attempt = 0;attempt < 2; attempt += 1) {
-    const handle = writeLockFile(lockPath, ownerPid);
-    if (handle)
-      return handle;
-    if (!reapStaleLock(lockPath))
-      return null;
-  }
-  return null;
-}
-function writeLockFile(lockPath, ownerPid) {
-  try {
-    const fd = openSync3(lockPath, "wx", 384);
-    writeSync3(fd, `${ownerPid}
-`);
-    closeSync3(fd);
-    return { release: () => unlinkQuietly(lockPath) };
-  } catch (error) {
-    if (errorCode3(error) === "EEXIST")
-      return null;
-    throw error;
-  }
-}
-function reapStaleLock(lockPath) {
-  const pid = readLockPid(lockPath);
-  if (pid !== null && isProcessAlive2(pid))
-    return false;
-  unlinkQuietly(lockPath);
-  return true;
-}
-function unlinkQuietly(path) {
-  try {
-    unlinkSync3(path);
-  } catch (error) {
-    if (error instanceof Error)
-      return;
-    throw error;
-  }
-}
-function errorCode3(error) {
-  if (!error || typeof error !== "object" || !("code" in error))
-    return;
-  const code = Reflect.get(error, "code");
-  return typeof code === "string" ? code : undefined;
-}
-
-// src/ownership.ts
-class DaemonAlreadyRunningError extends Error {
-  constructor() {
-    super(...arguments);
-    this.name = "DaemonAlreadyRunningError";
-    this.code = "daemon_already_running";
-  }
-}
-
-class DaemonStartupDeferredError extends Error {
-  constructor(reason) {
-    super(`LSP daemon startup deferred: ${reason}`);
-    this.reason = reason;
-    this.name = "DaemonStartupDeferredError";
-    this.code = "daemon_startup_deferred";
-  }
-}
-async function acquireStartupLease(paths, pingOwner) {
-  ensureDaemonDirectories(paths);
-  const lock = tryAcquireLock(paths.lock);
-  if (!lock) {
-    const token = readAuthToken(paths);
-    if (token && await pingOwner(token))
-      throw new DaemonAlreadyRunningError("LSP daemon already running");
-    throw new DaemonStartupDeferredError("startup_lock_busy");
-  }
-  try {
-    const token = await validateExistingOwner(paths, pingOwner);
-    return { lock, token, owner: newOwner(paths) };
-  } catch (error) {
-    lock.release();
-    throw error;
-  }
-}
-function ensureDaemonDirectories(paths) {
-  ensurePrivateDirectory(paths.dir);
-  if (process.platform !== "win32")
-    ensurePrivateDirectory(dirname13(paths.socket));
-}
-function readDaemonOwner(paths) {
-  try {
-    return parseOwner(JSON.parse(readFileSync8(paths.owner, "utf8")));
-  } catch (error) {
-    if (error instanceof Error)
-      return null;
-    throw error;
-  }
-}
-function writeDaemonOwner(paths, owner) {
-  writePrivateFile(paths.pid, `${owner.pid}
-`);
-  writePrivateFile(paths.endpoint, owner.endpoint.path);
-  writePrivateFile(paths.owner, `${JSON.stringify(owner)}
-`);
-}
-function removeDaemonMetadataForOwner(paths, owner) {
-  const current = readDaemonOwner(paths);
-  if (!current || !sameOwner(current, owner))
-    return;
-  unlinkQuietly(paths.socket);
-  unlinkQuietly(paths.pid);
-  unlinkQuietly(paths.endpoint);
-  unlinkQuietly(paths.owner);
-}
-function endpointIdentity(endpointPath) {
-  if (process.platform === "win32")
-    return { kind: "windows", path: endpointPath };
-  try {
-    const stats = statSync5(endpointPath);
-    return { kind: "unix", path: endpointPath, dev: stats.dev, ino: stats.ino };
-  } catch (error) {
-    if (error instanceof Error)
-      return { kind: "missing", path: endpointPath };
-    throw error;
-  }
-}
-function sameEndpoint(a, b) {
-  if (a.kind !== b.kind || a.path !== b.path)
-    return false;
-  switch (a.kind) {
-    case "unix":
-      return b.kind === "unix" && a.dev === b.dev && a.ino === b.ino;
-    case "windows":
-      return true;
-    case "missing":
-      return true;
-  }
-}
-function sameOwner(a, b) {
-  return a.pid === b.pid && a.nonce === b.nonce && sameEndpoint(a.endpoint, b.endpoint);
-}
-async function validateExistingOwner(paths, pingOwner) {
-  let token = readOrCreateAuthToken(paths);
-  for (let attempt = 0;attempt < 2; attempt += 1) {
-    const owner = readDaemonOwner(paths);
-    if (!owner)
-      return token;
-    const ping = await pingOwner(token);
-    if (ping && owner.nonce === ping.nonce && sameEndpoint(owner.endpoint, ping.endpoint)) {
-      throw new DaemonAlreadyRunningError("LSP daemon already running");
-    }
-    if (ping)
-      continue;
-    if (isProcessAlive2(owner.pid))
-      throw new DaemonStartupDeferredError("owner_pid_live_unreachable");
-    const reread = readDaemonOwner(paths);
-    if (!reread || !sameOwner(reread, owner)) {
-      throw new DaemonStartupDeferredError("owner_changed_during_cleanup");
-    }
-    cleanupDeadOwner(paths, owner);
-    token = rotateAuthToken(paths);
-    return token;
-  }
-  throw new DaemonStartupDeferredError("reachable_owner_mismatch");
-}
-function cleanupDeadOwner(paths, owner) {
-  if (process.platform !== "win32" && existsSync14(owner.endpoint.path)) {
-    const stat = lstatSync7(owner.endpoint.path);
-    if (stat.isSocket())
-      unlinkSync4(owner.endpoint.path);
-  }
-  unlinkQuietly(paths.pid);
-  unlinkQuietly(paths.endpoint);
-  unlinkQuietly(paths.owner);
-}
-function newOwner(paths) {
-  return {
-    pid: process.pid,
-    nonce: randomUUID(),
-    startedAt: new Date().toISOString(),
-    endpoint: endpointIdentity(paths.socket)
-  };
-}
-function parseOwner(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    return null;
-  const pid = Reflect.get(value, "pid");
-  const nonce = Reflect.get(value, "nonce");
-  const startedAt = Reflect.get(value, "startedAt");
-  const endpoint = parseEndpoint(Reflect.get(value, "endpoint"));
-  if (typeof pid !== "number" || typeof nonce !== "string" || typeof startedAt !== "string" || !endpoint)
-    return null;
-  return { pid, nonce, startedAt, endpoint };
-}
-function parseEndpoint(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    return null;
-  const kind = Reflect.get(value, "kind");
-  const path = Reflect.get(value, "path");
-  if (typeof path !== "string")
-    return null;
-  if (kind === undefined)
-    return endpointIdentity(path);
-  if (kind === "windows")
-    return { kind, path };
-  if (kind === "missing")
-    return { kind, path };
-  const dev = Reflect.get(value, "dev");
-  const ino = Reflect.get(value, "ino");
-  if (kind === "unix" && typeof dev === "number" && typeof ino === "number")
-    return { kind, path, dev, ino };
-  return null;
-}
 
 // src/version-reap.ts
 import { execFile } from "node:child_process";
@@ -6919,7 +6950,7 @@ async function attestDaemonCliProcess(pid, platform, deps = {}) {
 async function reapStaleDaemonVersions(ownPaths, deps = {}) {
   const baseDir = dirname14(ownPaths.dir);
   const platform = deps.platform ?? process.platform;
-  const isAlive = deps.isAlive ?? isProcessAlive2;
+  const isAlive = deps.isAlive ?? isProcessAlive;
   const attest = deps.attest ?? ((pid) => attestDaemonCliProcess(pid, platform));
   const sendSignal = deps.sendSignal ?? defaultSendSignal;
   const waitForExit = deps.waitForExit ?? defaultWaitForExit;
@@ -7059,7 +7090,7 @@ function defaultSendSignal(pid, signal) {
 async function defaultWaitForExit(pid, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   for (;; ) {
-    if (!isProcessAlive2(pid))
+    if (!isProcessAlive(pid))
       return true;
     if (Date.now() >= deadline)
       return false;
@@ -7229,7 +7260,12 @@ async function main() {
   process.exitCode = 2;
 }
 main().catch((error) => {
-  stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}
+  if (error instanceof DaemonStartupDeferredError) {
+    stderr.write(`[lsp-daemon] startup deferred: ${error.reason}
 `);
+  } else {
+    stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}
+`);
+  }
   process.exitCode = 1;
 });

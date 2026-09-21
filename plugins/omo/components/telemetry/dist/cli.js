@@ -385,7 +385,7 @@ function getTelemetryHost(env = process.env, defaultHost = DEFAULT_POSTHOG_HOST)
   return env["POSTHOG_HOST"]?.trim() || defaultHost;
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/module.node.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/module.node.mjs
 import { dirname as dirname2, posix, sep } from "node:path";
 function createModulerModifier() {
   const getModuleFromFileName = createGetModuleFromFilename();
@@ -421,139 +421,7 @@ function normalizeWindowsPath(path) {
   return path.replace(/^[A-Z]:/, "").replace(/\\/g, "/");
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/featureFlagUtils.mjs
-var normalizeFlagsResponse = (flagsResponse) => {
-  if ("flags" in flagsResponse) {
-    const featureFlags = getFlagValuesFromFlags(flagsResponse.flags);
-    const featureFlagPayloads = getPayloadsFromFlags(flagsResponse.flags);
-    return {
-      ...flagsResponse,
-      featureFlags,
-      featureFlagPayloads
-    };
-  }
-  {
-    const featureFlags = flagsResponse.featureFlags ?? {};
-    const featureFlagPayloads = Object.fromEntries(Object.entries(flagsResponse.featureFlagPayloads || {}).map(([k, v]) => [
-      k,
-      parsePayload(v)
-    ]));
-    const flags = Object.fromEntries(Object.entries(featureFlags).map(([key, value]) => [
-      key,
-      getFlagDetailFromFlagAndPayload(key, value, featureFlagPayloads[key])
-    ]));
-    return {
-      ...flagsResponse,
-      featureFlags,
-      featureFlagPayloads,
-      flags
-    };
-  }
-};
-function getFlagDetailFromFlagAndPayload(key, value, payload) {
-  return {
-    key,
-    enabled: typeof value == "string" ? true : value,
-    variant: typeof value == "string" ? value : undefined,
-    reason: undefined,
-    metadata: {
-      id: undefined,
-      version: undefined,
-      payload: payload ? JSON.stringify(payload) : undefined,
-      description: undefined
-    }
-  };
-}
-var getFlagValuesFromFlags = (flags) => Object.fromEntries(Object.entries(flags ?? {}).map(([key, detail]) => [
-  key,
-  getFeatureFlagValue(detail)
-]).filter(([, value]) => value !== undefined));
-var getPayloadsFromFlags = (flags) => {
-  const safeFlags = flags ?? {};
-  return Object.fromEntries(Object.keys(safeFlags).filter((flag) => {
-    const details = safeFlags[flag];
-    return details.enabled && details.metadata && details.metadata.payload !== undefined;
-  }).map((flag) => {
-    const payload = safeFlags[flag].metadata?.payload;
-    return [
-      flag,
-      payload ? parsePayload(payload) : undefined
-    ];
-  }));
-};
-var getFeatureFlagValue = (detail) => detail === undefined ? undefined : detail.variant ?? detail.enabled;
-var parsePayload = (response) => {
-  if (typeof response != "string")
-    return response;
-  try {
-    return JSON.parse(response);
-  } catch {
-    return response;
-  }
-};
-var MINIMAL_FLAG_CALLED_EVENT_CAMPAIGN_PROPERTIES = [
-  "utm_source",
-  "utm_medium",
-  "utm_campaign",
-  "utm_content",
-  "utm_term",
-  "gad_source",
-  "mc_cid",
-  "gclid",
-  "gclsrc",
-  "dclid",
-  "gbraid",
-  "wbraid",
-  "fbclid",
-  "msclkid",
-  "twclid",
-  "li_fat_id",
-  "igshid",
-  "ttclid",
-  "rdt_cid",
-  "epik",
-  "qclid",
-  "sccid",
-  "irclid",
-  "_kx"
-];
-var MINIMAL_FLAG_CALLED_EVENT_PROPERTIES = [
-  "$feature_flag",
-  "$feature_flag_response",
-  "$feature_flag_has_experiment",
-  "$feature_flag_id",
-  "$feature_flag_version",
-  "$feature_flag_reason",
-  "$feature_flag_request_id",
-  "$feature_flag_evaluated_at",
-  "$feature_flag_error",
-  "locally_evaluated",
-  "$groups",
-  "$process_person_profile",
-  "$geoip_disable",
-  "$current_url",
-  "$pathname",
-  "$referring_domain",
-  ...MINIMAL_FLAG_CALLED_EVENT_CAMPAIGN_PROPERTIES,
-  "$session_id",
-  "$window_id",
-  "$lib",
-  "$lib_version",
-  "$device_id",
-  "$is_server"
-];
-var minimizeFlagCalledEventProperties = (properties, transportKeys = []) => {
-  const minimal = {};
-  const copyKey = (key) => {
-    if (properties[key] !== undefined)
-      minimal[key] = properties[key];
-  };
-  MINIMAL_FLAG_CALLED_EVENT_PROPERTIES.forEach(copyKey);
-  transportKeys.forEach(copyKey);
-  return minimal;
-};
-
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/types.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/types.mjs
 var types_PostHogPersistedProperty = /* @__PURE__ */ function(PostHogPersistedProperty) {
   PostHogPersistedProperty["AnonymousId"] = "anonymous_id";
   PostHogPersistedProperty["DistinctId"] = "distinct_id";
@@ -583,6 +451,7 @@ var types_PostHogPersistedProperty = /* @__PURE__ */ function(PostHogPersistedPr
   PostHogPersistedProperty["PushRegistered"] = "push_registered";
   PostHogPersistedProperty["SessionReplayEventTriggerActivatedSession"] = "session_replay_event_trigger_activated_session";
   PostHogPersistedProperty["SurveyLastSeenDate"] = "survey_last_seen_date";
+  PostHogPersistedProperty["SurveysInProgress"] = "surveys_in_progress";
   PostHogPersistedProperty["SurveysSeen"] = "surveys_seen";
   PostHogPersistedProperty["Surveys"] = "surveys";
   PostHogPersistedProperty["RemoteConfig"] = "remote_config";
@@ -591,108 +460,80 @@ var types_PostHogPersistedProperty = /* @__PURE__ */ function(PostHogPersistedPr
   return PostHogPersistedProperty;
 }({});
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/gzip.mjs
-function isGzipSupported() {
-  return "CompressionStream" in globalThis && "TextEncoder" in globalThis && "Response" in globalThis && typeof Response.prototype.blob == "function";
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/string-utils.mjs
+function safeJsonStringify(value) {
+  const ancestors = [];
+  return JSON.stringify(value, function(_key, replacementValue) {
+    if (typeof replacementValue == "bigint")
+      return replacementValue.toString();
+    if (typeof replacementValue == "function" || typeof replacementValue == "symbol")
+      return;
+    if (replacementValue instanceof Error)
+      return {
+        name: replacementValue.name,
+        message: replacementValue.message,
+        stack: replacementValue.stack
+      };
+    if (replacementValue && typeof replacementValue == "object") {
+      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this)
+        ancestors.pop();
+      if (ancestors.includes(replacementValue))
+        return "[Circular]";
+      ancestors.push(replacementValue);
+    }
+    return replacementValue;
+  }) ?? "null";
 }
-var NATIVE_GZIP_VALIDATION_ERROR = "NativeGzipValidationError";
-var GZIP_MAGIC_FIRST_BYTE = 31;
-var GZIP_MAGIC_SECOND_BYTE = 139;
-var GZIP_DEFLATE_METHOD = 8;
-var hasGzipMagic = (bytes) => bytes.length >= 2 && bytes[0] === GZIP_MAGIC_FIRST_BYTE && bytes[1] === GZIP_MAGIC_SECOND_BYTE;
-var crc32Table;
-var getCrc32Table = () => {
-  if (crc32Table)
-    return crc32Table;
-  crc32Table = [];
-  for (let i = 0;i < 256; i++) {
-    let crc = i;
-    for (let j = 0;j < 8; j++)
-      crc = 1 & crc ? 3988292384 ^ crc >>> 1 : crc >>> 1;
-    crc32Table[i] = crc >>> 0;
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/type-utils.mjs
+var nativeIsArray = Array.isArray;
+var ObjProto = Object.prototype;
+var type_utils_hasOwnProperty = ObjProto.hasOwnProperty;
+var type_utils_toString = ObjProto.toString;
+var isArray = nativeIsArray || function(obj) {
+  return type_utils_toString.call(obj) === "[object Array]";
+};
+var isObject = (x) => x === Object(x) && !isArray(x);
+var isUndefined = (x) => x === undefined;
+var isString = (x) => type_utils_toString.call(x) == "[object String]";
+var isEmptyString = (x) => isString(x) && x.trim().length === 0;
+var isNull = (x) => x === null;
+var isNullish = (x) => isUndefined(x) || isNull(x);
+var isNumber = (x) => type_utils_toString.call(x) == "[object Number]" && x === x;
+var isBoolean = (x) => type_utils_toString.call(x) === "[object Boolean]";
+function isPrimitive(value) {
+  return value === null || typeof value != "object";
+}
+function isBuiltin(candidate, className) {
+  return Object.prototype.toString.call(candidate) === `[object ${className}]`;
+}
+function isError(candidate) {
+  switch (Object.prototype.toString.call(candidate)) {
+    case "[object Error]":
+    case "[object Exception]":
+    case "[object DOMException]":
+    case "[object DOMError]":
+    case "[object WebAssembly.Exception]":
+      return true;
+    default:
+      return isInstanceOf(candidate, Error);
   }
-  return crc32Table;
-};
-var crc32 = (bytes) => {
-  const table = getCrc32Table();
-  let crc = 4294967295;
-  for (let i = 0;i < bytes.length; i++)
-    crc = table[(crc ^ bytes[i]) & 255] ^ crc >>> 8;
-  return (4294967295 ^ crc) >>> 0;
-};
-var throwNativeGzipValidationError = (reason) => {
-  const error = new Error(`Native gzip produced invalid output: ${reason}`);
-  error.name = NATIVE_GZIP_VALIDATION_ERROR;
-  throw error;
-};
-var validateNativeGzip = async (compressed, inputBytes) => {
-  if (compressed.size < 18)
-    throwNativeGzipValidationError("too-short");
-  const header = new Uint8Array(await compressed.slice(0, 10).arrayBuffer());
-  if (!hasGzipMagic(header) || header[2] !== GZIP_DEFLATE_METHOD)
-    throwNativeGzipValidationError("invalid-header");
-  const trailer = new DataView(await compressed.slice(compressed.size - 8).arrayBuffer());
-  if (trailer.getUint32(0, true) !== crc32(inputBytes))
-    throwNativeGzipValidationError("invalid-crc");
-  const inputSize = inputBytes.length >>> 0;
-  if (trailer.getUint32(4, true) !== inputSize)
-    throwNativeGzipValidationError("invalid-size");
-};
-async function gzipCompress(input, isDebug = true, options) {
+}
+function isEvent(candidate) {
+  return "u" > typeof Event && isInstanceOf(candidate, Event);
+}
+function isPlainObject(candidate) {
+  return isBuiltin(candidate, "Object");
+}
+function isInstanceOf(candidate, base) {
   try {
-    const inputBytes = new TextEncoder().encode(input);
-    const compressedStream = new globalThis.CompressionStream("gzip");
-    const writer = compressedStream.writable.getWriter();
-    const writePromise = writer.write(inputBytes).then(() => writer.close()).catch(async (err) => {
-      try {
-        await writer.abort(err);
-      } catch {}
-      throw err;
-    });
-    const responsePromise = new Response(compressedStream.readable).blob();
-    const [compressed] = await Promise.all([
-      responsePromise,
-      writePromise
-    ]);
-    await validateNativeGzip(compressed, inputBytes);
-    return compressed;
-  } catch (error) {
-    if (options?.rethrow)
-      throw error;
-    if (isDebug)
-      console.error("Failed to gzip compress data", error);
-    return null;
+    return candidate instanceof base;
+  } catch {
+    return false;
   }
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/json-utils.mjs
-var MAX_JSON_SAFE_VALUE_DEPTH = 20;
-var MAX_JSON_SAFE_VALUE_ITEMS = 1000;
-var MAX_JSON_SAFE_VALUE_NODES = 1e4;
-var CIRCULAR_VALUE = "[Circular]";
-var TRUNCATED_VALUE = "[Truncated]";
-var UNSERIALIZABLE_VALUE = "[Unserializable]";
-var FUNCTION_VALUE = "[Function]";
-var dateGetTime = Date.prototype.getTime;
-var dateToISOString = Date.prototype.toISOString;
-function sanitizeString(value) {
-  let output = "";
-  for (let index = 0;index < value.length; index++) {
-    const codeUnit = value.charCodeAt(index);
-    if (codeUnit >= 55296 && codeUnit <= 56319) {
-      const nextCodeUnit = value.charCodeAt(index + 1);
-      if (nextCodeUnit >= 56320 && nextCodeUnit <= 57343) {
-        output += value[index] + value[index + 1];
-        index++;
-      } else
-        output += "�";
-    } else
-      output += codeUnit >= 56320 && codeUnit <= 57343 ? "�" : value[index];
-  }
-  return output;
-}
-
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/bot-detection.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/bot-detection.mjs
 var DEFAULT_BLOCKED_UA_STRS = [
   "amazonbot",
   "amazonproductbot",
@@ -720,7 +561,7 @@ var DEFAULT_BLOCKED_UA_STRS = [
   "msnbot",
   "nessus",
   "petalbot",
-  "pinterest",
+  "pinterestbot",
   "prerender",
   "rogerbot",
   "screaming frog",
@@ -781,79 +622,7 @@ var isBlockedUA = function(ua, customBlockedUserAgents = []) {
     return uaLower.indexOf(blockedUaLower) !== -1;
   });
 };
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/string-utils.mjs
-function safeJsonStringify(value) {
-  const ancestors = [];
-  return JSON.stringify(value, function(_key, replacementValue) {
-    if (typeof replacementValue == "bigint")
-      return replacementValue.toString();
-    if (typeof replacementValue == "function" || typeof replacementValue == "symbol")
-      return;
-    if (replacementValue instanceof Error)
-      return {
-        name: replacementValue.name,
-        message: replacementValue.message,
-        stack: replacementValue.stack
-      };
-    if (replacementValue && typeof replacementValue == "object") {
-      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this)
-        ancestors.pop();
-      if (ancestors.includes(replacementValue))
-        return "[Circular]";
-      ancestors.push(replacementValue);
-    }
-    return replacementValue;
-  }) ?? "null";
-}
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/type-utils.mjs
-var nativeIsArray = Array.isArray;
-var ObjProto = Object.prototype;
-var type_utils_hasOwnProperty = ObjProto.hasOwnProperty;
-var type_utils_toString = ObjProto.toString;
-var isArray = nativeIsArray || function(obj) {
-  return type_utils_toString.call(obj) === "[object Array]";
-};
-var isObject = (x) => x === Object(x) && !isArray(x);
-var isUndefined = (x) => x === undefined;
-var isString = (x) => type_utils_toString.call(x) == "[object String]";
-var isEmptyString = (x) => isString(x) && x.trim().length === 0;
-var isNull = (x) => x === null;
-var isNullish = (x) => isUndefined(x) || isNull(x);
-var isNumber = (x) => type_utils_toString.call(x) == "[object Number]" && x === x;
-var isBoolean = (x) => type_utils_toString.call(x) === "[object Boolean]";
-function isPrimitive(value) {
-  return value === null || typeof value != "object";
-}
-function isBuiltin(candidate, className) {
-  return Object.prototype.toString.call(candidate) === `[object ${className}]`;
-}
-function isError(candidate) {
-  switch (Object.prototype.toString.call(candidate)) {
-    case "[object Error]":
-    case "[object Exception]":
-    case "[object DOMException]":
-    case "[object DOMError]":
-    case "[object WebAssembly.Exception]":
-      return true;
-    default:
-      return isInstanceOf(candidate, Error);
-  }
-}
-function isEvent(candidate) {
-  return typeof Event != "undefined" && isInstanceOf(candidate, Event);
-}
-function isPlainObject(candidate) {
-  return isBuiltin(candidate, "Object");
-}
-function isInstanceOf(candidate, base) {
-  try {
-    return candidate instanceof base;
-  } catch {
-    return false;
-  }
-}
-
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/number-utils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/number-utils.mjs
 function clampToRange(value, min, max, logger, fallbackValue) {
   if (min > max) {
     logger.warn("min cannot be greater than max.");
@@ -870,10 +639,10 @@ function clampToRange(value, min, max, logger, fallbackValue) {
       return min;
     }
   logger.warn(" must be a number. using max or fallback. max: " + max + ", fallback: " + fallbackValue);
-  return clampToRange(fallbackValue || max, min, max, logger);
+  return clampToRange(fallbackValue ?? max, min, max, logger);
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/bucketed-rate-limiter.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/bucketed-rate-limiter.mjs
 var ONE_DAY_IN_MS = 86400000;
 var DEFAULT_EXCEPTION_RATE_LIMITER_REFILL_RATE = 1;
 var DEFAULT_EXCEPTION_RATE_LIMITER_BUCKET_SIZE = 10;
@@ -925,8 +694,8 @@ class BucketedRateLimiter {
     this._buckets = {};
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/vendor/uuidv7.mjs
-/*! For license information please see uuidv7.mjs.LICENSE.txt */
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/vendor/uuidv7.mjs
+/*! LICENSE: uuidv7.mjs.LICENSE.txt */
 var DIGITS = "0123456789abcdef";
 
 class UUID {
@@ -1097,13 +866,13 @@ class V7Generator {
   }
 }
 var getDefaultRandom = () => ({
-  nextUint32: () => 65536 * Math.trunc(65536 * Math.random()) + Math.trunc(65536 * Math.random())
+  nextUint32: () => 65536 * Math.trunc(65536 * Math.random()) + Math.trunc(65536 * Math.random()) >>> 0
 });
 var defaultGenerator;
 var uuidv7 = () => uuidv7obj().toString();
 var uuidv7obj = () => (defaultGenerator || (defaultGenerator = new V7Generator)).generate();
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/promise-queue.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/promise-queue.mjs
 class PromiseQueue {
   add(promise) {
     const promiseUUID = uuidv7();
@@ -1141,7 +910,7 @@ class PromiseQueue {
     this.nextId = 0;
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/logger.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/logger.mjs
 function createConsole(consoleLike = console) {
   const lockedMethods = {
     log: consoleLike.log.bind(consoleLike),
@@ -1182,7 +951,7 @@ var passThrough = (fn) => fn();
 function createLogger(prefix, maybeCall = passThrough) {
   return _createLogger(prefix, maybeCall, createConsole());
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/user-agent-utils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/user-agent-utils.mjs
 var MOBILE = "Mobile";
 var IOS = "iOS";
 var ANDROID = "Android";
@@ -1225,9 +994,13 @@ var DUCKDUCKGO = "DuckDuckGo";
 var PALE_MOON = "Pale Moon";
 var WATERFOX = "Waterfox";
 var BRAVE = "Brave";
+var CLAUDE = "Claude";
+var CODEX = "Codex";
+var CHATGPT = "ChatGPT";
 var GOOGLE_SEARCH_APP = "Google Search App";
 var BROWSER_VERSION_REGEX_SUFFIX = "(\\d+(\\.\\d+)?)";
 var DEFAULT_BROWSER_VERSION_REGEX = new RegExp("Version/" + BROWSER_VERSION_REGEX_SUFFIX);
+var AI_APP_VERSION_REGEX = new RegExp("(" + CLAUDE + "|" + CODEX + "|" + CHATGPT + ")\\/" + BROWSER_VERSION_REGEX_SUFFIX);
 var XBOX_REGEX = new RegExp(XBOX, "i");
 var PLAYSTATION_REGEX = new RegExp(PLAYSTATION + " \\w+", "i");
 var NINTENDO_REGEX = new RegExp(NINTENDO + " \\w+", "i");
@@ -1303,6 +1076,15 @@ var versionRegexes = {
   ],
   [BRAVE]: [
     new RegExp(BRAVE + "\\/" + BROWSER_VERSION_REGEX_SUFFIX)
+  ],
+  [CLAUDE]: [
+    AI_APP_VERSION_REGEX
+  ],
+  [CODEX]: [
+    AI_APP_VERSION_REGEX
+  ],
+  [CHATGPT]: [
+    AI_APP_VERSION_REGEX
   ],
   [DUCKDUCKGO]: [
     new RegExp("(DuckDuckGo|Ddg)\\/" + BROWSER_VERSION_REGEX_SUFFIX)
@@ -1474,8 +1256,121 @@ var osMatchers = [
     ]
   ]
 ];
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/json-utils.mjs
+var MAX_JSON_SAFE_VALUE_DEPTH = 20;
+var MAX_JSON_SAFE_VALUE_ITEMS = 1000;
+var MAX_JSON_SAFE_VALUE_NODES = 1e4;
+var CIRCULAR_VALUE = "[Circular]";
+var TRUNCATED_VALUE = "[Truncated]";
+var UNSERIALIZABLE_VALUE = "[Unserializable]";
+var FUNCTION_VALUE = "[Function]";
+var dateGetTime = Date.prototype.getTime;
+var dateToISOString = Date.prototype.toISOString;
+function sanitizeString(value) {
+  let output = "";
+  for (let index = 0;index < value.length; index++) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit >= 55296 && codeUnit <= 56319) {
+      const nextCodeUnit = value.charCodeAt(index + 1);
+      if (nextCodeUnit >= 56320 && nextCodeUnit <= 57343) {
+        output += value[index] + value[index + 1];
+        index++;
+      } else
+        output += "�";
+    } else
+      output += codeUnit >= 56320 && codeUnit <= 57343 ? "�" : value[index];
+  }
+  return output;
+}
+function assignUserAttributes(target, source) {
+  if (!source)
+    return target;
+  let keys = [];
+  try {
+    keys = Object.keys(source);
+  } catch {
+    keys = [];
+  }
+  for (const key of keys) {
+    let value;
+    try {
+      value = source[key];
+    } catch {
+      value = UNSERIALIZABLE_VALUE;
+    }
+    Object.defineProperty(target, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true
+    });
+  }
+  return target;
+}
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/retry-after.mjs
+var MAX_RETRY_AFTER_MS = 300000;
+var CLOCK_STEP_TOLERANCE_MS = 5000;
+function parseRetryAfterMs(value, now = Date.now()) {
+  if (typeof value != "string" || !value)
+    return;
+  const raw = value.trim();
+  const trimmed = /^\d+\s*,/.test(raw) ? raw.slice(0, raw.indexOf(",")).trim() : raw;
+  if (/^\d+$/.test(trimmed)) {
+    const ms = 1000 * Math.min(Number(trimmed), MAX_RETRY_AFTER_MS / 1000);
+    return ms > 0 ? ms : undefined;
+  }
+  if (!/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*[ ,]/.test(trimmed))
+    return;
+  const date = /^\w{3} \w{3} /.test(trimmed) ? trimmed + " GMT" : trimmed;
+  const ms = Date.parse(date) - now;
+  if (!Number.isFinite(ms) || ms <= 0)
+    return;
+  return Math.min(ms, MAX_RETRY_AFTER_MS);
+}
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/index.mjs
+class RetryAfterWindow {
+  record(outcome) {
+    if (outcome.kind === "too-large")
+      return;
+    if (outcome.kind !== "retry-later")
+      return void this.reset();
+    if (!outcome.retryAfterMs)
+      return;
+    const open = this.isOpen();
+    const now = Date.now();
+    const asked = Math.min(outcome.retryAfterMs, MAX_RETRY_AFTER_MS);
+    if (!open) {
+      this._installedAt = now;
+      this._until = now + asked;
+      return;
+    }
+    this._until = Math.max(this._until, Math.min(now + asked, this._installedAt + MAX_RETRY_AFTER_MS));
+  }
+  remainingMs() {
+    const now = Date.now();
+    if (now < this._installedAt - CLOCK_STEP_TOLERANCE_MS) {
+      this.reset();
+      return 0;
+    }
+    const remaining = Math.min(MAX_RETRY_AFTER_MS, Math.max(0, this._until - now));
+    if (remaining === 0)
+      this.reset();
+    return remaining;
+  }
+  isOpen() {
+    return this.remainingMs() > 0;
+  }
+  reset() {
+    this._until = 0;
+    this._installedAt = 0;
+  }
+  constructor() {
+    this._until = 0;
+    this._installedAt = 0;
+  }
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/index.mjs
 var STRING_FORMAT = "utf8";
 var UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isValidUUID(value) {
@@ -1483,6 +1378,18 @@ function isValidUUID(value) {
 }
 function getEventUuid(uuid, generateUuid) {
   return isValidUUID(uuid) ? uuid : generateUuid();
+}
+function createNamedError(name, message) {
+  const error = new Error(message);
+  try {
+    Object.defineProperty(error, "name", {
+      value: name,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
+  } catch {}
+  return error;
 }
 function removeTrailingSlash(url) {
   return url?.replace(/\/+$/, "");
@@ -1531,6 +1438,7 @@ async function raceWithTimeout(promise, timeoutMs, onTimeout) {
     clearTimeout(timeoutHandle);
   }
 }
+var isPromise = (obj) => obj && typeof obj.then == "function";
 function allSettled(promises) {
   return Promise.all(promises.map((p) => (p ?? Promise.resolve()).then((value) => ({
     status: "fulfilled",
@@ -1541,620 +1449,7 @@ function allSettled(promises) {
   }))));
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/logs/logs-utils.mjs
-var OTLP_SEVERITY_MAP = {
-  trace: {
-    text: "TRACE",
-    number: 1
-  },
-  debug: {
-    text: "DEBUG",
-    number: 5
-  },
-  info: {
-    text: "INFO",
-    number: 9
-  },
-  warn: {
-    text: "WARN",
-    number: 13
-  },
-  error: {
-    text: "ERROR",
-    number: 17
-  },
-  fatal: {
-    text: "FATAL",
-    number: 21
-  }
-};
-var DEFAULT_OTLP_SEVERITY = OTLP_SEVERITY_MAP.info;
-var INT64_RANGE_LIMIT = 9223372036854776000;
-var propertyIsEnumerable = Object.prototype.propertyIsEnumerable;
-function newState() {
-  return {
-    ancestors: new WeakSet,
-    remainingNodes: MAX_JSON_SAFE_VALUE_NODES
-  };
-}
-function toOtlpKeyValueList(attrs, logger) {
-  try {
-    return encodeKeyValueList(attrs, logger, newState(), 0);
-  } catch {
-    return [];
-  }
-}
-function encodeAnyValue(value, logger, state, depth) {
-  if (state.remainingNodes <= 0)
-    return {
-      stringValue: TRUNCATED_VALUE
-    };
-  state.remainingNodes--;
-  if (isBoolean(value))
-    return {
-      boolValue: value
-    };
-  if (typeof value == "number") {
-    if (!Number.isFinite(value))
-      return {
-        stringValue: String(value)
-      };
-    if (Number.isInteger(value)) {
-      if (Number.isSafeInteger(value))
-        return {
-          intValue: String(value)
-        };
-      if (typeof BigInt == "undefined")
-        return {
-          stringValue: String(value)
-        };
-      const decimal = BigInt(value).toString();
-      if (value >= INT64_RANGE_LIMIT || value < -INT64_RANGE_LIMIT) {
-        logger?.debug(`Attribute ${decimal} is outside the int64 range; encoding it as a string`);
-        return {
-          stringValue: decimal
-        };
-      }
-      return {
-        intValue: decimal
-      };
-    }
-    return {
-      doubleValue: value
-    };
-  }
-  if (typeof value == "string")
-    return {
-      stringValue: sanitizeString(value)
-    };
-  if (typeof value == "function")
-    return {
-      stringValue: FUNCTION_VALUE
-    };
-  if (typeof value == "symbol")
-    return {
-      stringValue: String(value)
-    };
-  if (typeof value == "object" && value !== null) {
-    if (state.ancestors.has(value))
-      return {
-        stringValue: CIRCULAR_VALUE
-      };
-    if (depth >= MAX_JSON_SAFE_VALUE_DEPTH)
-      return {
-        stringValue: TRUNCATED_VALUE
-      };
-    if (value instanceof Date) {
-      const time = value.getTime();
-      const iso = Number.isFinite(time) ? value.toISOString() : String(value);
-      return {
-        stringValue: typeof iso == "string" ? sanitizeString(iso) : String(iso)
-      };
-    }
-    state.ancestors.add(value);
-    try {
-      try {
-        const toJSON = value.toJSON;
-        if (typeof toJSON == "function")
-          return encodeAnyValue(toJSON.call(value), logger, state, depth + 1);
-      } catch {}
-      if (isArray(value))
-        return {
-          arrayValue: {
-            values: encodeArrayValues(value, logger, state, depth + 1)
-          }
-        };
-      return {
-        kvlistValue: {
-          values: encodeKeyValueList(value, logger, state, depth + 1)
-        }
-      };
-    } finally {
-      state.ancestors.delete(value);
-    }
-  }
-  return {
-    stringValue: sanitizeString(String(value))
-  };
-}
-function encodeArrayValues(values, logger, state, depth) {
-  const result = [];
-  const itemCount = Math.min(values.length, MAX_JSON_SAFE_VALUE_ITEMS);
-  let index = 0;
-  for (;index < itemCount && state.remainingNodes > 0; index++)
-    try {
-      const element = index in values ? values[index] : undefined;
-      if (isNullish(element))
-        continue;
-      result.push(encodeAnyValue(element, logger, state, depth));
-    } catch {
-      result.push({
-        stringValue: UNSERIALIZABLE_VALUE
-      });
-    }
-  if (values.length > index)
-    result.push({
-      stringValue: TRUNCATED_VALUE
-    });
-  return result;
-}
-function encodeKeyValueList(attrs, logger, state, depth) {
-  const result = [];
-  for (const key in attrs)
-    if (propertyIsEnumerable.call(attrs, key)) {
-      if (result.length >= MAX_JSON_SAFE_VALUE_ITEMS || state.remainingNodes <= 0) {
-        logger?.debug("Attributes truncated: the value exceeds the OTLP encoder budget");
-        break;
-      }
-      try {
-        const value = attrs[key];
-        if (isNull(value) || isUndefined(value))
-          continue;
-        result.push({
-          key: sanitizeString(key),
-          value: encodeAnyValue(value, logger, state, depth)
-        });
-      } catch {
-        result.push({
-          key: sanitizeString(key),
-          value: {
-            stringValue: UNSERIALIZABLE_VALUE
-          }
-        });
-      }
-    }
-  return result;
-}
-
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/metrics/metrics-utils.mjs
-var DEFAULT_HISTOGRAM_BOUNDS = [
-  0,
-  5,
-  10,
-  25,
-  50,
-  75,
-  100,
-  250,
-  500,
-  750,
-  1000,
-  2500,
-  5000,
-  7500,
-  1e4
-];
-function msToUnixNano(ms) {
-  return String(ms) + "000000";
-}
-function seriesKey(type, name, unit, attributes) {
-  let attrsKey = "";
-  if (attributes) {
-    const keys = Object.keys(attributes).sort();
-    attrsKey = keys.map((k) => `${JSON.stringify(k)}:${JSON.stringify(attributes[k])}`).join(",");
-  }
-  return `${type}\x00${name}\x00${unit ?? ""}\x00${attrsKey}`;
-}
-function bucketIndexFor(value, bounds) {
-  for (let i = 0;i < bounds.length; i++)
-    if (value <= bounds[i])
-      return i;
-  return bounds.length;
-}
-function buildMetricsResourceAttributes(config, scopeName, scopeVersion) {
-  return {
-    ...config.resourceAttributes,
-    "service.name": config.serviceName || "unknown_service",
-    ...config.environment && {
-      "deployment.environment": config.environment
-    },
-    ...config.serviceVersion && {
-      "service.version": config.serviceVersion
-    },
-    "telemetry.sdk.name": scopeName,
-    "telemetry.sdk.version": scopeVersion
-  };
-}
-function buildOtlpMetricsPayload(metrics, resourceAttributes, scopeName, scopeVersion) {
-  return {
-    resourceMetrics: [
-      {
-        resource: {
-          attributes: toOtlpKeyValueList(resourceAttributes)
-        },
-        scopeMetrics: [
-          {
-            scope: {
-              name: scopeName,
-              version: scopeVersion
-            },
-            metrics
-          }
-        ]
-      }
-    ]
-  };
-}
-
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/metrics/config.mjs
-var DEFAULT_FLUSH_INTERVAL_MS = 1e4;
-var DEFAULT_MAX_SERIES_PER_FLUSH = 1000;
-function resolveMetricsConfig(config) {
-  const resourceAttributes = config?.resourceAttributes;
-  return {
-    serviceName: resourceAttributes?.["service.name"] ?? config?.serviceName,
-    serviceVersion: resourceAttributes?.["service.version"] ?? config?.serviceVersion,
-    environment: resourceAttributes?.["deployment.environment"] ?? config?.environment,
-    resourceAttributes,
-    beforeSend: config?.beforeSend,
-    flushIntervalMs: config?.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS,
-    maxSeriesPerFlush: config?.maxSeriesPerFlush ?? DEFAULT_MAX_SERIES_PER_FLUSH
-  };
-}
-
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/metrics/index.mjs
-var OTLP_TEMPORALITY_DELTA = 1;
-
-class PostHogMetrics {
-  constructor(_instance, _config, _logger) {
-    this._instance = _instance;
-    this._config = _config;
-    this._logger = _logger;
-    this._series = new Map;
-    this._flushPromise = null;
-    this._seriesCapWarned = false;
-    this._typeByName = new Map;
-    this._typeCollisionWarned = new Set;
-    this._generation = 0;
-  }
-  count(name, value = 1, options) {
-    this._capture({
-      name,
-      type: "count",
-      value,
-      unit: options?.unit,
-      attributes: options?.attributes
-    });
-  }
-  gauge(name, value, options) {
-    this._capture({
-      name,
-      type: "gauge",
-      value,
-      unit: options?.unit,
-      attributes: options?.attributes
-    });
-  }
-  histogram(name, value, options) {
-    this._capture({
-      name,
-      type: "histogram",
-      value,
-      unit: options?.unit,
-      attributes: options?.attributes
-    });
-  }
-  flush() {
-    const prev = this._flushPromise;
-    const run = async () => {
-      if (prev)
-        await prev.catch(() => {});
-      await this._doFlush();
-    };
-    const p = run().finally(() => {
-      if (this._flushPromise === p)
-        this._flushPromise = null;
-    });
-    this._flushPromise = p;
-    return p;
-  }
-  drainWindow() {
-    if (this._series.size === 0)
-      return null;
-    const window = this._series;
-    this._series = new Map;
-    this._seriesCapWarned = false;
-    this._typeByName = new Map;
-    this._typeCollisionWarned = new Set;
-    return this._buildPayload(window);
-  }
-  reset() {
-    this._generation++;
-    this._clearFlushTimer();
-    this._series = new Map;
-    this._flushPromise = null;
-    this._seriesCapWarned = false;
-    this._typeByName = new Map;
-    this._typeCollisionWarned = new Set;
-  }
-  _capture(sample) {
-    if (this._instance.isDisabled || this._instance.optedOut)
-      return;
-    const filtered = this._runBeforeSend(sample);
-    if (filtered === null)
-      return;
-    if (!filtered.name || typeof filtered.name != "string")
-      return void this._logger.warn("Dropping metric with empty name");
-    if (typeof filtered.value != "number" || !Number.isFinite(filtered.value))
-      return void this._logger.warn(`Dropping metric '${filtered.name}': value must be a finite number`);
-    if (filtered.type === "count" && filtered.value < 0)
-      return void this._logger.warn(`Dropping count '${filtered.name}': counters are monotonic, value must be >= 0`);
-    let attributes;
-    let key;
-    try {
-      attributes = filtered.attributes ? {
-        ...filtered.attributes
-      } : undefined;
-      key = seriesKey(filtered.type, filtered.name, filtered.unit, attributes);
-    } catch (e) {
-      this._logger.warn(`Dropping metric '${filtered.name}': attributes could not be serialized`, e);
-      return;
-    }
-    let state = this._series.get(key);
-    if (!state) {
-      if (!this._admitNewSeries())
-        return;
-      state = {
-        name: filtered.name,
-        type: filtered.type,
-        unit: filtered.unit,
-        attributes,
-        windowStartMs: Date.now()
-      };
-      this._series.set(key, state);
-    }
-    const seenType = this._typeByName.get(filtered.name);
-    if (seenType === undefined)
-      this._typeByName.set(filtered.name, filtered.type);
-    else if (seenType !== filtered.type && !this._typeCollisionWarned.has(filtered.name)) {
-      this._typeCollisionWarned.add(filtered.name);
-      this._logger.warn(`Metric name '${filtered.name}' is already used as a ${seenType}; recording it as a ${filtered.type} too will blend both series in charts. Use a distinct name.`);
-    }
-    this._fold(state, filtered.value);
-    this._armFlushTimer();
-  }
-  _admitNewSeries() {
-    if (this._series.size < this._config.maxSeriesPerFlush)
-      return true;
-    if (!this._seriesCapWarned) {
-      this._seriesCapWarned = true;
-      this._logger.warn(`Metric series cap reached (${this._config.maxSeriesPerFlush} per flush window); dropping new series until the next flush. Reduce attribute cardinality.`);
-    }
-    return false;
-  }
-  _fold(state, value) {
-    switch (state.type) {
-      case "count":
-        state.total = (state.total ?? 0) + value;
-        break;
-      case "gauge":
-        state.last = value;
-        break;
-      case "histogram": {
-        if (!state.hist)
-          state.hist = {
-            count: 0,
-            sum: 0,
-            min: value,
-            max: value,
-            bucketCounts: new Array(DEFAULT_HISTOGRAM_BOUNDS.length + 1).fill(0)
-          };
-        const hist = state.hist;
-        hist.count += 1;
-        hist.sum += value;
-        hist.min = Math.min(hist.min, value);
-        hist.max = Math.max(hist.max, value);
-        hist.bucketCounts[bucketIndexFor(value, DEFAULT_HISTOGRAM_BOUNDS)] += 1;
-        break;
-      }
-    }
-  }
-  _runBeforeSend(sample) {
-    const beforeSend = this._config.beforeSend;
-    if (!beforeSend)
-      return sample;
-    const fns = isArray(beforeSend) ? beforeSend : [
-      beforeSend
-    ];
-    let result = sample;
-    for (const fn of fns)
-      try {
-        const next = fn(result);
-        if (!next) {
-          this._logger.info("Metric was rejected in beforeSend function");
-          return null;
-        }
-        result = next;
-      } catch (e) {
-        this._logger.error("Error in beforeSend function for metric:", e);
-        return null;
-      }
-    return result;
-  }
-  _armFlushTimer() {
-    if (this._flushTimer)
-      return;
-    this._flushTimer = safeSetTimeout(() => {
-      this._flushTimer = undefined;
-      this.flush().catch((e) => {
-        this._logger.error("Metrics flush failed:", e);
-      });
-    }, this._config.flushIntervalMs);
-  }
-  _clearFlushTimer() {
-    if (this._flushTimer) {
-      clearTimeout(this._flushTimer);
-      this._flushTimer = undefined;
-    }
-  }
-  async _doFlush() {
-    if (this._series.size === 0)
-      return;
-    const window = this._series;
-    this._series = new Map;
-    this._seriesCapWarned = false;
-    this._typeByName = new Map;
-    this._typeCollisionWarned = new Set;
-    const generation = this._generation;
-    const outcome = await this._instance._sendMetricsBatch(this._buildPayload(window));
-    if (generation !== this._generation)
-      return;
-    switch (outcome.kind) {
-      case "ok":
-        return;
-      case "retry-later":
-        this._mergeWindowBack(window);
-        this._armFlushTimer();
-        return;
-      case "too-large":
-        this._logger.warn("Metrics batch exceeded the server size limit and was dropped");
-        return;
-      case "fatal":
-        this._logger.error("Failed to send metrics batch:", outcome.error);
-        return;
-    }
-  }
-  _buildPayload(window) {
-    return buildOtlpMetricsPayload(this._buildMetrics(window), buildMetricsResourceAttributes(this._config, this._instance.getLibraryId(), this._instance.getLibraryVersion()), this._instance.getLibraryId(), this._instance.getLibraryVersion());
-  }
-  _buildMetrics(window) {
-    const nowNano = msToUnixNano(Date.now());
-    const byMetric = new Map;
-    for (const state of window.values()) {
-      const metricKey = seriesKey(state.type, state.name, state.unit, undefined);
-      let metric = byMetric.get(metricKey);
-      if (!metric) {
-        metric = {
-          name: state.name,
-          ...state.unit && {
-            unit: state.unit
-          }
-        };
-        if (state.type === "count")
-          metric.sum = {
-            aggregationTemporality: OTLP_TEMPORALITY_DELTA,
-            isMonotonic: true,
-            dataPoints: []
-          };
-        else if (state.type === "gauge")
-          metric.gauge = {
-            dataPoints: []
-          };
-        else
-          metric.histogram = {
-            aggregationTemporality: OTLP_TEMPORALITY_DELTA,
-            dataPoints: []
-          };
-        byMetric.set(metricKey, metric);
-      }
-      const attributes = toOtlpKeyValueList(state.attributes ?? {}, this._logger);
-      const startNano = msToUnixNano(state.windowStartMs);
-      if (state.type === "count") {
-        const dp = {
-          attributes,
-          startTimeUnixNano: startNano,
-          timeUnixNano: nowNano,
-          asDouble: state.total ?? 0
-        };
-        metric.sum.dataPoints.push(dp);
-      } else if (state.type === "gauge") {
-        const dp = {
-          attributes,
-          timeUnixNano: nowNano,
-          asDouble: state.last ?? 0
-        };
-        metric.gauge.dataPoints.push(dp);
-      } else if (state.hist) {
-        const dp = {
-          attributes,
-          startTimeUnixNano: startNano,
-          timeUnixNano: nowNano,
-          count: state.hist.count,
-          sum: state.hist.sum,
-          min: state.hist.min,
-          max: state.hist.max,
-          bucketCounts: state.hist.bucketCounts,
-          explicitBounds: DEFAULT_HISTOGRAM_BOUNDS
-        };
-        metric.histogram.dataPoints.push(dp);
-      }
-    }
-    return Array.from(byMetric.values());
-  }
-  _mergeWindowBack(window) {
-    for (const [key, old] of window) {
-      const current = this._series.get(key);
-      if (!current) {
-        if (this._admitNewSeries())
-          this._series.set(key, old);
-        continue;
-      }
-      current.windowStartMs = Math.min(current.windowStartMs, old.windowStartMs);
-      switch (current.type) {
-        case "count":
-          current.total = (current.total ?? 0) + (old.total ?? 0);
-          break;
-        case "gauge":
-          break;
-        case "histogram":
-          if (old.hist)
-            if (current.hist) {
-              current.hist.count += old.hist.count;
-              current.hist.sum += old.hist.sum;
-              current.hist.min = Math.min(current.hist.min, old.hist.min);
-              current.hist.max = Math.max(current.hist.max, old.hist.max);
-              for (let i = 0;i < current.hist.bucketCounts.length; i++)
-                current.hist.bucketCounts[i] += old.hist.bucketCounts[i];
-            } else
-              current.hist = old.hist;
-          break;
-      }
-    }
-  }
-}
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/eventemitter.mjs
-class SimpleEventEmitter {
-  constructor() {
-    this.events = {};
-    this.events = {};
-  }
-  on(event, listener) {
-    if (!this.events[event])
-      this.events[event] = [];
-    this.events[event].push(listener);
-    return () => {
-      this.events[event] = this.events[event].filter((x) => x !== listener);
-    };
-  }
-  emit(event, payload) {
-    for (const listener of this.events[event] || [])
-      listener(payload);
-    for (const listener of this.events["*"] || [])
-      listener(event, payload);
-  }
-}
-
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/chunk-ids.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/chunk-ids.mjs
 var parsedStackResults;
 var lastKeysCount;
 var cachedFilenameChunkIds;
@@ -2193,8 +1488,11 @@ function getFilenameToChunkIdMap(stackParser) {
   return cachedFilenameChunkIds;
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/error-properties-builder.mjs
-var MAX_CAUSE_RECURSION = 4;
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/error-properties-builder.mjs
+var MAX_EXCEPTIONS = 50;
+var MAX_AGGREGATE_MEMBER_INSPECTIONS = 1000;
+var MAX_ERROR_PROTOTYPE_DEPTH = 100;
+var MAX_WRAPPER_RECURSION = 4;
 
 class ErrorPropertiesBuilder {
   constructor(coercers, stackParser, modifiers = []) {
@@ -2238,11 +1536,14 @@ class ErrorPropertiesBuilder {
       cause = this.parseStacktrace(err.cause, ctx);
     let stack;
     if (err.stack != "" && err.stack != null)
-      stack = this.applyChunkIds(this.stackParser(err.stack, err.synthetic ? ctx.skipFirstLines : 0), ctx.chunkIdMap);
+      try {
+        stack = this.applyChunkIds(this.stackParser(err.stack, err.synthetic ? ctx.skipFirstLines : 0), ctx.chunkIdMap);
+      } catch {}
     return {
       ...err,
       cause,
-      stack
+      stack,
+      errors: err.errors?.map((child) => this.parseStacktrace(child, ctx))
     };
   }
   applyChunkIds(frames, chunkIdMap) {
@@ -2265,28 +1566,42 @@ class ErrorPropertiesBuilder {
     return newFrames;
   }
   convertToExceptionList(exceptionWithStack, mechanism) {
-    const currentException = {
-      type: exceptionWithStack.type,
-      value: exceptionWithStack.value,
-      mechanism: {
-        type: mechanism.type ?? "generic",
-        handled: mechanism.handled ?? true,
-        synthetic: exceptionWithStack.synthetic ?? false
-      }
-    };
-    if (exceptionWithStack.stack)
-      currentException.stacktrace = {
-        type: "raw",
-        frames: exceptionWithStack.stack
+    const exceptionList = [];
+    const append = (exception, parentId, source) => {
+      const exceptionId = exceptionList.length;
+      const entryMechanism = parentId === undefined ? {
+        type: typeof mechanism.type == "string" && mechanism.type.length > 0 ? mechanism.type : "generic",
+        ...typeof mechanism.handled == "boolean" ? {
+          handled: mechanism.handled
+        } : mechanism.handled === undefined ? {
+          handled: true
+        } : {},
+        synthetic: typeof mechanism.synthetic == "boolean" ? mechanism.synthetic : exception.synthetic,
+        exception_id: exceptionId
+      } : {
+        type: "chained",
+        source,
+        synthetic: exception.synthetic,
+        exception_id: exceptionId,
+        parent_id: parentId
       };
-    const exceptionList = [
-      currentException
-    ];
-    if (exceptionWithStack.cause != null)
-      exceptionList.push(...this.convertToExceptionList(exceptionWithStack.cause, {
-        ...mechanism,
-        handled: true
-      }));
+      const currentException = {
+        type: exception.type,
+        value: exception.value,
+        mechanism: entryMechanism
+      };
+      if (exception.stack)
+        currentException.stacktrace = {
+          type: "raw",
+          frames: exception.stack
+        };
+      exceptionList.push(currentException);
+      if (exception.cause)
+        append(exception.cause, exceptionId, "cause");
+      for (const child of exception.errors ?? [])
+        append(child, exceptionId, "member");
+    };
+    append(exceptionWithStack);
     return exceptionList;
   }
   buildParsingContext(hint) {
@@ -2296,35 +1611,140 @@ class ErrorPropertiesBuilder {
     };
     return context;
   }
-  buildCoercingContext(mechanism, hint, depth = 0) {
-    const coerce = (input, depth) => {
-      if (!(depth <= MAX_CAUSE_RECURSION))
-        return;
-      {
-        const ctx = this.buildCoercingContext(mechanism, hint, depth);
-        return this.applyCoercers(input, ctx);
+  getAggregateErrors(input) {
+    try {
+      if (isError(input)) {
+        let prototype = Object.getPrototypeOf(input);
+        for (let depth = 0;prototype && depth < MAX_ERROR_PROTOTYPE_DEPTH; depth++) {
+          const constructor = Object.getOwnPropertyDescriptor(prototype, "constructor")?.value;
+          if (typeof constructor == "function" && constructor.name === "AggregateError") {
+            const errors = input.errors;
+            return isArray(errors) ? errors : undefined;
+          }
+          prototype = Object.getPrototypeOf(prototype);
+        }
       }
+    } catch {}
+  }
+  buildCoercingContext(mechanism, hint, depth = 0) {
+    let count = 0;
+    let memberInspections = 0;
+    let hasAggregate = false;
+    const seen = new Set;
+    const wrappers = [];
+    const skipped = {};
+    const coerce = (input, depth, wrapperDepth = 0) => {
+      const ctx = createContext(depth, wrapperDepth);
+      const forward = ctx.apply;
+      ctx.apply = (nextInput) => {
+        wrappers.push(input);
+        try {
+          return forward(nextInput);
+        } finally {
+          wrappers.pop();
+        }
+      };
+      if (wrapperDepth > MAX_WRAPPER_RECURSION || wrapperDepth > 0 && wrappers.indexOf(input) !== -1)
+        return this.coerceFallback(ctx);
+      const isReference = typeof input == "object" && input !== null || typeof input == "function";
+      if (wrapperDepth === 0 && count >= MAX_EXCEPTIONS || isReference && seen.has(input))
+        return;
+      if (isReference)
+        seen.add(input);
+      if (wrapperDepth === 0)
+        count++;
+      const errors = this.getAggregateErrors(input);
+      hasAggregate ||= !!errors;
+      let exception;
+      try {
+        exception = this.applyCoercers(input, ctx);
+        if (!exception)
+          throw skipped;
+      } catch (error) {
+        if (error === skipped) {
+          if (wrapperDepth === 0)
+            count--;
+          return;
+        }
+        if (!hasAggregate)
+          throw error;
+        exception = this.coerceFallback(ctx);
+      }
+      if (!errors || count >= MAX_EXCEPTIONS)
+        return exception;
+      let length;
+      try {
+        length = errors.length;
+      } catch {
+        return exception;
+      }
+      if (!Number.isInteger(length) || length < 0 || length > 4294967295)
+        return exception;
+      const children = [];
+      for (let index = 0;count < MAX_EXCEPTIONS && memberInspections < MAX_AGGREGATE_MEMBER_INSPECTIONS && index < length; index++) {
+        memberInspections++;
+        let child;
+        try {
+          child = ctx.next(errors[index]);
+        } catch {
+          count++;
+          child = this.coerceFallback(createContext(depth + 1));
+        }
+        if (child)
+          children.push(child);
+      }
+      return {
+        ...exception,
+        errors: children
+      };
     };
-    const context = {
+    const createContext = (depth, wrapperDepth = 0) => ({
       ...hint,
       syntheticException: depth == 0 ? hint.syntheticException : undefined,
-      mechanism,
-      apply: (input) => coerce(input, depth),
+      mechanism: depth == 0 ? mechanism : {},
+      apply: (input) => {
+        const exception = coerce(input, depth, wrapperDepth + 1);
+        if (!exception)
+          throw skipped;
+        return exception;
+      },
       next: (input) => coerce(input, depth + 1)
+    });
+    const context = createContext(depth);
+    return {
+      ...context,
+      apply: (input) => coerce(input, depth) ?? this.coerceFallback(context)
     };
-    return context;
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/base.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/parsers/base.mjs
 var UNKNOWN_FUNCTION = "?";
-var MASKED_URL_PREFIX = "webkit-masked-url://";
 var ANONYMOUS_FILENAME = "<anonymous>";
+var URL_SCHEME = /^([a-z][a-z0-9.+-]+):/i;
+var APP_URL_SCHEMES = [
+  "http",
+  "https",
+  "file",
+  "blob",
+  "app",
+  "capacitor",
+  "ionic",
+  "webpack",
+  "webpack-internal",
+  "ng"
+];
+function isAppFilename(filename) {
+  if (!filename || filename === ANONYMOUS_FILENAME)
+    return false;
+  const scheme = URL_SCHEME.exec(filename);
+  return !scheme || APP_URL_SCHEMES.includes(scheme[1].toLowerCase());
+}
 function createFrame(platform, filename, func, lineno, colno) {
   const frame = {
     platform,
     filename,
     function: func === "<anonymous>" ? UNKNOWN_FUNCTION : func,
-    in_app: !filename?.startsWith(MASKED_URL_PREFIX) && filename !== ANONYMOUS_FILENAME
+    in_app: isAppFilename(filename)
   };
   if (!isUndefined(lineno))
     frame.lineno = lineno;
@@ -2333,7 +1753,7 @@ function createFrame(platform, filename, func, lineno, colno) {
   return frame;
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/safari.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/parsers/safari.mjs
 var extractSafariExtensionDetails = (func, filename) => {
   const isSafariExtension = func.indexOf("safari-extension") !== -1;
   const isSafariWebExtension = func.indexOf("safari-web-extension") !== -1;
@@ -2346,7 +1766,7 @@ var extractSafariExtensionDetails = (func, filename) => {
   ];
 };
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/chrome.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/parsers/chrome.mjs
 var chromeRegexNoFnName = /^\s*at (\S+?)(?::(\d+))(?::(\d+))\s*$/i;
 var chromeRegex = /^\s*at (?:(.+?\)(?: \[.+\])?|.*?) ?\((?:address at )?)?(?:async )?((?:<anonymous>|[-a-z]+:|.*bundle|\/)?.*?)(?::(\d+))?(?::(\d+))?\)?\s*$/i;
 var chromeEvalRegex = /\((\S*)(?::(\d+))(?::(\d+))\)/;
@@ -2372,7 +1792,7 @@ var chromeStackLineParser = (line, platform) => {
   }
 };
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/gecko.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/parsers/gecko.mjs
 var geckoREgex = /^\s*(.*?)(?:\((.*?)\))?(?:^|@)?((?:[-a-z]+)?:\/.*?|\[native code\]|[^@]*(?:bundle|\d+\.js)|\/[\w\-. /=]+)(?::(\d+))?(?::(\d+))?\s*$/i;
 var geckoEvalRegex = /(\S+) line (\d+)(?: > eval line \d+)* > eval/i;
 var geckoStackLineParser = (line, platform) => {
@@ -2394,8 +1814,7 @@ var geckoStackLineParser = (line, platform) => {
     return createFrame(platform, filename, func, parts[4] ? +parts[4] : undefined, parts[5] ? +parts[5] : undefined);
   }
 };
-
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/node.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/parsers/node.mjs
 var FILENAME_MATCH = /^\s*[-]{4,}$/;
 var FULL_MATCH = /at (?:async )?(?:(.+?)\s+\()?(?:(.+):(\d+):(\d+)?|([^)]+))\)?/;
 var PROMISE_COMBINATOR = /^Promise\.(?:all|any)$/;
@@ -2469,9 +1888,81 @@ function _parseIntOrUndefined(input) {
   return parseInt(input || "", 10) || undefined;
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/index.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/parsers/index.mjs
 var WEBPACK_ERROR_REGEXP = /\(error: (.*)\)/;
 var STACKTRACE_FRAME_LIMIT = 50;
+var MAX_REPEATED_CYCLE_LENGTH = 10;
+var STACKTRACE_LINE_LIMIT = 1000;
+function isSameFrame(a, b) {
+  return a.filename === b.filename && a.function === b.function && a.module === b.module && a.lineno === b.lineno && a.colno === b.colno;
+}
+function collapseRepeatedCycle(frames) {
+  for (let length = 1;length <= MAX_REPEATED_CYCLE_LENGTH; length++) {
+    const start = frames.length - 2 * length;
+    if (start < 0)
+      break;
+    let isCycle = true;
+    for (let offset = 0;offset < length; offset++) {
+      const inner = frames[start + offset];
+      if (!isSameFrame(inner, frames[start + length + offset])) {
+        isCycle = false;
+        break;
+      }
+    }
+    if (isCycle) {
+      for (let offset = 0;offset < length; offset++)
+        frames[start + offset] = frames[start + length + offset];
+      frames.length = start + length;
+      return {
+        start,
+        length
+      };
+    }
+  }
+}
+function trimPartialCycle(frames, cycle) {
+  const copyEnd = cycle.start + cycle.length;
+  const partialLength = partialCycleLength(frames, cycle);
+  if (partialLength)
+    frames.splice(copyEnd + partialLength === frames.length ? copyEnd : cycle.start, partialLength);
+}
+function innermostPartialCycleLength(frames, cycle) {
+  let partialStart = cycle.start;
+  while (partialStart > 0 && isSameFrame(frames[partialStart - 1], frames[partialStart - 1 + cycle.length]))
+    partialStart--;
+  return cycle.start - partialStart;
+}
+function partialCycleLength(frames, cycle) {
+  const copyEnd = cycle.start + cycle.length;
+  let partialEnd = copyEnd;
+  while (partialEnd < frames.length && isSameFrame(frames[partialEnd], frames[partialEnd - cycle.length]))
+    partialEnd++;
+  return partialEnd - copyEnd;
+}
+function survivingFrameCount(frames, cycles) {
+  const innermostCycle = cycles[0];
+  let count = frames.length - (innermostCycle ? innermostPartialCycleLength(frames, innermostCycle) : 0);
+  for (const cycle of cycles)
+    count -= partialCycleLength(frames, cycle);
+  return count;
+}
+function canonicalizeCycleRotation(frames) {
+  const keys = frames.map((frame) => `${frame.function}|${frame.filename}|${frame.lineno}|${frame.colno}|${frame.module}`);
+  let first = 0;
+  for (let i = 1;i < keys.length; i++)
+    if (isSmallerRotation(keys, i, first))
+      first = i;
+  frames.push(...frames.splice(0, first));
+}
+function isSmallerRotation(keys, candidate, best) {
+  for (let offset = 0;offset < keys.length; offset++) {
+    const left = keys[(candidate + offset) % keys.length];
+    const right = keys[(best + offset) % keys.length];
+    if (left !== right)
+      return left < right;
+  }
+  return false;
+}
 function reverseAndStripFrames(stack) {
   if (!stack.length)
     return [];
@@ -2494,7 +1985,9 @@ function createStackParser(platform, ...parsers) {
     const frames = [];
     const lines = stack.split(`
 `);
-    for (let i = skipFirstLines;i < lines.length; i++) {
+    const endLine = Math.min(lines.length, skipFirstLines + STACKTRACE_LINE_LIMIT);
+    const repeatedCycles = [];
+    for (let i = skipFirstLines;i < endLine; i++) {
       const line = lines[i];
       if (line.length > 1024)
         continue;
@@ -2504,28 +1997,53 @@ function createStackParser(platform, ...parsers) {
           const frame = parser(cleanedLine, platform);
           if (frame) {
             frames.push(frame);
+            const cycle = collapseRepeatedCycle(frames);
+            if (cycle) {
+              for (let i = repeatedCycles.length - 1;i >= 0; i--) {
+                const previous = repeatedCycles[i];
+                if (previous.start + previous.length <= cycle.start)
+                  break;
+                repeatedCycles.pop();
+              }
+              repeatedCycles.push(cycle);
+            }
             break;
           }
         }
-        if (frames.length >= STACKTRACE_FRAME_LIMIT)
+        if (survivingFrameCount(frames, repeatedCycles) >= STACKTRACE_FRAME_LIMIT)
           break;
       }
     }
+    const sections = [
+      ...repeatedCycles
+    ].sort((a, b) => b.start - a.start);
+    const innermostSection = sections[sections.length - 1];
+    if (innermostSection) {
+      const trimmed = innermostPartialCycleLength(frames, innermostSection);
+      frames.splice(innermostSection.start - trimmed, trimmed);
+      for (const cycle of sections)
+        cycle.start -= trimmed;
+    }
+    for (const cycle of sections)
+      trimPartialCycle(frames, cycle);
+    if (repeatedCycles.some((cycle) => cycle.start === 0 && frames.length === cycle.length))
+      canonicalizeCycleRotation(frames);
     return reverseAndStripFrames(frames);
   };
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/error-coercer.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/coercers/error-coercer.mjs
 class ErrorCoercer {
   match(err) {
     return isError(err);
   }
   coerce(err, ctx) {
     const stack = this.getStack(err);
-    const synthetic = stack === undefined;
+    const replacementStack = stack === undefined ? ctx.syntheticException?.stack : undefined;
+    const synthetic = !!replacementStack;
     return {
       type: this.getType(err),
       value: this.getMessage(err, ctx),
-      stack: stack ?? ctx.syntheticException?.stack,
+      stack: stack ?? replacementStack,
       cause: err.cause ? ctx.next(err.cause) : undefined,
       synthetic
     };
@@ -2540,10 +2058,18 @@ class ErrorCoercer {
     return String(message);
   }
   getStack(err) {
-    return err.stacktrace || err.stack || undefined;
+    try {
+      const stacktrace = err.stacktrace;
+      if (typeof stacktrace == "string" && stacktrace.length > 0)
+        return stacktrace;
+      const stack = err.stack;
+      return typeof stack == "string" && stack.length > 0 ? stack : undefined;
+    } catch {
+      return;
+    }
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/string-coercer.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/coercers/string-coercer.mjs
 var ERROR_TYPES_PATTERN = /^(?:[Uu]ncaught (?:exception: )?)?(?:((?:Eval|Internal|Range|Reference|Syntax|Type|URI|)Error): )?(.*)$/i;
 
 class StringCoercer {
@@ -2573,7 +2099,7 @@ class StringCoercer {
     ];
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/types.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/types.mjs
 var severityLevels = [
   "fatal",
   "error",
@@ -2583,7 +2109,7 @@ var severityLevels = [
   "debug"
 ];
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/utils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/coercers/utils.mjs
 function extractExceptionKeysForMessage(err, maxLength = 40) {
   const keys = Object.keys(err);
   keys.sort();
@@ -2600,7 +2126,7 @@ function extractExceptionKeysForMessage(err, maxLength = 40) {
   return "";
 }
 
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/object-coercer.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/coercers/object-coercer.mjs
 class ObjectCoercer {
   match(candidate) {
     return typeof candidate == "object" && candidate !== null;
@@ -2665,7 +2191,7 @@ class ObjectCoercer {
     }
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/event-coercer.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/coercers/event-coercer.mjs
 class EventCoercer {
   match(err) {
     return isEvent(err);
@@ -2680,7 +2206,7 @@ class EventCoercer {
     };
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/primitive-coercer.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/coercers/primitive-coercer.mjs
 class PrimitiveCoercer {
   match(candidate) {
     return isPrimitive(candidate);
@@ -2694,7 +2220,7 @@ class PrimitiveCoercer {
     };
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/utils.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/utils.mjs
 class ReduceableCache {
   constructor(_maxSize) {
     this._maxSize = _maxSize;
@@ -2719,7 +2245,7 @@ class ReduceableCache {
     }
   }
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/exception-steps.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/exception-steps.mjs
 var EXCEPTION_STEP_INTERNAL_FIELDS = {
   MESSAGE: "$message",
   TIMESTAMP: "$timestamp"
@@ -2728,18 +2254,251 @@ var RESERVED_EXCEPTION_STEP_KEYS = new Set([
   EXCEPTION_STEP_INTERNAL_FIELDS.MESSAGE,
   EXCEPTION_STEP_INTERNAL_FIELDS.TIMESTAMP
 ]);
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/release.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/error-tracking/release.mjs
 function getInjectedReleaseId() {
   const injected = globalThis._posthogReleaseId;
   return typeof injected == "string" && injected.length > 0 ? injected : undefined;
 }
-// ../../../node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/posthog-core-stateless.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/featureFlagUtils.mjs
+var normalizeFlagsResponse = (flagsResponse) => {
+  if ("flags" in flagsResponse) {
+    const featureFlags = getFlagValuesFromFlags(flagsResponse.flags);
+    const featureFlagPayloads = getPayloadsFromFlags(flagsResponse.flags);
+    return {
+      ...flagsResponse,
+      featureFlags,
+      featureFlagPayloads
+    };
+  }
+  {
+    const featureFlags = flagsResponse.featureFlags ?? {};
+    const featureFlagPayloads = Object.fromEntries(Object.entries(flagsResponse.featureFlagPayloads || {}).map(([k, v]) => [
+      k,
+      parsePayload(v)
+    ]));
+    const flags = Object.fromEntries(Object.entries(featureFlags).map(([key, value]) => [
+      key,
+      getFlagDetailFromFlagAndPayload(key, value, featureFlagPayloads[key])
+    ]));
+    return {
+      ...flagsResponse,
+      featureFlags,
+      featureFlagPayloads,
+      flags
+    };
+  }
+};
+function getFlagDetailFromFlagAndPayload(key, value, payload) {
+  return {
+    key,
+    enabled: typeof value == "string" ? true : value,
+    variant: typeof value == "string" ? value : undefined,
+    reason: undefined,
+    metadata: {
+      id: undefined,
+      version: undefined,
+      payload: payload ? JSON.stringify(payload) : undefined,
+      description: undefined
+    }
+  };
+}
+var getFlagValuesFromFlags = (flags) => Object.fromEntries(Object.entries(flags ?? {}).map(([key, detail]) => [
+  key,
+  getFeatureFlagValue(detail)
+]).filter(([, value]) => value !== undefined));
+var getPayloadsFromFlags = (flags) => {
+  const safeFlags = flags ?? {};
+  return Object.fromEntries(Object.keys(safeFlags).filter((flag) => {
+    const details = safeFlags[flag];
+    return details.enabled && details.metadata && details.metadata.payload !== undefined;
+  }).map((flag) => {
+    const payload = safeFlags[flag].metadata?.payload;
+    return [
+      flag,
+      payload ? parsePayload(payload) : undefined
+    ];
+  }));
+};
+var getFeatureFlagValue = (detail) => detail === undefined ? undefined : detail.variant ?? detail.enabled;
+var parsePayload = (response) => {
+  if (typeof response != "string")
+    return response;
+  try {
+    return JSON.parse(response);
+  } catch {
+    return response;
+  }
+};
+var MINIMAL_FLAG_CALLED_EVENT_CAMPAIGN_PROPERTIES = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "gad_source",
+  "mc_cid",
+  "gclid",
+  "gclsrc",
+  "dclid",
+  "gbraid",
+  "wbraid",
+  "fbclid",
+  "msclkid",
+  "twclid",
+  "li_fat_id",
+  "igshid",
+  "ttclid",
+  "rdt_cid",
+  "epik",
+  "qclid",
+  "sccid",
+  "irclid",
+  "_kx"
+];
+var MINIMAL_FLAG_CALLED_EVENT_PROPERTIES = [
+  "$feature_flag",
+  "$feature_flag_response",
+  "$feature_flag_has_experiment",
+  "$feature_flag_id",
+  "$feature_flag_version",
+  "$feature_flag_reason",
+  "$feature_flag_request_id",
+  "$feature_flag_evaluated_at",
+  "$feature_flag_error",
+  "locally_evaluated",
+  "$groups",
+  "$process_person_profile",
+  "$geoip_disable",
+  "$current_url",
+  "$pathname",
+  "$referring_domain",
+  ...MINIMAL_FLAG_CALLED_EVENT_CAMPAIGN_PROPERTIES,
+  "$session_id",
+  "$window_id",
+  "$lib",
+  "$lib_version",
+  "$device_id",
+  "$is_server"
+];
+var minimizeFlagCalledEventProperties = (properties, transportKeys = []) => {
+  const minimal = {};
+  const copyKey = (key) => {
+    if (properties[key] !== undefined)
+      minimal[key] = properties[key];
+  };
+  MINIMAL_FLAG_CALLED_EVENT_PROPERTIES.forEach(copyKey);
+  transportKeys.forEach(copyKey);
+  return minimal;
+};
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/eventemitter.mjs
+class SimpleEventEmitter {
+  constructor() {
+    this.events = {};
+    this.events = {};
+  }
+  on(event, listener) {
+    if (!this.events[event])
+      this.events[event] = [];
+    this.events[event].push(listener);
+    return () => {
+      this.events[event] = this.events[event].filter((x) => x !== listener);
+    };
+  }
+  emit(event, payload) {
+    for (const listener of this.events[event] || [])
+      listener(payload);
+    for (const listener of this.events["*"] || [])
+      listener(event, payload);
+  }
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/gzip.mjs
+function isGzipSupported() {
+  return "CompressionStream" in globalThis && "TextEncoder" in globalThis && "Response" in globalThis && typeof Response.prototype.blob == "function";
+}
+var NATIVE_GZIP_VALIDATION_ERROR = "NativeGzipValidationError";
+var GZIP_MAGIC_FIRST_BYTE = 31;
+var GZIP_MAGIC_SECOND_BYTE = 139;
+var GZIP_DEFLATE_METHOD = 8;
+var hasGzipMagic = (bytes) => bytes.length >= 2 && bytes[0] === GZIP_MAGIC_FIRST_BYTE && bytes[1] === GZIP_MAGIC_SECOND_BYTE;
+var crc32Table;
+var getCrc32Table = () => {
+  if (crc32Table)
+    return crc32Table;
+  crc32Table = [];
+  for (let i = 0;i < 256; i++) {
+    let crc = i;
+    for (let j = 0;j < 8; j++)
+      crc = 1 & crc ? 3988292384 ^ crc >>> 1 : crc >>> 1;
+    crc32Table[i] = crc >>> 0;
+  }
+  return crc32Table;
+};
+var crc32 = (bytes) => {
+  const table = getCrc32Table();
+  let crc = 4294967295;
+  for (let i = 0;i < bytes.length; i++)
+    crc = table[(crc ^ bytes[i]) & 255] ^ crc >>> 8;
+  return (4294967295 ^ crc) >>> 0;
+};
+var throwNativeGzipValidationError = (reason) => {
+  throw createNamedError(NATIVE_GZIP_VALIDATION_ERROR, `Native gzip produced invalid output: ${reason}`);
+};
+var validateNativeGzip = async (compressed, inputBytes) => {
+  if (compressed.size < 18)
+    throwNativeGzipValidationError("too-short");
+  const header = new Uint8Array(await compressed.slice(0, 10).arrayBuffer());
+  if (!hasGzipMagic(header) || header[2] !== GZIP_DEFLATE_METHOD)
+    throwNativeGzipValidationError("invalid-header");
+  const trailer = new DataView(await compressed.slice(compressed.size - 8).arrayBuffer());
+  if (trailer.getUint32(0, true) !== crc32(inputBytes))
+    throwNativeGzipValidationError("invalid-crc");
+  const inputSize = inputBytes.length >>> 0;
+  if (trailer.getUint32(4, true) !== inputSize)
+    throwNativeGzipValidationError("invalid-size");
+};
+async function gzipCompress(input, isDebug = true, options) {
+  try {
+    const inputBytes = new TextEncoder().encode(input);
+    const compressedStream = new globalThis.CompressionStream("gzip");
+    const writer = compressedStream.writable.getWriter();
+    const writePromise = writer.write(inputBytes).then(() => writer.close()).catch(async (err) => {
+      try {
+        await writer.abort(err);
+      } catch {}
+      throw err;
+    });
+    const responsePromise = new Response(compressedStream.readable).blob();
+    const [compressed] = await Promise.all([
+      responsePromise,
+      writePromise
+    ]);
+    await validateNativeGzip(compressed, inputBytes);
+    return compressed;
+  } catch (error) {
+    if (options?.rethrow)
+      throw error;
+    if (isDebug)
+      console.error("Failed to gzip compress data", error);
+    return null;
+  }
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/posthog-core-stateless.mjs
 class PostHogFetchHttpError extends Error {
   constructor(response, reqByteLength, responseBodyDeadline, abortController) {
     super("HTTP error while fetching PostHog: status=" + response.status + ", reqByteLength=" + reqByteLength), this.response = response, this.reqByteLength = reqByteLength, this.responseBodyDeadline = responseBodyDeadline, this.abortController = abortController, this.name = "PostHogFetchHttpError", this._bodyReadTimedOut = false;
   }
   get status() {
     return this.response.status;
+  }
+  get retryAfterMs() {
+    try {
+      return parseRetryAfterMs(this.response.headers?.get("retry-after"));
+    } catch {
+      return;
+    }
   }
   get bodyReadTimedOut() {
     return this._bodyReadTimedOut;
@@ -2748,16 +2507,14 @@ class PostHogFetchHttpError extends Error {
     if (!this.responseBodyTextPromise)
       if (Date.now() >= this.responseBodyDeadline) {
         this._bodyReadTimedOut = true;
-        const timeoutError = new Error("Response body read timed out");
-        timeoutError.name = "AbortError";
+        const timeoutError = createNamedError("AbortError", "Response body read timed out");
         this.cancelResponseBody(timeoutError);
         this.responseBodyTextPromise = Promise.reject(timeoutError);
       } else {
         const responseBodyTimeout = new Promise((_resolve, reject) => {
           this.responseBodyTimer = safeSetTimeout(() => {
             this._bodyReadTimedOut = true;
-            const timeoutError = new Error("Response body read timed out");
-            timeoutError.name = "AbortError";
+            const timeoutError = createNamedError("AbortError", "Response body read timed out");
             reject(timeoutError);
             this.cancelResponseBody(timeoutError);
           }, this.responseBodyDeadline - Date.now());
@@ -2831,6 +2588,18 @@ function isRetryableFlagsFetchError(err) {
   const code = cause?.code ?? cause?.cause?.code;
   return code !== "ECONNREFUSED";
 }
+var OTLP_MAX_BODY_BYTES = 10485760;
+function byteLengthOf(body) {
+  try {
+    if (typeof body != "string")
+      return body instanceof Uint8Array ? body.byteLength : body.size;
+    if ("u" > typeof Buffer)
+      return Buffer.byteLength(body, STRING_FORMAT);
+    return new TextEncoder().encode(body).length;
+  } catch {
+    return 0;
+  }
+}
 function isPostHogFetchContentTooLargeError(err) {
   return typeof err == "object" && err instanceof PostHogFetchHttpError && err.status === 413;
 }
@@ -2858,6 +2627,7 @@ class PostHogCoreStateless {
       new PrimitiveCoercer
     ], createDefaultStackParser());
   }
+  getEvaluationRuntime() {}
   constructor(apiKey, options = {}) {
     this.flushPromise = null;
     this.pendingFlushPromise = null;
@@ -3106,6 +2876,9 @@ class PostHogCoreStateless {
       requestData.$device_id = personProperties.$device_id;
     if (this.evaluationContexts && this.evaluationContexts.length > 0)
       requestData.evaluation_contexts = this.evaluationContexts;
+    const evaluationRuntime = this.getEvaluationRuntime();
+    if (evaluationRuntime)
+      requestData.evaluation_runtime = evaluationRuntime;
     const fetchOptions = {
       method: "POST",
       headers: {
@@ -3421,9 +3194,12 @@ class PostHogCoreStateless {
   flushBackground() {
     if (this.pendingFlushPromise)
       return;
-    this.flush().catch(async (err) => {
+    this.flushAutomatic().catch(async (err) => {
       await logFlushError(err);
     });
+  }
+  flushAutomatic() {
+    return this.flush();
   }
   async waitForPendingPromises(maxPromiseId, ignoredPromises = []) {
     const ignoredPendingPromises = ignoredPromises.filter((promise) => !!promise);
@@ -3601,25 +3377,46 @@ class PostHogCoreStateless {
       sentFromRoute += batchMessages.length;
     }
   }
-  async _sendLogsBatch(payload) {
+  async _sendOtlpBatch({ path, auth, payload }) {
     if (this.disabled)
       return {
         kind: "fatal",
         error: new Error("The client is disabled")
       };
-    const serialized = JSON.stringify(payload);
-    const url = `${this.host}/i/v1/logs?token=${encodeURIComponent(this.apiKey)}`;
+    let serialized;
+    try {
+      serialized = JSON.stringify(payload);
+    } catch (error) {
+      this.logMsgIfDebug(() => console.warn(`[PostHog] Could not serialize a ${path} batch; reporting it as too large`, error));
+      return {
+        kind: "too-large",
+        measuredLocally: true
+      };
+    }
+    const payloadBytes = byteLengthOf(serialized);
+    if (payloadBytes > OTLP_MAX_BODY_BYTES) {
+      this.logMsgIfDebug(() => console.warn(`[PostHog] Not sending a ${path} batch of ${payloadBytes} bytes: the endpoint accepts at most ${OTLP_MAX_BODY_BYTES}`));
+      return {
+        kind: "too-large",
+        measuredLocally: true
+      };
+    }
+    const url = auth === "bearer" ? `${this.host}/i/v1/${path}` : `${this.host}/i/v1/${path}?token=${encodeURIComponent(this.apiKey)}`;
     const gzippedPayload = this.disableCompression ? null : await this.compressPayload(serialized);
+    const body = gzippedPayload || serialized;
     const fetchOptions = {
       method: "POST",
       headers: {
         ...this.getCustomHeaders(),
         "Content-Type": "application/json",
+        ...auth === "bearer" && {
+          Authorization: `Bearer ${this.apiKey}`
+        },
         ...gzippedPayload !== null && {
           "Content-Encoding": "gzip"
         }
       },
-      body: gzippedPayload || serialized
+      body
     };
     try {
       await this.fetchWithRetry(url, fetchOptions, {
@@ -3627,6 +3424,8 @@ class PostHogCoreStateless {
       }, {
         retryCheck: (err) => {
           if (isPostHogFetchContentTooLargeError(err))
+            return false;
+          if (err instanceof PostHogFetchHttpError && err.retryAfterMs !== undefined)
             return false;
           return isPostHogFetchRetryableError(err);
         }
@@ -3639,81 +3438,46 @@ class PostHogCoreStateless {
         return {
           kind: "too-large"
         };
-      if (err instanceof PostHogFetchNetworkError)
+      if (isPostHogFetchRetryableError(err)) {
+        const retryAfterMs = err instanceof PostHogFetchHttpError ? err.retryAfterMs : undefined;
         return {
           kind: "retry-later",
-          error: err
+          error: err,
+          ...retryAfterMs !== undefined && {
+            retryAfterMs
+          }
         };
+      }
       return {
         kind: "fatal",
         error: err
       };
     }
   }
+  async _sendLogsBatch(payload) {
+    return this._sendOtlpBatch({
+      path: "logs",
+      auth: "query-token",
+      payload
+    });
+  }
   async _sendMetricsBatch(payload) {
-    if (this.disabled)
-      return {
-        kind: "fatal",
-        error: new Error("The client is disabled")
-      };
-    const serialized = JSON.stringify(payload);
-    const url = `${this.host}/i/v1/metrics?token=${encodeURIComponent(this.apiKey)}`;
-    const gzippedPayload = this.disableCompression ? null : await this.compressPayload(serialized);
-    const fetchOptions = {
-      method: "POST",
-      headers: {
-        ...this.getCustomHeaders(),
-        "Content-Type": "application/json",
-        ...gzippedPayload !== null && {
-          "Content-Encoding": "gzip"
-        }
-      },
-      body: gzippedPayload || serialized
-    };
-    try {
-      await this.fetchWithRetry(url, fetchOptions, {
-        type: "successful-write"
-      }, {
-        retryCheck: (err) => {
-          if (isPostHogFetchContentTooLargeError(err))
-            return false;
-          return isPostHogFetchRetryableError(err);
-        }
-      });
-      return {
-        kind: "ok"
-      };
-    } catch (err) {
-      if (isPostHogFetchContentTooLargeError(err))
-        return {
-          kind: "too-large"
-        };
-      if (isPostHogFetchRetryableError(err))
-        return {
-          kind: "retry-later",
-          error: err
-        };
-      return {
-        kind: "fatal",
-        error: err
-      };
-    }
+    return this._sendOtlpBatch({
+      path: "metrics",
+      auth: "query-token",
+      payload
+    });
+  }
+  async _sendTracesBatch(payload) {
+    return this._sendOtlpBatch({
+      path: "traces",
+      auth: "bearer",
+      payload
+    });
   }
   async fetchWithRetry(url, options, responseHandling, retryOptions, requestTimeout) {
     const body = options.body ? options.body : "";
-    let reqByteLength = -1;
-    try {
-      reqByteLength = body instanceof Blob ? body.size : body instanceof Uint8Array ? body.byteLength : Buffer.byteLength(body, STRING_FORMAT);
-    } catch {
-      if (body instanceof Blob)
-        reqByteLength = body.size;
-      else if (body instanceof Uint8Array)
-        reqByteLength = body.byteLength;
-      else {
-        const encoded = new TextEncoder().encode(body);
-        reqByteLength = encoded.length;
-      }
-    }
+    const reqByteLength = byteLengthOf(body);
     const retriableOptions = {
       ...this._retryOptions,
       ...retryOptions
@@ -3727,8 +3491,7 @@ class PostHogCoreStateless {
       let timer;
       const deadline = new Promise((_resolve, reject) => {
         timer = safeSetTimeout(() => {
-          const timeoutError = new Error(`Request timed out after ${timeoutMs}ms`);
-          timeoutError.name = "AbortError";
+          const timeoutError = createNamedError("AbortError", `Request timed out after ${timeoutMs}ms`);
           reject(timeoutError);
           ctrl.abort(timeoutError);
         }, timeoutMs);
@@ -3765,7 +3528,8 @@ class PostHogCoreStateless {
           throw new PostHogFetchNetworkError(e);
         }
         const isNoCors = options.mode === "no-cors";
-        if (!isNoCors && (res.status < 200 || res.status >= 400))
+        const maxSuccessStatus = responseHandling.type === "successful-write" ? 300 : 400;
+        if (!isNoCors && (res.status < 200 || res.status >= maxSuccessStatus))
           throw new PostHogFetchHttpError(res, reqByteLength, requestDeadline, ctrl);
         if (responseHandling.type === "successful-write") {
           try {
@@ -3846,7 +3610,2642 @@ class PostHogCoreStateless {
     return this.shutdownPromise;
   }
 }
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/context-lines.node.mjs
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/featureFlagLocalEvaluation.mjs
+var NULL_VALUES_ALLOWED_OPERATORS = [
+  "is_not",
+  "is_set"
+];
+var LONG_SCALE = 1152921504606847000;
+
+class InconclusiveMatchError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = this.constructor.name;
+    Object.setPrototypeOf(this, InconclusiveMatchError.prototype);
+  }
+}
+function isTruthyOrFalsyPropertyValue(value) {
+  if (typeof value == "boolean")
+    return true;
+  if (typeof value == "string") {
+    const lowercaseValue = value.toLowerCase();
+    return lowercaseValue === "true" || lowercaseValue === "false";
+  }
+  if (!Array.isArray(value))
+    return false;
+  for (let index = 0;index < value.length; index++)
+    if (!isTruthyOrFalsyPropertyValue(index in value ? value[index] : null))
+      return false;
+  return true;
+}
+function isTruthyPropertyValue(value) {
+  if (typeof value == "boolean")
+    return value;
+  if (typeof value == "string")
+    return value.toLowerCase() === "true";
+  if (!Array.isArray(value))
+    return false;
+  for (let index = 0;index < value.length; index++)
+    if (!isTruthyPropertyValue(index in value ? value[index] : null))
+      return false;
+  return true;
+}
+function assertUnicodeScalarString(value) {
+  for (let index = 0;index < value.length; index++) {
+    const unit = value.charCodeAt(index);
+    if (unit >= 55296 && unit <= 56319) {
+      const next = value.charCodeAt(index + 1);
+      if (index + 1 >= value.length || next < 56320 || next > 57343)
+        throw new InconclusiveMatchError("Cannot stringify an unpaired surrogate like the flags service");
+      index++;
+    } else if (unit >= 56320 && unit <= 57343)
+      throw new InconclusiveMatchError("Cannot stringify an unpaired surrogate like the flags service");
+  }
+}
+function assertJsonRepresentable(value, seen = new Set) {
+  if (value === null || typeof value == "boolean")
+    return;
+  if (typeof value == "string")
+    return void assertUnicodeScalarString(value);
+  if (typeof value == "number") {
+    if (!Number.isFinite(value))
+      throw new InconclusiveMatchError(`Cannot represent non-finite number ${value} like the flags service`);
+    return;
+  }
+  if (Array.isArray(value)) {
+    if (seen.has(value))
+      throw new InconclusiveMatchError("Cannot represent a circular array during local evaluation");
+    seen.add(value);
+    try {
+      for (let index = 0;index < value.length; index++)
+        if (index in value)
+          assertJsonRepresentable(value[index], seen);
+    } finally {
+      seen.delete(value);
+    }
+    return;
+  }
+  if (typeof value == "object") {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null)
+      throw new InconclusiveMatchError("Cannot represent a non-JSON object like the flags service");
+    if (seen.has(value))
+      throw new InconclusiveMatchError("Cannot represent a circular object during local evaluation");
+    seen.add(value);
+    try {
+      for (const key of Object.keys(value)) {
+        assertUnicodeScalarString(key);
+        assertJsonRepresentable(value[key], seen);
+      }
+    } finally {
+      seen.delete(value);
+    }
+    return;
+  }
+  throw new InconclusiveMatchError(`Cannot represent ${typeof value} like the flags service`);
+}
+function compareJsonObjectKeys(left, right) {
+  let leftIndex = 0;
+  let rightIndex = 0;
+  while (leftIndex < left.length && rightIndex < right.length) {
+    const leftUnit = left.charCodeAt(leftIndex);
+    const rightUnit = right.charCodeAt(rightIndex);
+    const leftIsHighSurrogate = leftUnit >= 55296 && leftUnit <= 56319;
+    const rightIsHighSurrogate = rightUnit >= 55296 && rightUnit <= 56319;
+    const leftNext = leftIsHighSurrogate ? left.charCodeAt(leftIndex + 1) : 0;
+    const rightNext = rightIsHighSurrogate ? right.charCodeAt(rightIndex + 1) : 0;
+    const leftCodePoint = leftIsHighSurrogate ? (leftUnit - 55296) * 1024 + leftNext - 56320 + 65536 : leftUnit;
+    const rightCodePoint = rightIsHighSurrogate ? (rightUnit - 55296) * 1024 + rightNext - 56320 + 65536 : rightUnit;
+    if (leftCodePoint !== rightCodePoint)
+      return leftCodePoint - rightCodePoint;
+    leftIndex += leftIsHighSurrogate ? 2 : 1;
+    rightIndex += rightIsHighSurrogate ? 2 : 1;
+  }
+  return left.length - right.length;
+}
+function serializeJsonValue(value, seen = new Set) {
+  if (value === null)
+    return "null";
+  if (typeof value == "string") {
+    assertUnicodeScalarString(value);
+    return JSON.stringify(value);
+  }
+  if (typeof value == "boolean")
+    return value ? "true" : "false";
+  if (typeof value == "number") {
+    if (!Number.isFinite(value))
+      throw new InconclusiveMatchError(`Cannot stringify non-finite number ${value} like the flags service`);
+    if (Number.isInteger(value))
+      throw new InconclusiveMatchError(`Cannot distinguish integer ${value} from an integral JSON float during local evaluation`);
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    if (seen.has(value))
+      throw new InconclusiveMatchError("Cannot stringify a circular array during local evaluation");
+    seen.add(value);
+    try {
+      const items = [];
+      for (let index = 0;index < value.length; index++)
+        items.push(index in value ? serializeJsonValue(value[index], seen) : "null");
+      return `[${items.join(",")}]`;
+    } finally {
+      seen.delete(value);
+    }
+  }
+  if (typeof value == "object") {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null)
+      throw new InconclusiveMatchError("Cannot stringify a non-JSON object like the flags service");
+    if (seen.has(value))
+      throw new InconclusiveMatchError("Cannot stringify a circular object during local evaluation");
+    seen.add(value);
+    try {
+      const keys = Object.keys(value);
+      keys.forEach(assertUnicodeScalarString);
+      return `{${keys.sort(compareJsonObjectKeys).map((key) => `${JSON.stringify(key)}:${serializeJsonValue(value[key], seen)}`).join(",")}}`;
+    } finally {
+      seen.delete(value);
+    }
+  }
+  throw new InconclusiveMatchError(`Cannot stringify ${typeof value} like the flags service`);
+}
+function exactMatchString(value) {
+  if (typeof value == "string") {
+    assertUnicodeScalarString(value);
+    return value;
+  }
+  return serializeJsonValue(value);
+}
+function isValidRegex(regex) {
+  try {
+    new RegExp(regex);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function asciiLowercase(value) {
+  return String(value).replace(/[A-Z]/g, (character) => character.toLowerCase());
+}
+function parseSemverNumericIdentifier(part, raw, parsingPolicy) {
+  if (!/^\d+$/.test(part) || parsingPolicy === "strict" && part.length > 1 && part[0] === "0")
+    throw new InconclusiveMatchError(`Invalid semver: ${raw}`);
+  return parseInt(part, 10);
+}
+function parseFeatureFlagSemver(value, parsingPolicy = "strict") {
+  const text = String(value).trim().replace(/^[vV]/, "");
+  const baseVersion = text.split("-")[0].split("+")[0];
+  if (!baseVersion || baseVersion.startsWith("."))
+    throw new InconclusiveMatchError(`Invalid semver: ${value}`);
+  const parts = baseVersion.split(".");
+  const parsePart = (part) => {
+    if (part === undefined || part === "")
+      return 0;
+    return parseSemverNumericIdentifier(part, value, parsingPolicy);
+  };
+  return [
+    parsePart(parts[0]),
+    parsePart(parts[1]),
+    parsePart(parts[2])
+  ];
+}
+function compareSemverTuples(a, b) {
+  for (let i = 0;i < 3; i++) {
+    if (a[i] < b[i])
+      return -1;
+    if (a[i] > b[i])
+      return 1;
+  }
+  return 0;
+}
+function computeTildeBounds(value, parsingPolicy) {
+  const parsed = parseFeatureFlagSemver(value, parsingPolicy);
+  return {
+    lower: [
+      parsed[0],
+      parsed[1],
+      parsed[2]
+    ],
+    upper: [
+      parsed[0],
+      parsed[1] + 1,
+      0
+    ]
+  };
+}
+function computeCaretBounds(value, parsingPolicy) {
+  const [major, minor, patch] = parseFeatureFlagSemver(value, parsingPolicy);
+  const lower = [
+    major,
+    minor,
+    patch
+  ];
+  let upper;
+  upper = major > 0 ? [
+    major + 1,
+    0,
+    0
+  ] : minor > 0 ? [
+    0,
+    minor + 1,
+    0
+  ] : [
+    0,
+    0,
+    patch + 1
+  ];
+  return {
+    lower,
+    upper
+  };
+}
+function computeWildcardBounds(value, parsingPolicy) {
+  const text = String(value).trim().replace(/^[vV]/, "");
+  const cleanedText = text.replace(/\.\*$/, "").replace(/\*$/, "");
+  if (!cleanedText)
+    throw new InconclusiveMatchError(`Invalid wildcard semver: ${value}`);
+  const parts = cleanedText.split(".");
+  const parseWildcardPart = (part) => {
+    if (parsingPolicy === "legacy-permissive") {
+      const parsed = parseInt(part, 10);
+      if (!isNaN(parsed))
+        return parsed;
+    } else
+      try {
+        return parseSemverNumericIdentifier(part, value, parsingPolicy);
+      } catch {}
+    throw new InconclusiveMatchError(`Invalid wildcard semver: ${value}`);
+  };
+  const major = parseWildcardPart(parts[0]);
+  if (parts.length === 1)
+    return {
+      lower: [
+        major,
+        0,
+        0
+      ],
+      upper: [
+        major + 1,
+        0,
+        0
+      ]
+    };
+  const minor = parseWildcardPart(parts[1]);
+  return {
+    lower: [
+      major,
+      minor,
+      0
+    ],
+    upper: [
+      major,
+      minor + 1,
+      0
+    ]
+  };
+}
+function convertToDateTime(value) {
+  if (value instanceof Date)
+    return value;
+  if (typeof value == "string" || typeof value == "number") {
+    const date = new Date(value);
+    if (!isNaN(date.valueOf()))
+      return date;
+    throw new InconclusiveMatchError(`${value} is in an invalid date format`);
+  }
+  throw new InconclusiveMatchError(`The date provided ${value} must be a string, number, or date object`);
+}
+function relativeDateParseForFeatureFlagMatching(value) {
+  const regex = /^-?(?<number>[0-9]+)(?<interval>[a-z])$/;
+  const match = value.match(regex);
+  const parsedDt = new Date(new Date().toISOString());
+  if (!match || !match.groups)
+    return null;
+  const number = parseInt(match.groups["number"]);
+  if (number >= 1e4)
+    return null;
+  const interval = match.groups["interval"];
+  if (interval === "h")
+    parsedDt.setUTCHours(parsedDt.getUTCHours() - number);
+  else if (interval === "d")
+    parsedDt.setUTCDate(parsedDt.getUTCDate() - number);
+  else if (interval === "w")
+    parsedDt.setUTCDate(parsedDt.getUTCDate() - 7 * number);
+  else if (interval === "m")
+    parsedDt.setUTCMonth(parsedDt.getUTCMonth() - number);
+  else {
+    if (interval !== "y")
+      return null;
+    parsedDt.setUTCFullYear(parsedDt.getUTCFullYear() - number);
+  }
+  return parsedDt;
+}
+function matchFeatureFlagProperty(property, propertyValues, options = {}) {
+  const key = property.key;
+  const value = property.value;
+  const operator = property.operator || "exact";
+  const parsingPolicy = options.semverParsingPolicy ?? "strict";
+  const hasProperty = Object.prototype.hasOwnProperty.call(propertyValues, key);
+  if (hasProperty) {
+    if (operator === "is_not_set")
+      return false;
+    else if (operator === "is_set")
+      return true;
+  } else
+    throw new InconclusiveMatchError(`Property ${key} not found in propertyValues`);
+  const overrideValue = propertyValues[key];
+  if (overrideValue === undefined) {
+    options.warnFunction?.(`Property ${key} cannot have a value of undefined with the ${operator} operator`);
+    return operator === "is_not";
+  }
+  if (overrideValue === null && !NULL_VALUES_ALLOWED_OPERATORS.includes(operator) && operator !== "exact" && operator !== "is_not") {
+    options.warnFunction?.(`Property ${key} cannot have a value of null with the ${operator} operator`);
+    return false;
+  }
+  const computeExactMatch = (target, actual) => {
+    if (isTruthyOrFalsyPropertyValue(target)) {
+      assertJsonRepresentable(actual);
+      return isTruthyPropertyValue(target) === isTruthyPropertyValue(actual);
+    }
+    if (Array.isArray(target)) {
+      const actualString = exactMatchString(actual).toLowerCase();
+      return target.some((item) => exactMatchString(item).toLowerCase() === actualString);
+    }
+    return exactMatchString(target).toLowerCase() === exactMatchString(actual).toLowerCase();
+  };
+  const compare = (lhs, rhs, comparisonOperator) => {
+    if (comparisonOperator === "gt")
+      return lhs > rhs;
+    if (comparisonOperator === "gte")
+      return lhs >= rhs;
+    if (comparisonOperator === "lt")
+      return lhs < rhs;
+    if (comparisonOperator === "lte")
+      return lhs <= rhs;
+    throw new Error(`Invalid operator: ${comparisonOperator}`);
+  };
+  switch (operator) {
+    case "exact":
+      return computeExactMatch(value, overrideValue);
+    case "is_not":
+      return !computeExactMatch(value, overrideValue);
+    case "is_set":
+      return true;
+    case "icontains":
+      return asciiLowercase(overrideValue).includes(asciiLowercase(value));
+    case "not_icontains":
+      return !asciiLowercase(overrideValue).includes(asciiLowercase(value));
+    case "starts_with":
+      return asciiLowercase(overrideValue).startsWith(asciiLowercase(value));
+    case "not_starts_with":
+      return !asciiLowercase(overrideValue).startsWith(asciiLowercase(value));
+    case "ends_with":
+      return asciiLowercase(overrideValue).endsWith(asciiLowercase(value));
+    case "not_ends_with":
+      return !asciiLowercase(overrideValue).endsWith(asciiLowercase(value));
+    case "regex":
+      return isValidRegex(String(value)) && String(overrideValue).match(String(value)) !== null;
+    case "not_regex":
+      return isValidRegex(String(value)) && String(overrideValue).match(String(value)) === null;
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte": {
+      const parsedValue = typeof value == "number" ? value : parseFloat(String(value));
+      const parsedOverride = typeof overrideValue == "number" ? overrideValue : overrideValue != null ? parseFloat(String(overrideValue)) : 0 / 0;
+      if (Number.isFinite(parsedValue) && Number.isFinite(parsedOverride))
+        return compare(parsedOverride, parsedValue, operator);
+      return compare(String(overrideValue), String(value), operator);
+    }
+    case "is_date_after":
+    case "is_date_before": {
+      if (typeof value == "boolean")
+        throw new InconclusiveMatchError("Date operations cannot be performed on boolean values");
+      let parsedDate = relativeDateParseForFeatureFlagMatching(String(value));
+      if (parsedDate == null)
+        parsedDate = convertToDateTime(value);
+      const overrideDate = convertToDateTime(overrideValue);
+      return operator === "is_date_before" ? overrideDate < parsedDate : overrideDate > parsedDate;
+    }
+    case "semver_eq":
+      return compareSemverTuples(parseFeatureFlagSemver(String(overrideValue), parsingPolicy), parseFeatureFlagSemver(String(value), parsingPolicy)) === 0;
+    case "semver_neq":
+      return compareSemverTuples(parseFeatureFlagSemver(String(overrideValue), parsingPolicy), parseFeatureFlagSemver(String(value), parsingPolicy)) !== 0;
+    case "semver_gt":
+      return compareSemverTuples(parseFeatureFlagSemver(String(overrideValue), parsingPolicy), parseFeatureFlagSemver(String(value), parsingPolicy)) > 0;
+    case "semver_gte":
+      return compareSemverTuples(parseFeatureFlagSemver(String(overrideValue), parsingPolicy), parseFeatureFlagSemver(String(value), parsingPolicy)) >= 0;
+    case "semver_lt":
+      return compareSemverTuples(parseFeatureFlagSemver(String(overrideValue), parsingPolicy), parseFeatureFlagSemver(String(value), parsingPolicy)) < 0;
+    case "semver_lte":
+      return compareSemverTuples(parseFeatureFlagSemver(String(overrideValue), parsingPolicy), parseFeatureFlagSemver(String(value), parsingPolicy)) <= 0;
+    case "semver_tilde": {
+      const overrideParsed = parseFeatureFlagSemver(String(overrideValue), parsingPolicy);
+      const { lower, upper } = computeTildeBounds(String(value), parsingPolicy);
+      return compareSemverTuples(overrideParsed, lower) >= 0 && compareSemverTuples(overrideParsed, upper) < 0;
+    }
+    case "semver_caret": {
+      const overrideParsed = parseFeatureFlagSemver(String(overrideValue), parsingPolicy);
+      const { lower, upper } = computeCaretBounds(String(value), parsingPolicy);
+      return compareSemverTuples(overrideParsed, lower) >= 0 && compareSemverTuples(overrideParsed, upper) < 0;
+    }
+    case "semver_wildcard": {
+      const overrideParsed = parseFeatureFlagSemver(String(overrideValue), parsingPolicy);
+      const { lower, upper } = computeWildcardBounds(String(value), parsingPolicy);
+      return compareSemverTuples(overrideParsed, lower) >= 0 && compareSemverTuples(overrideParsed, upper) < 0;
+    }
+    default:
+      throw new InconclusiveMatchError(`Unknown operator: ${operator}`);
+  }
+}
+async function hashSHA1(text) {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle)
+    throw new Error("SubtleCrypto API not available");
+  const hashBuffer = await subtle.digest("SHA-1", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(hashBuffer)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+async function getFeatureFlagHash(key, bucketingValue, salt = "") {
+  const hashString = await hashSHA1(`${key}.${bucketingValue}${salt}`);
+  return parseInt(hashString.slice(0, 15), 16) / LONG_SCALE;
+}
+function getFeatureFlagVariantLookupTable(variants) {
+  const table = [];
+  let valueMin = 0;
+  for (const variant of variants) {
+    const valueMax = valueMin + variant.rollout_percentage / 100;
+    table.push({
+      valueMin,
+      valueMax,
+      key: variant.key
+    });
+    valueMin = valueMax;
+  }
+  return table;
+}
+async function getFeatureFlagVariant(key, bucketingValue, variants) {
+  const hashValue = await getFeatureFlagHash(key, bucketingValue, "variant");
+  return getFeatureFlagVariantLookupTable(variants).find((variant) => hashValue >= variant.valueMin && hashValue < variant.valueMax)?.key;
+}
+function resolveFeatureFlagPayload(payloads, flagValue) {
+  if (flagValue === false || flagValue == null || !payloads)
+    return null;
+  const payloadKey = typeof flagValue == "boolean" ? flagValue.toString() : flagValue;
+  const payload = payloads[payloadKey] || null;
+  return payload == null ? null : parsePayload(payload);
+}
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/otlp-any-value.mjs
+var INT64_RANGE_LIMIT = 9223372036854776000;
+var INT64_RANGE_LIMIT_DECIMAL = "9223372036854775808";
+var propertyIsEnumerable = Object.prototype.propertyIsEnumerable;
+function newState() {
+  return {
+    ancestors: new WeakSet,
+    remainingNodes: MAX_JSON_SAFE_VALUE_NODES
+  };
+}
+function toOtlpKeyValueList(attrs, logger) {
+  try {
+    return encodeKeyValueList(attrs, logger, newState(), 0);
+  } catch {
+    return [];
+  }
+}
+function encodeBigInt(value, logger) {
+  const decimal = value.toString();
+  const limit = BigInt(INT64_RANGE_LIMIT_DECIMAL);
+  if (value >= limit || value < -limit) {
+    logger?.debug(`Attribute ${decimal} is outside the int64 range; encoding it as a string`);
+    return {
+      stringValue: decimal
+    };
+  }
+  return {
+    intValue: decimal
+  };
+}
+function encodeAnyValue(value, logger, state, depth) {
+  if (state.remainingNodes <= 0)
+    return {
+      stringValue: TRUNCATED_VALUE
+    };
+  state.remainingNodes--;
+  if (isBoolean(value))
+    return {
+      boolValue: value
+    };
+  if (typeof value == "bigint")
+    return encodeBigInt(value, logger);
+  if (typeof value == "number") {
+    if (!Number.isFinite(value))
+      return {
+        stringValue: String(value)
+      };
+    if (Number.isInteger(value)) {
+      if (Number.isSafeInteger(value))
+        return {
+          intValue: String(value)
+        };
+      if ("u" < typeof BigInt)
+        return {
+          stringValue: String(value)
+        };
+      const decimal = BigInt(value).toString();
+      if (value >= INT64_RANGE_LIMIT || value < -INT64_RANGE_LIMIT) {
+        logger?.debug(`Attribute ${decimal} is outside the int64 range; encoding it as a string`);
+        return {
+          stringValue: decimal
+        };
+      }
+      return {
+        intValue: decimal
+      };
+    }
+    return {
+      doubleValue: value
+    };
+  }
+  if (typeof value == "string")
+    return {
+      stringValue: sanitizeString(value)
+    };
+  if (typeof value == "function")
+    return {
+      stringValue: FUNCTION_VALUE
+    };
+  if (typeof value == "symbol")
+    return {
+      stringValue: String(value)
+    };
+  if (typeof value == "object" && value !== null) {
+    if (state.ancestors.has(value))
+      return {
+        stringValue: CIRCULAR_VALUE
+      };
+    if (depth >= MAX_JSON_SAFE_VALUE_DEPTH)
+      return {
+        stringValue: TRUNCATED_VALUE
+      };
+    if (value instanceof Date) {
+      const time = value.getTime();
+      const iso = Number.isFinite(time) ? value.toISOString() : String(value);
+      return {
+        stringValue: typeof iso == "string" ? sanitizeString(iso) : String(iso)
+      };
+    }
+    state.ancestors.add(value);
+    try {
+      try {
+        const toJSON = value.toJSON;
+        if (typeof toJSON == "function")
+          return encodeAnyValue(toJSON.call(value), logger, state, depth + 1);
+      } catch {}
+      if (isArray(value))
+        return {
+          arrayValue: {
+            values: encodeArrayValues(value, logger, state, depth + 1)
+          }
+        };
+      return {
+        kvlistValue: {
+          values: encodeKeyValueList(value, logger, state, depth + 1)
+        }
+      };
+    } finally {
+      state.ancestors.delete(value);
+    }
+  }
+  return {
+    stringValue: sanitizeString(String(value))
+  };
+}
+function encodeArrayValues(values, logger, state, depth) {
+  const result = [];
+  const itemCount = Math.min(values.length, MAX_JSON_SAFE_VALUE_ITEMS);
+  let index = 0;
+  for (;index < itemCount && state.remainingNodes > 0; index++)
+    try {
+      const element = index in values ? values[index] : undefined;
+      if (isNullish(element))
+        continue;
+      result.push(encodeAnyValue(element, logger, state, depth));
+    } catch {
+      result.push({
+        stringValue: UNSERIALIZABLE_VALUE
+      });
+    }
+  if (values.length > index)
+    result.push({
+      stringValue: TRUNCATED_VALUE
+    });
+  return result;
+}
+function encodeKeyValueList(attrs, logger, state, depth) {
+  const result = [];
+  for (const key in attrs)
+    if (propertyIsEnumerable.call(attrs, key)) {
+      if (!key) {
+        logger?.debug("Dropping an attribute with an empty key");
+        continue;
+      }
+      if (result.length >= MAX_JSON_SAFE_VALUE_ITEMS || state.remainingNodes <= 0) {
+        logger?.debug("Attributes truncated: the value exceeds the OTLP encoder budget");
+        break;
+      }
+      try {
+        const value = attrs[key];
+        if (isNull(value) || isUndefined(value))
+          continue;
+        result.push({
+          key: sanitizeString(key),
+          value: encodeAnyValue(value, logger, state, depth)
+        });
+      } catch {
+        result.push({
+          key: sanitizeString(key),
+          value: {
+            stringValue: UNSERIALIZABLE_VALUE
+          }
+        });
+      }
+    }
+  return result;
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/otlp-resource.mjs
+function buildOtlpResourceAttributes(config, sdkName, sdkVersion) {
+  return {
+    ...assignUserAttributes({}, config.resourceAttributes),
+    "service.name": config.serviceName || "unknown_service",
+    ...config.environment && {
+      "deployment.environment": config.environment
+    },
+    ...config.serviceVersion && {
+      "service.version": config.serviceVersion
+    },
+    "telemetry.sdk.name": sdkName,
+    "telemetry.sdk.version": sdkVersion
+  };
+}
+var SDK_RESOURCE_KEYS = [
+  "service.name",
+  "deployment.environment",
+  "service.version",
+  "telemetry.sdk.name",
+  "telemetry.sdk.version"
+];
+function toOtlpResourceKeyValueList(attributes, logger) {
+  const user = assignUserAttributes({}, attributes);
+  const sdk = {};
+  for (const key of SDK_RESOURCE_KEYS)
+    if (Object.prototype.hasOwnProperty.call(user, key)) {
+      sdk[key] = user[key];
+      delete user[key];
+    }
+  return [
+    ...toOtlpKeyValueList(user, logger),
+    ...toOtlpKeyValueList(sdk, logger)
+  ];
+}
+var OS_NAMES = {
+  darwin: "macOS",
+  win32: "Windows",
+  cygwin: "Windows",
+  linux: "Linux",
+  android: "Android",
+  freebsd: "FreeBSD",
+  openbsd: "OpenBSD",
+  netbsd: "NetBSD",
+  sunos: "SunOS",
+  aix: "AIX",
+  haiku: "Haiku",
+  "Mac OS X": "macOS"
+};
+function normalizeOsName(name) {
+  if (!name)
+    return;
+  return Object.prototype.hasOwnProperty.call(OS_NAMES, name) ? OS_NAMES[name] : name;
+}
+function osResourceAttributes(name, version) {
+  const osName = normalizeOsName(name);
+  return {
+    ...osName ? {
+      "os.name": osName
+    } : {},
+    ...version ? {
+      "os.version": version
+    } : {}
+  };
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/logs/logs-utils.mjs
+var OTLP_SEVERITY_MAP = {
+  trace: {
+    text: "TRACE",
+    number: 1
+  },
+  debug: {
+    text: "DEBUG",
+    number: 5
+  },
+  info: {
+    text: "INFO",
+    number: 9
+  },
+  warn: {
+    text: "WARN",
+    number: 13
+  },
+  error: {
+    text: "ERROR",
+    number: 17
+  },
+  fatal: {
+    text: "FATAL",
+    number: 21
+  }
+};
+var DEFAULT_OTLP_SEVERITY = OTLP_SEVERITY_MAP.info;
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/flush-timer.mjs
+class FlushTimer {
+  constructor(_onFire) {
+    this._onFire = _onFire;
+    this._firesAt = 0;
+  }
+  get pending() {
+    return !!this._timer;
+  }
+  arm(delayMs) {
+    this.clear();
+    this._firesAt = Date.now() + delayMs;
+    this._timer = safeSetTimeout(() => {
+      this._timer = undefined;
+      this._onFire();
+    }, delayMs);
+  }
+  armNoEarlierThan(delayMs) {
+    if (this._timer && Date.now() + delayMs <= this._firesAt)
+      return;
+    this.arm(delayMs);
+  }
+  clear() {
+    if (this._timer) {
+      clearTimeout(this._timer);
+      this._timer = undefined;
+    }
+  }
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/utils/backoff.mjs
+var MAX_FLUSH_BACKOFF_EXPONENT = 6;
+var MAX_FLUSH_BACKOFF_MS = 30000;
+var JITTER = 0.25;
+function drawJitter() {
+  return 1 - JITTER + Math.random() * JITTER * 2;
+}
+var NO_JITTER = 1;
+function backoffDelayMs(baseMs, failures, jitter, maxMs) {
+  const exponent = Math.min(Math.max(0, failures - 1), MAX_FLUSH_BACKOFF_EXPONENT);
+  const delay = baseMs * 2 ** exponent;
+  const capped = maxMs === undefined ? delay : Math.min(delay, Math.max(maxMs, baseMs));
+  return Math.round(capped * jitter);
+}
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/metrics/metrics-utils.mjs
+var DEFAULT_HISTOGRAM_BOUNDS = [
+  0,
+  5,
+  10,
+  25,
+  50,
+  75,
+  100,
+  250,
+  500,
+  750,
+  1000,
+  2500,
+  5000,
+  7500,
+  1e4
+];
+function msToUnixNano(ms) {
+  return String(ms) + "000000";
+}
+function seriesKey(type, name, unit, attributes) {
+  let attrsKey = "";
+  if (attributes) {
+    const keys = Object.keys(attributes).sort();
+    attrsKey = keys.map((k) => `${JSON.stringify(k)}:${JSON.stringify(attributes[k])}`).join(",");
+  }
+  return `${type}\x00${name}\x00${unit ?? ""}\x00${attrsKey}`;
+}
+function bucketIndexFor(value, bounds) {
+  for (let i = 0;i < bounds.length; i++)
+    if (value <= bounds[i])
+      return i;
+  return bounds.length;
+}
+function buildMetricsResourceAttributes(config, scopeName, scopeVersion) {
+  return buildOtlpResourceAttributes(config, scopeName, scopeVersion);
+}
+function buildOtlpMetricsPayload(metrics, resourceAttributes, scopeName, scopeVersion) {
+  return {
+    resourceMetrics: [
+      {
+        resource: {
+          attributes: toOtlpResourceKeyValueList(resourceAttributes)
+        },
+        scopeMetrics: [
+          {
+            scope: {
+              name: scopeName,
+              version: scopeVersion
+            },
+            metrics
+          }
+        ]
+      }
+    ]
+  };
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/metrics/config.mjs
+var DEFAULT_FLUSH_INTERVAL_MS = 1e4;
+var DEFAULT_MAX_SERIES_PER_FLUSH = 1000;
+function resolveMetricsConfig(config) {
+  const resourceAttributes = config?.resourceAttributes;
+  return {
+    serviceName: resourceAttributes?.["service.name"] ?? config?.serviceName,
+    serviceVersion: resourceAttributes?.["service.version"] ?? config?.serviceVersion,
+    environment: resourceAttributes?.["deployment.environment"] ?? config?.environment,
+    resourceAttributes,
+    beforeSend: config?.beforeSend,
+    flushIntervalMs: config?.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS,
+    maxSeriesPerFlush: config?.maxSeriesPerFlush ?? DEFAULT_MAX_SERIES_PER_FLUSH
+  };
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/metrics/index.mjs
+var OTLP_TEMPORALITY_DELTA = 1;
+
+class PostHogMetrics {
+  constructor(_instance, _config, _logger) {
+    this._instance = _instance;
+    this._config = _config;
+    this._logger = _logger;
+    this._series = new Map;
+    this._flushTimer = new FlushTimer(() => this.flush().catch((e) => {
+      this._logger.error("Metrics flush failed:", e);
+    }));
+    this._flushPromise = null;
+    this._seriesCapWarned = false;
+    this._typeByName = new Map;
+    this._typeCollisionWarned = new Set;
+    this._retryAfter = new RetryAfterWindow;
+    this._consecutiveFlushFailures = 0;
+    this._flushJitter = NO_JITTER;
+    this._generation = 0;
+  }
+  count(name, value = 1, options) {
+    this._capture({
+      name,
+      type: "count",
+      value,
+      unit: options?.unit,
+      attributes: options?.attributes
+    });
+  }
+  gauge(name, value, options) {
+    this._capture({
+      name,
+      type: "gauge",
+      value,
+      unit: options?.unit,
+      attributes: options?.attributes
+    });
+  }
+  histogram(name, value, options) {
+    this._capture({
+      name,
+      type: "histogram",
+      value,
+      unit: options?.unit,
+      attributes: options?.attributes
+    });
+  }
+  flush() {
+    const prev = this._flushPromise;
+    const run = async () => {
+      if (prev)
+        await prev.catch(() => {});
+      await this._doFlush();
+    };
+    const p = run().finally(() => {
+      if (this._flushPromise === p)
+        this._flushPromise = null;
+    });
+    this._flushPromise = p;
+    return p;
+  }
+  drainWindow() {
+    if (this._series.size === 0)
+      return null;
+    const window = this._series;
+    this._series = new Map;
+    this._seriesCapWarned = false;
+    this._typeByName = new Map;
+    this._typeCollisionWarned = new Set;
+    return this._buildPayload(window);
+  }
+  reset() {
+    this._generation++;
+    this._retryAfter.reset();
+    this._consecutiveFlushFailures = 0;
+    this._flushJitter = NO_JITTER;
+    this._flushTimer.clear();
+    this._series = new Map;
+    this._flushPromise = null;
+    this._seriesCapWarned = false;
+    this._typeByName = new Map;
+    this._typeCollisionWarned = new Set;
+  }
+  _capture(sample) {
+    if (this._instance.isDisabled || this._instance.optedOut)
+      return;
+    const filtered = this._runBeforeSend(sample);
+    if (filtered === null)
+      return;
+    if (!filtered.name || typeof filtered.name != "string")
+      return void this._logger.warn("Dropping metric with empty name");
+    if (typeof filtered.value != "number" || !Number.isFinite(filtered.value))
+      return void this._logger.warn(`Dropping metric '${filtered.name}': value must be a finite number`);
+    if (filtered.type === "count" && filtered.value < 0)
+      return void this._logger.warn(`Dropping count '${filtered.name}': counters are monotonic, value must be >= 0`);
+    let attributes;
+    let key;
+    try {
+      attributes = filtered.attributes ? {
+        ...filtered.attributes
+      } : undefined;
+      key = seriesKey(filtered.type, filtered.name, filtered.unit, attributes);
+    } catch (e) {
+      this._logger.warn(`Dropping metric '${filtered.name}': attributes could not be serialized`, e);
+      return;
+    }
+    let state = this._series.get(key);
+    if (!state) {
+      if (!this._admitNewSeries())
+        return;
+      state = {
+        name: filtered.name,
+        type: filtered.type,
+        unit: filtered.unit,
+        attributes,
+        windowStartMs: Date.now()
+      };
+      this._series.set(key, state);
+    }
+    const seenType = this._typeByName.get(filtered.name);
+    if (seenType === undefined)
+      this._typeByName.set(filtered.name, filtered.type);
+    else if (seenType !== filtered.type && !this._typeCollisionWarned.has(filtered.name)) {
+      this._typeCollisionWarned.add(filtered.name);
+      this._logger.warn(`Metric name '${filtered.name}' is already used as a ${seenType}; recording it as a ${filtered.type} too will blend both series in charts. Use a distinct name.`);
+    }
+    this._fold(state, filtered.value);
+    this._armFlushTimer();
+  }
+  _admitNewSeries() {
+    if (this._series.size < this._config.maxSeriesPerFlush)
+      return true;
+    if (!this._seriesCapWarned) {
+      this._seriesCapWarned = true;
+      this._logger.warn(`Metric series cap reached (${this._config.maxSeriesPerFlush} per flush window); dropping new series until the next flush. Reduce attribute cardinality.`);
+    }
+    return false;
+  }
+  _fold(state, value) {
+    switch (state.type) {
+      case "count":
+        state.total = (state.total ?? 0) + value;
+        break;
+      case "gauge":
+        state.last = value;
+        break;
+      case "histogram": {
+        if (!state.hist)
+          state.hist = {
+            count: 0,
+            sum: 0,
+            min: value,
+            max: value,
+            bucketCounts: new Array(DEFAULT_HISTOGRAM_BOUNDS.length + 1).fill(0)
+          };
+        const hist = state.hist;
+        hist.count += 1;
+        hist.sum += value;
+        hist.min = Math.min(hist.min, value);
+        hist.max = Math.max(hist.max, value);
+        hist.bucketCounts[bucketIndexFor(value, DEFAULT_HISTOGRAM_BOUNDS)] += 1;
+        break;
+      }
+    }
+  }
+  _runBeforeSend(sample) {
+    const beforeSend = this._config.beforeSend;
+    if (!beforeSend)
+      return sample;
+    const fns = isArray(beforeSend) ? beforeSend : [
+      beforeSend
+    ];
+    let result = sample;
+    for (const fn of fns)
+      try {
+        const next = fn(result);
+        if (!next) {
+          this._logger.info("Metric was rejected in beforeSend function");
+          return null;
+        }
+        result = next;
+      } catch (e) {
+        this._logger.error("Error in beforeSend function for metric:", e);
+        return null;
+      }
+    return result;
+  }
+  _armFlushTimer() {
+    if (this._flushTimer.pending)
+      return;
+    this._flushTimer.arm(this._nextFlushDelay());
+  }
+  _nextFlushDelay() {
+    return Math.max(backoffDelayMs(this._config.flushIntervalMs, this._consecutiveFlushFailures, this._flushJitter, MAX_FLUSH_BACKOFF_MS), this._retryAfter.remainingMs());
+  }
+  async _doFlush() {
+    this._flushTimer.clear();
+    if (this._series.size === 0)
+      return;
+    const window = this._series;
+    this._series = new Map;
+    this._seriesCapWarned = false;
+    this._typeByName = new Map;
+    this._typeCollisionWarned = new Set;
+    const generation = this._generation;
+    const outcome = await this._instance._sendMetricsBatch(this._buildPayload(window));
+    if (generation !== this._generation)
+      return;
+    this._retryAfter.record(outcome);
+    if (outcome.kind === "retry-later") {
+      this._consecutiveFlushFailures++;
+      this._flushJitter = drawJitter();
+    } else {
+      this._consecutiveFlushFailures = 0;
+      this._flushJitter = NO_JITTER;
+    }
+    if (this._flushTimer.pending)
+      this._flushTimer.arm(this._nextFlushDelay());
+    switch (outcome.kind) {
+      case "ok":
+        return;
+      case "retry-later":
+        this._mergeWindowBack(window);
+        this._flushTimer.armNoEarlierThan(this._nextFlushDelay());
+        return;
+      case "too-large":
+        this._logger.warn("Metrics batch exceeded the server size limit and was dropped");
+        return;
+      case "fatal":
+        this._logger.error("Failed to send metrics batch:", outcome.error);
+        return;
+    }
+  }
+  _buildPayload(window) {
+    return buildOtlpMetricsPayload(this._buildMetrics(window), buildMetricsResourceAttributes(this._config, this._instance.getLibraryId(), this._instance.getLibraryVersion()), this._instance.getLibraryId(), this._instance.getLibraryVersion());
+  }
+  _buildMetrics(window) {
+    const nowNano = msToUnixNano(Date.now());
+    const byMetric = new Map;
+    for (const state of window.values()) {
+      const metricKey = seriesKey(state.type, state.name, state.unit, undefined);
+      let metric = byMetric.get(metricKey);
+      if (!metric) {
+        metric = {
+          name: state.name,
+          ...state.unit && {
+            unit: state.unit
+          }
+        };
+        if (state.type === "count")
+          metric.sum = {
+            aggregationTemporality: OTLP_TEMPORALITY_DELTA,
+            isMonotonic: true,
+            dataPoints: []
+          };
+        else if (state.type === "gauge")
+          metric.gauge = {
+            dataPoints: []
+          };
+        else
+          metric.histogram = {
+            aggregationTemporality: OTLP_TEMPORALITY_DELTA,
+            dataPoints: []
+          };
+        byMetric.set(metricKey, metric);
+      }
+      const attributes = toOtlpKeyValueList(state.attributes ?? {}, this._logger);
+      const startNano = msToUnixNano(state.windowStartMs);
+      if (state.type === "count") {
+        const dp = {
+          attributes,
+          startTimeUnixNano: startNano,
+          timeUnixNano: nowNano,
+          asDouble: state.total ?? 0
+        };
+        metric.sum.dataPoints.push(dp);
+      } else if (state.type === "gauge") {
+        const dp = {
+          attributes,
+          timeUnixNano: nowNano,
+          asDouble: state.last ?? 0
+        };
+        metric.gauge.dataPoints.push(dp);
+      } else if (state.hist) {
+        const dp = {
+          attributes,
+          startTimeUnixNano: startNano,
+          timeUnixNano: nowNano,
+          count: state.hist.count,
+          sum: state.hist.sum,
+          min: state.hist.min,
+          max: state.hist.max,
+          bucketCounts: state.hist.bucketCounts,
+          explicitBounds: DEFAULT_HISTOGRAM_BOUNDS
+        };
+        metric.histogram.dataPoints.push(dp);
+      }
+    }
+    return Array.from(byMetric.values());
+  }
+  _mergeWindowBack(window) {
+    for (const [key, old] of window) {
+      const current = this._series.get(key);
+      if (!current) {
+        if (this._admitNewSeries())
+          this._series.set(key, old);
+        continue;
+      }
+      current.windowStartMs = Math.min(current.windowStartMs, old.windowStartMs);
+      switch (current.type) {
+        case "count":
+          current.total = (current.total ?? 0) + (old.total ?? 0);
+          break;
+        case "gauge":
+          break;
+        case "histogram":
+          if (old.hist)
+            if (current.hist) {
+              current.hist.count += old.hist.count;
+              current.hist.sum += old.hist.sum;
+              current.hist.min = Math.min(current.hist.min, old.hist.min);
+              current.hist.max = Math.max(current.hist.max, old.hist.max);
+              for (let i = 0;i < current.hist.bucketCounts.length; i++)
+                current.hist.bucketCounts[i] += old.hist.bucketCounts[i];
+            } else
+              current.hist = old.hist;
+          break;
+      }
+    }
+  }
+}
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/traces/ids.mjs
+var TRACE_ID_BYTES = 16;
+var SPAN_ID_BYTES = 8;
+var TRACE_ID_HEX = 2 * TRACE_ID_BYTES;
+var SPAN_ID_HEX = 2 * SPAN_ID_BYTES;
+var INVALID_TRACE_ID = "0".repeat(TRACE_ID_HEX);
+var INVALID_SPAN_ID = "0".repeat(SPAN_ID_HEX);
+var HEX_RE = /^[0-9a-f]+$/;
+function getRandomBytes(byteLength) {
+  const bytes = new Uint8Array(byteLength);
+  const cryptoLike = globalThis.crypto;
+  if (cryptoLike && typeof cryptoLike.getRandomValues == "function")
+    try {
+      cryptoLike.getRandomValues(bytes);
+      return bytes;
+    } catch {}
+  for (let i = 0;i < byteLength; i++)
+    bytes[i] = Math.floor(256 * Math.random());
+  return bytes;
+}
+function bytesToHex(bytes) {
+  let hex = "";
+  for (let i = 0;i < bytes.length; i++)
+    hex += bytes[i].toString(16).padStart(2, "0");
+  return hex;
+}
+function randomHexId(byteLength) {
+  const hex = bytesToHex(getRandomBytes(byteLength));
+  return /[^0]/.test(hex) ? hex : hex.slice(0, -1) + "1";
+}
+function newTraceId() {
+  return randomHexId(TRACE_ID_BYTES);
+}
+function newSpanId() {
+  return randomHexId(SPAN_ID_BYTES);
+}
+function isValidHexId(value, length, invalid) {
+  return typeof value == "string" && value.length === length && value !== invalid && HEX_RE.test(value);
+}
+function isValidTraceId(value) {
+  return isValidHexId(value, TRACE_ID_HEX, INVALID_TRACE_ID);
+}
+function isValidSpanId(value) {
+  return isValidHexId(value, SPAN_ID_HEX, INVALID_SPAN_ID);
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/traces/traceparent.mjs
+var TRACEPARENT_RE = /^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})(-.*)?$/;
+function parseTraceparent(value) {
+  const fields = matchTraceparent(value);
+  return fields && {
+    traceId: fields.traceId,
+    spanId: fields.spanId,
+    flags: definedFlags(fields.flags)
+  };
+}
+function definedFlags(flags) {
+  return 1 & parseInt(flags, 16) ? TRACE_FLAGS_SAMPLED : TRACE_FLAGS_UNSAMPLED;
+}
+function matchTraceparent(value) {
+  if (typeof value != "string")
+    return;
+  const match = TRACEPARENT_RE.exec(value.trim());
+  if (!match)
+    return;
+  const [, version, traceId, spanId, flags, trailing] = match;
+  if (version === "ff")
+    return;
+  if (version === "00" && trailing)
+    return;
+  if (!isValidTraceId(traceId) || !isValidSpanId(spanId))
+    return;
+  return {
+    version,
+    traceId,
+    spanId,
+    flags
+  };
+}
+function normalizeTraceparent(value) {
+  return matchTraceparent(value) && value.trim();
+}
+function traceparentHeader(value) {
+  return Array.isArray(value) && value.length === 1 ? value[0] : value;
+}
+var TRACE_FLAGS_SAMPLED = "01";
+var TRACE_FLAGS_UNSAMPLED = "00";
+function formatTraceparent(traceId, spanId, flags = TRACE_FLAGS_SAMPLED) {
+  return `00-${traceId}-${spanId}-${flags}`;
+}
+var TRACESTATE_MAX_MEMBERS = 32;
+var TRACESTATE_MAX_LENGTH = 512;
+function sanitizeTracestate(value) {
+  if (typeof value != "string")
+    return;
+  const trimmed = value.trim();
+  if (!trimmed)
+    return;
+  if (/[^\x20-\x7e\t]/.test(trimmed))
+    return;
+  const members = trimmed.split(",");
+  if (members.length > TRACESTATE_MAX_MEMBERS)
+    return;
+  for (const member of members)
+    if (member.trim() && !member.includes("="))
+      return;
+  if (trimmed.length <= TRACESTATE_MAX_LENGTH)
+    return trimmed;
+  return trimToLength(members);
+}
+var TRACESTATE_LARGE_MEMBER_LENGTH = 128;
+function trimToLength(members) {
+  const kept = [
+    ...members
+  ];
+  const joinedLength = () => kept.reduce((total, member) => total + member.length, 0) + kept.length - 1;
+  for (let index = kept.length - 1;index >= 0 && joinedLength() > TRACESTATE_MAX_LENGTH; index--)
+    if (kept[index].length > TRACESTATE_LARGE_MEMBER_LENGTH)
+      kept.splice(index, 1);
+  while (kept.length && joinedLength() > TRACESTATE_MAX_LENGTH)
+    kept.pop();
+  return kept.length ? kept.join(",") : undefined;
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/traces/sanitize.mjs
+var FALLBACK_SPAN_NAME = "unknown";
+var MAX_TIMESTAMP_MS = 9223372036854;
+var MIN_TIMESTAMP_MS = 0;
+var DEEP_BACKDATE_WARNING_MS = 86400000;
+function sanitizeName(name, label, maxLength, logger) {
+  if (typeof name == "string" && name.trim())
+    return name.length > maxLength ? name.slice(0, maxLength) : name;
+  logger?.debug(`${label} must be a non-empty string; using "${FALLBACK_SPAN_NAME}"`);
+  return FALLBACK_SPAN_NAME;
+}
+function toEpochMs(value) {
+  if (value == null)
+    return;
+  let ms = value;
+  if (value instanceof Date)
+    try {
+      ms = value.getTime();
+    } catch {
+      return;
+    }
+  if (typeof ms != "number" || !Number.isFinite(ms))
+    return;
+  if (ms < MIN_TIMESTAMP_MS || ms > MAX_TIMESTAMP_MS)
+    return;
+  return ms;
+}
+function resolveStartTime(value, now, logger) {
+  const supplied = toEpochMs(value);
+  if (supplied === undefined) {
+    if (value !== undefined)
+      logger?.debug("Span startTime is out of range or not a valid time; using the current time");
+    return now;
+  }
+  if (now - supplied > DEEP_BACKDATE_WARNING_MS)
+    logger?.debug("Span startTime is more than 24 hours in the past; the server will clamp it to receive time and keep the original in $originalTimestamp");
+  else if (supplied > now)
+    logger?.debug("Span startTime is in the future; the span may export with a zero duration");
+  return supplied;
+}
+function clampEndTime(endTime, startTime) {
+  return endTime < startTime ? startTime : endTime;
+}
+function resolveSuppliedTime(value, derived, label, logger) {
+  const supplied = toEpochMs(value);
+  if (supplied === undefined) {
+    if (value !== undefined)
+      logger?.debug(`Span ${label} is out of range or not a valid time; using the derived time`);
+    return derived;
+  }
+  return supplied;
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/traces/span.mjs
+function monotonicNow() {
+  const perf = globalThis.performance;
+  return typeof perf?.now == "function" ? perf.now() : undefined;
+}
+
+class PostHogSpan {
+  constructor(init, _onEnd, _logger) {
+    this._onEnd = _onEnd;
+    this._logger = _logger;
+    this._events = [];
+    this._ended = false;
+    this._userAttributeCount = 0;
+    this._userEventCount = 0;
+    this._droppedAttributes = 0;
+    this._droppedEvents = 0;
+    this._traceId = init.traceId;
+    this._spanId = init.spanId;
+    this._parentSpanId = init.parentSpanId;
+    this._traceState = init.traceState;
+    this._traceFlags = init.traceFlags ?? TRACE_FLAGS_SAMPLED;
+    this._parentIsRemote = init.parentIsRemote ?? false;
+    this._name = init.name;
+    this._kind = init.kind;
+    this._autoKeys = new Set(init.autoAttributeKeys);
+    this._maxAttributes = init.maxAttributes;
+    this._maxEvents = init.maxEvents;
+    this._maxAttributesPerEvent = init.maxAttributesPerEvent;
+    this._maxAttributeValueLength = init.maxAttributeValueLength;
+    this._attributes = Object.create(null);
+    for (const key of Object.keys(init.attributes))
+      this._writeAttribute(key, init.attributes[key]);
+    this._startMono = init.backdated ? undefined : monotonicNow();
+    this._startTime = init.clockAnchor && this._startMono !== undefined ? init.clockAnchor.wall + (this._startMono - init.clockAnchor.mono) : init.startTime;
+    if (this._startMono !== undefined)
+      this._clockAnchor = init.clockAnchor ?? {
+        wall: this._startTime,
+        mono: this._startMono
+      };
+  }
+  _now() {
+    if (this._startMono !== undefined) {
+      const mono = monotonicNow();
+      if (mono !== undefined)
+        return this._startTime + Math.max(0, mono - this._startMono);
+    }
+    return Date.now();
+  }
+  _mutable(operation) {
+    if (this._ended) {
+      this._logger?.debug(`Ignoring ${operation} on a span that has already ended`);
+      return false;
+    }
+    return true;
+  }
+  _writeAttribute(key, value) {
+    if (isNullish(value)) {
+      if (key in this._attributes && !this._autoKeys.has(key))
+        this._userAttributeCount--;
+      delete this._attributes[key];
+      return;
+    }
+    if (!this._autoKeys.has(key) && !(key in this._attributes)) {
+      if (this._userAttributeCount >= this._maxAttributes)
+        return void this._droppedAttributes++;
+      this._userAttributeCount++;
+    }
+    this._attributes[key] = truncateAttributeValue(value, this._maxAttributeValueLength);
+  }
+  setAttribute(key, value) {
+    if (this._mutable("setAttribute"))
+      this._writeAttribute(key, value);
+    return this;
+  }
+  setAttributes(attributes) {
+    if (this._mutable("setAttributes")) {
+      const safe = assignUserAttributes({}, attributes);
+      for (const key of Object.keys(safe))
+        this._writeAttribute(key, safe[key]);
+    }
+    return this;
+  }
+  addEvent(name, attributes, timestamp) {
+    if (this._mutable("addEvent")) {
+      if (this._userEventCount >= this._maxEvents) {
+        this._droppedEvents++;
+        return this;
+      }
+      this._userEventCount++;
+      const bounded = attributes && boundAttributes(attributes, this._maxAttributesPerEvent, this._maxAttributeValueLength);
+      this._events.push({
+        name: sanitizeName(name, "Span event name", this._maxAttributeValueLength, this._logger),
+        timestamp: resolveSuppliedTime(timestamp, this._now(), "event timestamp", this._logger),
+        ...bounded && {
+          attributes: bounded.attributes,
+          ...bounded.dropped && {
+            droppedAttributesCount: bounded.dropped
+          }
+        }
+      });
+    }
+    return this;
+  }
+  setStatus(status, message) {
+    if (this._mutable("setStatus")) {
+      if (status !== "ok" && status !== "error") {
+        this._logger?.debug(`Ignoring unknown span status "${String(status)}"; expected "ok" or "error"`);
+        return this;
+      }
+      this._status = {
+        code: status,
+        ...message && {
+          message: truncateString(message, this._maxAttributeValueLength)
+        }
+      };
+    }
+    return this;
+  }
+  get statusIsExplicitlyOk() {
+    return this._status?.code === "ok";
+  }
+  recordException(error) {
+    if (!this._mutable("recordException"))
+      return this;
+    const { type, message, stack } = describeError(error);
+    this.addEvent(EXCEPTION_EVENT_NAME, {
+      "exception.type": type,
+      "exception.message": message,
+      ...stack && {
+        "exception.stacktrace": stack
+      }
+    });
+    return this.setStatus("error", message);
+  }
+  updateName(name) {
+    if (this._mutable("updateName"))
+      this._name = sanitizeName(name, "Span name", this._maxAttributeValueLength, this._logger);
+    return this;
+  }
+  traceparent() {
+    return formatTraceparent(this._traceId, this._spanId, this._traceFlags);
+  }
+  tracestate() {
+    return this._traceState ?? null;
+  }
+  childContext() {
+    return {
+      traceId: this._traceId,
+      parentSpanId: this._spanId,
+      traceState: this._traceState,
+      traceFlags: this._traceFlags,
+      clockAnchor: this._clockAnchor
+    };
+  }
+  end(endTime) {
+    if (this._ended)
+      return void this._logger?.debug("Ignoring end() on a span that has already ended");
+    this._ended = true;
+    const derived = this._now();
+    const resolved = resolveSuppliedTime(endTime, derived, "end time", this._logger);
+    this._onEnd({
+      traceId: this._traceId,
+      spanId: this._spanId,
+      ...this._parentSpanId && {
+        parentSpanId: this._parentSpanId
+      },
+      ...this._traceState && {
+        traceState: this._traceState
+      },
+      traceFlags: this._traceFlags,
+      parentIsRemote: this._parentIsRemote,
+      name: this._name,
+      kind: this._kind,
+      ...this._status && {
+        status: this._status
+      },
+      attributes: {
+        ...this._attributes
+      },
+      events: this._events,
+      startTime: this._startTime,
+      endTime: clampEndTime(resolved, this._startTime),
+      ...this._droppedAttributes && {
+        droppedAttributesCount: this._droppedAttributes
+      },
+      ...this._droppedEvents && {
+        droppedEventsCount: this._droppedEvents
+      }
+    }, this._autoKeys);
+  }
+}
+var EXCEPTION_EVENT_NAME = "exception";
+var MAX_UINT32 = 4294967295;
+function safeString(value) {
+  try {
+    return typeof value == "string" ? value : String(value);
+  } catch {
+    return UNSERIALIZABLE_VALUE;
+  }
+}
+function nonNegativeCount(value) {
+  if (typeof value != "number" || !Number.isFinite(value) || value <= 0)
+    return 0;
+  return Math.min(Math.floor(value), MAX_UINT32);
+}
+function orderedKeys(attributes, keysBeforeHook) {
+  if (!keysBeforeHook.length)
+    return Object.keys(attributes);
+  const beforeHook = keysBeforeHook.filter((key) => Object.prototype.propertyIsEnumerable.call(attributes, key));
+  const seen = new Set(beforeHook);
+  return [
+    ...beforeHook,
+    ...Object.keys(attributes).filter((key) => !seen.has(key))
+  ];
+}
+function applySpanLimits(record, autoKeys, maxAttributes, maxEvents, maxAttributesPerEvent, maxAttributeValueLength, keysBeforeHook = []) {
+  let kept = 0;
+  let droppedAttributes = 0;
+  const attributes = {};
+  for (const key of orderedKeys(record.attributes, keysBeforeHook)) {
+    const value = record.attributes[key];
+    if (!isNullish(value)) {
+      if (!autoKeys.has(key)) {
+        if (kept >= maxAttributes) {
+          droppedAttributes++;
+          continue;
+        }
+        kept++;
+      }
+      Object.defineProperty(attributes, key, {
+        value: truncateAttributeValue(value, maxAttributeValueLength),
+        enumerable: true,
+        writable: true,
+        configurable: true
+      });
+    }
+  }
+  record.attributes = attributes;
+  if (droppedAttributes)
+    record.droppedAttributesCount = nonNegativeCount(record.droppedAttributesCount) + droppedAttributes;
+  let keptEvents = 0;
+  let droppedEvents = 0;
+  const events = [];
+  for (const event of record.events) {
+    if (keptEvents >= maxEvents) {
+      droppedEvents++;
+      continue;
+    }
+    keptEvents++;
+    if (event.attributes) {
+      const bounded = boundAttributes(event.attributes, maxAttributesPerEvent, maxAttributeValueLength);
+      event.attributes = bounded.attributes;
+      if (bounded.dropped)
+        event.droppedAttributesCount = nonNegativeCount(event.droppedAttributesCount) + bounded.dropped;
+    }
+    events.push(event);
+  }
+  record.events = events;
+  if (droppedEvents)
+    record.droppedEventsCount = nonNegativeCount(record.droppedEventsCount) + droppedEvents;
+  if (record.status?.message)
+    record.status = {
+      ...record.status,
+      message: truncateString(safeString(record.status.message), maxAttributeValueLength)
+    };
+}
+
+class NoopSpan {
+  setAttribute() {
+    return this;
+  }
+  setAttributes() {
+    return this;
+  }
+  addEvent() {
+    return this;
+  }
+  setStatus() {
+    return this;
+  }
+  recordException() {
+    return this;
+  }
+  updateName() {
+    return this;
+  }
+  traceparent() {
+    return null;
+  }
+  tracestate() {
+    return null;
+  }
+  end() {}
+}
+var NOOP_SPAN = /* @__PURE__ */ new NoopSpan;
+
+class PassThroughSpan extends NoopSpan {
+  constructor(_traceparent, _tracestate) {
+    super(), this._traceparent = _traceparent, this._tracestate = _tracestate;
+  }
+  traceparent() {
+    return this._traceparent;
+  }
+  tracestate() {
+    return this._tracestate ?? null;
+  }
+}
+function readStack(error) {
+  try {
+    const stack = error.stack;
+    return typeof stack == "string" && stack ? {
+      stack
+    } : {};
+  } catch {
+    return {};
+  }
+}
+function inertSpan(options, active) {
+  const parent = traceparentHeader(options?.parent) ?? active;
+  const inbound = typeof parent == "string" || parent == null ? parent : readHandle(parent, "traceparent");
+  const traceparent = normalizeTraceparent(inbound);
+  if (!traceparent)
+    return NOOP_SPAN;
+  const tracestate = typeof parent == "string" || parent == null ? options?.tracestate : readHandle(parent, "tracestate");
+  return new PassThroughSpan(traceparent, sanitizeTracestate(tracestate));
+}
+function readHandle(parent, method) {
+  try {
+    const fn = parent[method];
+    return typeof fn == "function" ? fn.call(parent) : undefined;
+  } catch {
+    return;
+  }
+}
+function truncateString(value, maxLength) {
+  return value.length > maxLength ? value.slice(0, maxLength) : value;
+}
+function truncateAttributeValue(value, maxLength) {
+  return truncateValue(value, maxLength, {
+    ancestors: new WeakSet,
+    remainingNodes: MAX_JSON_SAFE_VALUE_NODES
+  }, 0);
+}
+function truncateValue(value, maxLength, state, depth) {
+  if (value === null || typeof value != "object") {
+    if (isNullish(value))
+      return value;
+    if (state.remainingNodes <= 0)
+      return value;
+    state.remainingNodes--;
+    return typeof value == "string" ? truncateString(value, maxLength) : value;
+  }
+  if (state.ancestors.has(value))
+    return CIRCULAR_VALUE;
+  if (state.remainingNodes <= 0 || depth >= MAX_JSON_SAFE_VALUE_DEPTH)
+    return value;
+  state.remainingNodes--;
+  state.ancestors.add(value);
+  try {
+    if (value instanceof Date)
+      return value;
+    const resolved = resolveToJson(value);
+    if (resolved.selfDescribed)
+      return isNullish(resolved.value) ? String(resolved.value) : truncateValue(resolved.value, maxLength, state, depth + 1);
+    if (isArray(value)) {
+      const walked = Math.min(value.length, MAX_JSON_SAFE_VALUE_ITEMS);
+      const boundedItems = [];
+      for (let index = 0;index < walked; index++)
+        try {
+          boundedItems.push(truncateValue(value[index], maxLength, state, depth + 1));
+        } catch {
+          boundedItems.push(UNSERIALIZABLE_VALUE);
+        }
+      if (value.length > walked)
+        boundedItems.length = value.length;
+      return boundedItems;
+    }
+    const bounded = {};
+    let emittable = 0;
+    for (const key of Object.keys(value)) {
+      if (emittable >= MAX_JSON_SAFE_VALUE_ITEMS)
+        break;
+      let boundedItem;
+      try {
+        boundedItem = truncateValue(value[key], maxLength, state, depth + 1);
+      } catch {
+        boundedItem = UNSERIALIZABLE_VALUE;
+      }
+      if (key && !isNullish(boundedItem))
+        emittable++;
+      Object.defineProperty(bounded, key, {
+        value: boundedItem,
+        enumerable: true,
+        writable: true,
+        configurable: true
+      });
+    }
+    return bounded;
+  } catch {
+    return value;
+  } finally {
+    state.ancestors.delete(value);
+  }
+}
+function resolveToJson(value) {
+  try {
+    const toJSON = value.toJSON;
+    if (typeof toJSON == "function")
+      return {
+        selfDescribed: true,
+        value: toJSON.call(value)
+      };
+  } catch {}
+  return {
+    selfDescribed: false
+  };
+}
+function boundAttributes(source, max, maxLength) {
+  let keys;
+  try {
+    keys = Object.keys(source);
+  } catch {
+    return {
+      attributes: {},
+      dropped: 0
+    };
+  }
+  const attributes = {};
+  let kept = 0;
+  let dropped = 0;
+  for (const key of keys) {
+    if (kept >= max) {
+      dropped++;
+      continue;
+    }
+    let value;
+    try {
+      value = truncateAttributeValue(source[key], maxLength);
+    } catch {
+      value = UNSERIALIZABLE_VALUE;
+    }
+    if (!isNullish(value)) {
+      kept++;
+      Object.defineProperty(attributes, key, {
+        value,
+        enumerable: true,
+        writable: true,
+        configurable: true
+      });
+    }
+  }
+  return {
+    attributes,
+    dropped
+  };
+}
+function truncateAttributes(attributes, maxLength) {
+  for (const key of Object.keys(attributes))
+    attributes[key] = truncateAttributeValue(attributes[key], maxLength);
+  return attributes;
+}
+function runWithActiveSpan(contextManager, span, fn) {
+  return span === NOOP_SPAN ? fn(span) : contextManager.with(span, () => fn(span));
+}
+function describeError(error) {
+  try {
+    const stack = readStack(error);
+    if (isError(error))
+      return {
+        type: error.name || "Error",
+        message: error.message || "",
+        ...stack
+      };
+    if (typeof error == "string")
+      return {
+        type: "string",
+        message: error
+      };
+    if (error && typeof error == "object") {
+      const maybe = error;
+      if (typeof maybe.message == "string")
+        return {
+          type: typeof maybe.name == "string" ? maybe.name : "Object",
+          message: maybe.message,
+          ...stack
+        };
+    }
+    return {
+      type: typeof error,
+      message: String(error)
+    };
+  } catch {
+    return {
+      type: typeof error,
+      message: ""
+    };
+  }
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/traces/otlp.mjs
+var SPAN_KIND_TO_OTLP = {
+  internal: 1,
+  server: 2,
+  client: 3,
+  producer: 4,
+  consumer: 5
+};
+var SPAN_STATUS_TO_OTLP = {
+  ok: 1,
+  error: 2
+};
+var TRACE_FLAGS_SAMPLED2 = 1;
+var SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE = 256;
+var SPAN_FLAGS_CONTEXT_IS_REMOTE = 512;
+function spanFlags(record) {
+  const traceFlags = parseInt(record.traceFlags, 16);
+  const w3c = Number.isFinite(traceFlags) ? 255 & traceFlags : TRACE_FLAGS_SAMPLED2;
+  return w3c | SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE | (record.parentIsRemote ? SPAN_FLAGS_CONTEXT_IS_REMOTE : 0);
+}
+function wireString(value) {
+  if (typeof value == "string")
+    return sanitizeString(value);
+  try {
+    return sanitizeString(String(value));
+  } catch {
+    return UNSERIALIZABLE_VALUE;
+  }
+}
+function spanKindToOtlp(kind) {
+  if (kind && Object.prototype.hasOwnProperty.call(SPAN_KIND_TO_OTLP, kind))
+    return SPAN_KIND_TO_OTLP[kind];
+  return SPAN_KIND_TO_OTLP.internal;
+}
+function msToUnixNanoString(ms) {
+  let whole = Math.floor(ms);
+  let fractionalNanos = Math.round((ms - whole) * 1e6);
+  if (fractionalNanos >= 1e6) {
+    whole += 1;
+    fractionalNanos = 0;
+  }
+  return String(whole) + String(fractionalNanos).padStart(6, "0");
+}
+function toOtlpEvent(event, logger) {
+  const encoded = {
+    name: wireString(event.name),
+    timeUnixNano: msToUnixNanoString(event.timestamp)
+  };
+  if (event.attributes) {
+    const attributes = toOtlpKeyValueList(event.attributes, logger);
+    if (attributes.length)
+      encoded.attributes = attributes;
+  }
+  const dropped = nonNegativeCount(event.droppedAttributesCount);
+  if (dropped)
+    encoded.droppedAttributesCount = dropped;
+  return encoded;
+}
+function buildOtlpSpan(record, logger) {
+  const span = {
+    traceId: record.traceId,
+    spanId: record.spanId,
+    name: wireString(record.name),
+    kind: spanKindToOtlp(record.kind),
+    startTimeUnixNano: msToUnixNanoString(record.startTime),
+    endTimeUnixNano: msToUnixNanoString(record.endTime),
+    flags: spanFlags(record)
+  };
+  if (record.parentSpanId)
+    span.parentSpanId = record.parentSpanId;
+  if (record.traceState)
+    span.traceState = wireString(record.traceState);
+  const attributes = toOtlpKeyValueList(record.attributes, logger);
+  if (attributes.length)
+    span.attributes = attributes;
+  if (record.events.length)
+    span.events = record.events.map((event) => toOtlpEvent(event, logger));
+  const droppedAttributes = nonNegativeCount(record.droppedAttributesCount);
+  if (droppedAttributes)
+    span.droppedAttributesCount = droppedAttributes;
+  const droppedEvents = nonNegativeCount(record.droppedEventsCount);
+  if (droppedEvents)
+    span.droppedEventsCount = droppedEvents;
+  if (record.status)
+    span.status = {
+      code: SPAN_STATUS_TO_OTLP[record.status.code],
+      ...record.status.message && {
+        message: wireString(record.status.message)
+      }
+    };
+  return span;
+}
+function buildTracesResourceAttributes(config, sdkName, sdkVersion) {
+  return buildOtlpResourceAttributes(config, sdkName, sdkVersion);
+}
+function buildOtlpTracesPayload(spans, resourceAttributes, scopeName, scopeVersion, logger) {
+  return {
+    resourceSpans: [
+      {
+        resource: {
+          attributes: toOtlpResourceKeyValueList(resourceAttributes, logger)
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: scopeName,
+              version: scopeVersion
+            },
+            spans
+          }
+        ]
+      }
+    ]
+  };
+}
+
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/traces/index.mjs
+var MAX_RETRIES_PER_BATCH = 8;
+function clockNow() {
+  return monotonicNow() ?? Date.now();
+}
+function isOwnSpan(value) {
+  try {
+    return value instanceof PostHogSpan;
+  } catch {
+    return false;
+  }
+}
+function remoteContext(header, tracestate) {
+  const remote = parseTraceparent(header);
+  if (!remote)
+    return;
+  return {
+    traceId: remote.traceId,
+    parentSpanId: remote.spanId,
+    traceState: sanitizeTracestate(tracestate),
+    traceFlags: remote.flags,
+    isRemote: true
+  };
+}
+function looksLikeSpan(value) {
+  try {
+    return typeof value.traceparent == "function";
+  } catch {
+    return false;
+  }
+}
+function isSpanRecordShape(record) {
+  return !!record.attributes && typeof record.attributes == "object" && !Array.isArray(record.attributes) && Array.isArray(record.events) && record.name !== undefined && record.kind !== undefined && record.startTime !== undefined && record.endTime !== undefined;
+}
+function restoreField(record, field, value) {
+  if (record[field] !== value)
+    record[field] = value;
+}
+function withRestoredIdentity(hooked, original) {
+  try {
+    const descriptors = Object.getOwnPropertyDescriptors(hooked);
+    for (const field of [
+      "traceId",
+      "spanId",
+      "parentSpanId",
+      "traceState"
+    ])
+      descriptors[field] = {
+        value: original[field],
+        enumerable: true,
+        writable: true,
+        configurable: true
+      };
+    return Object.create(Object.getPrototypeOf(hooked), descriptors);
+  } catch {
+    return hooked;
+  }
+}
+
+class PostHogTraces {
+  constructor(_instance, _config, _logger, _getContext, _contextManager, _onSpanQueued) {
+    this._instance = _instance;
+    this._config = _config;
+    this._logger = _logger;
+    this._getContext = _getContext;
+    this._contextManager = _contextManager;
+    this._onSpanQueued = _onSpanQueued;
+    this._queue = [];
+    this._flushTimer = new FlushTimer(() => this._flushInBackground());
+    this._flushPromise = null;
+    this._droppedSinceWarning = 0;
+    this._lastDropWarningAt = 0;
+    this._dropReasons = new Set;
+    this._consecutiveFlushFailures = 0;
+    this._flushJitter = NO_JITTER;
+    this._retryAfter = new RetryAfterWindow;
+    this._headBatchFailures = 0;
+    this._headBatchSize = 0;
+    this._headBatchChargeableAt = 0;
+    this._generation = 0;
+    this._liveSpans = new Map;
+    this._maxExportBatchSize = _config.maxExportBatchSize;
+  }
+  startSpan(name, options) {
+    if (this._instance.isDisabled || this._instance.optedOut)
+      return inertSpan(options, this._contextManager.active());
+    const explicitParent = traceparentHeader(options?.parent);
+    if (explicitParent && typeof explicitParent != "string" && !isOwnSpan(explicitParent)) {
+      if (looksLikeSpan(explicitParent)) {
+        this._logger.debug("Span parent is not a span from this SDK; returning an inert span");
+        return inertSpan(options, this._contextManager.active());
+      }
+      this._logger.debug("Ignoring an unusable span parent");
+    }
+    const parent = this._resolveParent(explicitParent, options);
+    this._evictAgedSpans();
+    if (this._liveSpans.size >= this._config.maxLiveSpans) {
+      this._recordDrop(1, `the live-span limit (${this._config.maxLiveSpans}) was reached — spans are being started and never ended`);
+      return inertSpan(options, this._contextManager.active());
+    }
+    const now = Date.now();
+    const startTime = resolveStartTime(options?.startTime, now, this._logger);
+    const spanId = newSpanId();
+    this._liveSpans.set(spanId, clockNow());
+    const autoAttributes = this._autoContextAttributes();
+    return new PostHogSpan({
+      traceId: parent?.traceId ?? newTraceId(),
+      spanId,
+      parentSpanId: parent?.parentSpanId,
+      traceState: parent?.traceState,
+      traceFlags: parent?.traceFlags,
+      parentIsRemote: parent?.isRemote,
+      name: sanitizeName(name, "Span name", this._config.maxAttributeValueLength, this._logger),
+      kind: options?.kind ?? "internal",
+      attributes: assignUserAttributes({
+        ...autoAttributes
+      }, options?.attributes),
+      autoAttributeKeys: Object.keys(autoAttributes),
+      maxAttributes: this._config.maxAttributesPerSpan,
+      maxEvents: this._config.maxEventsPerSpan,
+      maxAttributesPerEvent: this._config.maxAttributesPerEvent,
+      maxAttributeValueLength: this._config.maxAttributeValueLength,
+      startTime,
+      backdated: startTime !== now,
+      clockAnchor: toEpochMs(options?.startTime) === undefined ? parent?.clockAnchor : undefined
+    }, (record, autoKeys) => this._onSpanEnd(record, autoKeys), this._logger);
+  }
+  withSpan(name, optionsOrFn, maybeFn) {
+    const options = typeof optionsOrFn == "function" ? undefined : optionsOrFn;
+    const fn = typeof optionsOrFn == "function" ? optionsOrFn : maybeFn;
+    const span = this.startSpan(name, options);
+    try {
+      const result = runWithActiveSpan(this._contextManager, span, fn);
+      if (isPromise(result))
+        return result.then((value) => {
+          span.end();
+          return value;
+        }, (error) => {
+          this._recordCallbackError(span, error);
+          span.end();
+          throw error;
+        });
+      span.end();
+      return result;
+    } catch (error) {
+      this._recordCallbackError(span, error);
+      span.end();
+      throw error;
+    }
+  }
+  getActiveSpan() {
+    return this._contextManager.active() ?? null;
+  }
+  get throttled() {
+    return this._retryAfter.isOpen();
+  }
+  async flush() {
+    for (;; ) {
+      if (!this._queue.length)
+        return;
+      const inFlight = this._flushPromise;
+      const removed = await (inFlight ?? this._startFlush());
+      if (!removed)
+        return;
+    }
+  }
+  _startFlush() {
+    this._flushTimer.clear();
+    const startedAtGeneration = this._generation;
+    const promise = Promise.resolve().then(() => startedAtGeneration === this._generation ? this._flushInner() : 0).finally(() => {
+      if (this._flushPromise === promise)
+        this._flushPromise = null;
+      this._armFlushTimerIfQueuedNoEarlierThan();
+    });
+    this._flushPromise = promise;
+    return promise;
+  }
+  reset() {
+    this._flushTimer.clear();
+    if (this._queue.length)
+      this._logger.critical(`Discarding ${this._queue.length} span(s) that were still queued when tracing was shut down. Raise the shutdown timeout or flush earlier if they matter.`);
+    this._queue = [];
+    this._liveSpans.clear();
+    this._flushPromise = null;
+    this._generation++;
+    this._maxExportBatchSize = this._config.maxExportBatchSize;
+    this._droppedSinceWarning = 0;
+    this._dropReasons.clear();
+    this._lastDropWarningAt = 0;
+    this._consecutiveFlushFailures = 0;
+    this._flushJitter = NO_JITTER;
+    this._retryAfter.reset();
+    this._resetHeadBatchBudget();
+  }
+  _resetHeadBatchBudget() {
+    this._headBatchFailures = 0;
+    this._headBatchChargeableAt = 0;
+  }
+  _resolveParent(explicit, options) {
+    if (typeof explicit == "string") {
+      const remote = remoteContext(explicit, options?.tracestate);
+      if (!remote)
+        this._logger.debug("Ignoring malformed traceparent; starting a new trace");
+      return remote;
+    }
+    if (isOwnSpan(explicit))
+      return explicit.childContext();
+    const active = this._contextManager.active();
+    if (isOwnSpan(active))
+      return active.childContext();
+    if (active instanceof PassThroughSpan)
+      return remoteContext(active.traceparent(), active.tracestate() ?? undefined);
+  }
+  _autoContextAttributes() {
+    let context;
+    try {
+      context = this._getContext();
+    } catch (error) {
+      this._logger.debug("Failed to read tracing context; span will carry no PostHog attributes", error);
+      return {};
+    }
+    const attributes = {};
+    if (context.distinctId)
+      attributes.posthogDistinctId = context.distinctId;
+    if (context.sessionId)
+      attributes.sessionId = context.sessionId;
+    if (context.currentUrl)
+      attributes["url.full"] = context.currentUrl;
+    if (context.screenName)
+      attributes["screen.name"] = context.screenName;
+    if (context.appState)
+      attributes["app.state"] = context.appState;
+    return attributes;
+  }
+  _recordCallbackError(span, error) {
+    if (!(span instanceof PostHogSpan))
+      return;
+    const { type, message, stack } = describeError(error);
+    span.addEvent("exception", {
+      "exception.type": type,
+      "exception.message": message,
+      ...stack && {
+        "exception.stacktrace": stack
+      }
+    });
+    if (!span.statusIsExplicitlyOk)
+      span.setStatus("error", message);
+  }
+  _evictAgedSpans() {
+    const cutoff = clockNow() - this._config.maxSpanAgeMs;
+    let evicted = 0;
+    for (const [spanId, startedAt] of this._liveSpans) {
+      if (startedAt > cutoff)
+        break;
+      this._liveSpans.delete(spanId);
+      evicted++;
+    }
+    if (evicted)
+      this._recordDrop(evicted, `they were still live after ${this._config.maxSpanAgeMs}ms`);
+  }
+  _onSpanEnd(incoming, autoKeys) {
+    if (!this._liveSpans.delete(incoming.spanId))
+      return;
+    if (this._instance.isDisabled || this._instance.optedOut)
+      return void this._recordDrop(1, "the user has opted out");
+    const record = this._runBeforeSpanSend(incoming, autoKeys);
+    if (!record)
+      return;
+    this._reportLimitDrops(record);
+    if (this._queue.length >= this._config.maxQueueSize)
+      return void this._recordDrop(1, `the queue is full (${this._config.maxQueueSize}) — raise the flush frequency or reduce span volume`);
+    this._queue.push(record);
+    try {
+      this._onSpanQueued?.();
+    } catch (error) {
+      this._logger.debug("Span queue notification failed", error);
+    }
+    if (!(this._queue.length >= this._maxExportBatchSize) || this._consecutiveFlushFailures || this._retryAfter.isOpen())
+      this._armFlushTimerIfQueued();
+    else
+      this._flushInBackground();
+  }
+  _reportLimitDrops(record) {
+    const attributes = record.droppedAttributesCount ?? 0;
+    const events = record.droppedEventsCount ?? 0;
+    let eventAttributes = 0;
+    for (const event of record.events)
+      eventAttributes += event.droppedAttributesCount ?? 0;
+    if (attributes || events || eventAttributes)
+      this._logger.debug(`Span limits discarded data from "${record.name}": ${attributes} attributes, ${events} events, ${eventAttributes} event attributes`);
+  }
+  _runBeforeSpanSend(record, autoKeys) {
+    if (!this._config.beforeSpanSend.length)
+      return record;
+    const identity = {
+      traceId: record.traceId,
+      spanId: record.spanId,
+      parentSpanId: record.parentSpanId,
+      traceState: record.traceState
+    };
+    const originalTimes = {
+      startTime: record.startTime,
+      endTime: record.endTime
+    };
+    const originalDropped = {
+      attributes: record.droppedAttributesCount,
+      events: record.droppedEventsCount
+    };
+    const keysBeforeHook = Object.keys(record.attributes);
+    const originalPropagation = {
+      traceFlags: record.traceFlags,
+      parentIsRemote: record.parentIsRemote
+    };
+    const originalStatus = record.status && {
+      ...record.status
+    };
+    let hooked = record;
+    let current = record;
+    try {
+      for (const hook of this._config.beforeSpanSend) {
+        const result = hook(hooked);
+        if (!result) {
+          this._recordDrop(1, "beforeSpanSend dropped it");
+          return null;
+        }
+        hooked = this._keepSpanIdentity(result, identity);
+      }
+      const rebuilt = {
+        traceId: identity.traceId,
+        spanId: identity.spanId,
+        parentSpanId: identity.parentSpanId,
+        traceState: identity.traceState,
+        name: hooked.name,
+        kind: hooked.kind,
+        status: hooked.status,
+        attributes: hooked.attributes,
+        events: hooked.events,
+        startTime: hooked.startTime,
+        endTime: hooked.endTime,
+        traceFlags: originalPropagation.traceFlags,
+        parentIsRemote: originalPropagation.parentIsRemote,
+        droppedAttributesCount: originalDropped.attributes,
+        droppedEventsCount: originalDropped.events
+      };
+      current = rebuilt;
+      if (!isSpanRecordShape(current)) {
+        this._logger.debug("beforeSpanSend did not return a span record; dropping the span");
+        this._recordDrop(1, "beforeSpanSend returned an unusable record");
+        return null;
+      }
+      current.name = sanitizeName(current.name, "Span name", this._config.maxAttributeValueLength, this._logger);
+      if (current.status && current.status.code !== "ok" && current.status.code !== "error") {
+        this._logger.debug("beforeSpanSend set an unknown span status; keeping the original");
+        current.status = originalStatus;
+      }
+      current.startTime = toEpochMs(current.startTime) ?? originalTimes.startTime;
+      current.endTime = clampEndTime(toEpochMs(current.endTime) ?? originalTimes.endTime, current.startTime);
+      const sanitizedEvents = [];
+      for (const event of current.events)
+        try {
+          sanitizedEvents.push({
+            ...event,
+            name: sanitizeName(event.name, "Span event name", this._config.maxAttributeValueLength, this._logger),
+            timestamp: resolveSuppliedTime(event.timestamp, current.startTime, "event timestamp", this._logger)
+          });
+        } catch {
+          this._logger.debug("beforeSpanSend left an unreadable span event; dropping it");
+        }
+      current.events = sanitizedEvents;
+      applySpanLimits(current, autoKeys, this._config.maxAttributesPerSpan, this._config.maxEventsPerSpan, this._config.maxAttributesPerEvent, this._config.maxAttributeValueLength, keysBeforeHook);
+      return current;
+    } catch (error) {
+      this._logger.debug("beforeSpanSend failed; dropping the span rather than exporting it unscrubbed", error);
+      this._recordDrop(1, "beforeSpanSend failed");
+      return null;
+    }
+  }
+  _keepSpanIdentity(hooked, original) {
+    if (hooked.traceId !== original.traceId || hooked.spanId !== original.spanId || hooked.parentSpanId !== original.parentSpanId)
+      this._logger.debug("beforeSpanSend changed a span identity field; keeping the original ids");
+    try {
+      restoreField(hooked, "traceId", original.traceId);
+      restoreField(hooked, "spanId", original.spanId);
+      restoreField(hooked, "parentSpanId", original.parentSpanId);
+      restoreField(hooked, "traceState", original.traceState);
+    } catch {
+      return withRestoredIdentity(hooked, original);
+    }
+    return hooked;
+  }
+  _recordDrop(count, reason) {
+    this._droppedSinceWarning += count;
+    this._dropReasons.add(reason);
+    if (Date.now() - this._lastDropWarningAt >= this._config.flushIntervalMs)
+      this._warnAboutDrops();
+  }
+  _warnAboutDrops() {
+    if (!this._droppedSinceWarning)
+      return;
+    this._lastDropWarningAt = Date.now();
+    this._logger.warn(`Dropping ${this._droppedSinceWarning} span(s): ${[
+      ...this._dropReasons
+    ].join("; ")}`);
+    this._droppedSinceWarning = 0;
+    this._dropReasons.clear();
+  }
+  _encodeBatch(batch) {
+    const encoded = [];
+    for (const record of batch)
+      try {
+        encoded.push(buildOtlpSpan(record, this._logger));
+      } catch (error) {
+        this._logger.debug("Failed to encode a span; dropping it", error);
+        this._recordDrop(1, "its attributes could not be encoded");
+      }
+    return encoded;
+  }
+  _discardQueueIfConsentWithdrawn() {
+    if (!this._instance.isDisabled && !this._instance.optedOut)
+      return 0;
+    const discarded = this._queue.length;
+    this._queue = [];
+    this._resetHeadBatchBudget();
+    this._recordDrop(discarded, "the user has opted out");
+    this._warnAboutDrops();
+    return discarded;
+  }
+  async _flushInner() {
+    if (!this._queue.length)
+      return 0;
+    const discardedBeforeDrain = this._discardQueueIfConsentWithdrawn();
+    if (discardedBeforeDrain)
+      return discardedBeforeDrain;
+    const resourceAttributes = truncateAttributes(buildTracesResourceAttributes(this._config, this._instance.getLibraryId(), this._instance.getLibraryVersion()), this._config.maxAttributeValueLength);
+    const scopeName = this._instance.getLibraryId();
+    const scopeVersion = this._instance.getLibraryVersion();
+    let remaining = this._queue.length;
+    let removed = 0;
+    let localCap = 1 / 0;
+    const generation = this._generation;
+    try {
+      while (remaining > 0 && this._queue.length > 0) {
+        const discardedMidDrain = this._discardQueueIfConsentWithdrawn();
+        if (discardedMidDrain)
+          return removed + discardedMidDrain;
+        const cap = this._headBatchFailures > 0 ? Math.min(this._maxExportBatchSize, this._headBatchSize) : this._maxExportBatchSize;
+        const size = Math.max(1, Math.min(cap, localCap, remaining, this._queue.length));
+        const batch = this._queue.slice(0, size);
+        const spans = this._encodeBatch(batch);
+        if (!spans.length) {
+          this._queue.splice(0, size);
+          remaining -= size;
+          removed += size;
+          this._resetHeadBatchBudget();
+          continue;
+        }
+        const chargeable = clockNow() >= this._headBatchChargeableAt && !this._retryAfter.isOpen();
+        const outcome = await this._instance._sendTracesBatch(buildOtlpTracesPayload(spans, resourceAttributes, scopeName, scopeVersion, this._logger));
+        if (generation !== this._generation)
+          break;
+        this._retryAfter.record(outcome);
+        if (outcome.kind === "ok") {
+          this._consecutiveFlushFailures = 0;
+          this._flushJitter = NO_JITTER;
+          this._resetHeadBatchBudget();
+          this._queue.splice(0, size);
+          remaining -= size;
+          removed += size;
+          if (this._maxExportBatchSize < this._config.maxExportBatchSize)
+            this._maxExportBatchSize++;
+          continue;
+        }
+        if (outcome.kind === "too-large") {
+          if (size === 1) {
+            this._queue.splice(0, 1);
+            remaining -= 1;
+            removed += 1;
+            this._recordDrop(1, "it is too large for the ingestion endpoint");
+            this._consecutiveFlushFailures = 0;
+            this._flushJitter = NO_JITTER;
+            this._resetHeadBatchBudget();
+            continue;
+          }
+          const halved = Math.max(1, Math.floor(size / 2));
+          if (outcome.measuredLocally)
+            localCap = halved;
+          else
+            this._maxExportBatchSize = halved;
+          this._resetHeadBatchBudget();
+          this._logger.debug(`Batch too large; retrying the same spans in batches of ${halved}`);
+          continue;
+        }
+        if (outcome.kind === "retry-later") {
+          this._consecutiveFlushFailures++;
+          this._flushJitter = drawJitter();
+          this._headBatchSize = size;
+          if (chargeable) {
+            this._headBatchFailures++;
+            this._headBatchChargeableAt = clockNow() + this._nextFlushDelay();
+          }
+          if (this._headBatchFailures < MAX_RETRIES_PER_BATCH) {
+            this._logger.debug("Span export failed; retrying on the next flush", outcome.error);
+            return removed;
+          }
+          this._queue.splice(0, size);
+          remaining -= size;
+          removed += size;
+          this._consecutiveFlushFailures = 0;
+          this._flushJitter = NO_JITTER;
+          this._resetHeadBatchBudget();
+          this._recordDrop(size, `the ingestion endpoint failed ${MAX_RETRIES_PER_BATCH} times in a row`);
+          if (this._retryAfter.isOpen())
+            return removed;
+          continue;
+        }
+        this._logger.debug("Dropping a span batch the ingestion endpoint rejected", outcome.error);
+        this._queue.splice(0, size);
+        remaining -= size;
+        removed += size;
+        this._consecutiveFlushFailures = 0;
+        this._flushJitter = NO_JITTER;
+        this._resetHeadBatchBudget();
+        this._recordDrop(size, "the ingestion endpoint rejected the batch");
+      }
+      return removed;
+    } finally {
+      this._warnAboutDrops();
+    }
+  }
+  _flushInBackground() {
+    if (this._backgroundFlush)
+      return;
+    this._backgroundFlush = this.flush().catch((error) => {
+      this._logger.debug("Background span flush failed", error);
+    }).finally(() => {
+      this._backgroundFlush = undefined;
+      this._armFlushTimerIfQueuedNoEarlierThan();
+    });
+  }
+  _armFlushTimerIfQueued() {
+    if (this._flushTimer.pending || !this._queue.length)
+      return;
+    this._flushTimer.arm(this._nextFlushDelay());
+  }
+  _armFlushTimerIfQueuedNoEarlierThan() {
+    if (!this._queue.length)
+      return;
+    this._flushTimer.armNoEarlierThan(this._nextFlushDelay());
+  }
+  _nextFlushDelay() {
+    return Math.max(backoffDelayMs(this._config.flushIntervalMs, this._consecutiveFlushFailures, this._flushJitter, MAX_FLUSH_BACKOFF_MS), this._retryAfter.remainingMs());
+  }
+}
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/traces/context.mjs
+class SyncSpanContextManager {
+  active() {
+    return this._active;
+  }
+  with(span, fn) {
+    const previous = this._active;
+    this._active = span;
+    try {
+      return fn();
+    } finally {
+      this._active = previous;
+    }
+  }
+}
+// ../../../node_modules/.bun/@posthog+core@1.55.0/node_modules/@posthog/core/dist/traces/config.mjs
+var DEFAULT_FLUSH_INTERVAL_MS2 = 5000;
+var DEFAULT_MAX_EXPORT_BATCH_SIZE = 512;
+var DEFAULT_MAX_QUEUE_SIZE = 2048;
+var DEFAULT_MAX_ATTRIBUTES_PER_SPAN = 128;
+var DEFAULT_MAX_EVENTS_PER_SPAN = 128;
+var DEFAULT_MAX_ATTRIBUTES_PER_EVENT = 128;
+var DEFAULT_MAX_ATTRIBUTE_VALUE_LENGTH = 8192;
+var DEFAULT_MAX_LIVE_SPANS = 1e4;
+var DEFAULT_MAX_SPAN_AGE_MS = 3600000;
+function positiveInteger(value, fallback) {
+  return typeof value == "number" && Number.isInteger(value) && value >= 1 ? value : fallback;
+}
+var IDENTITY_KEYS = [
+  "service.name",
+  "service.version",
+  "deployment.environment"
+];
+function withUsableIdentityKeys(attributes) {
+  if (!attributes || typeof attributes != "object" || Array.isArray(attributes))
+    return;
+  try {
+    if (IDENTITY_KEYS.every((key) => !(key in attributes) || typeof attributes[key] == "string"))
+      return attributes;
+    const usable = {
+      ...attributes
+    };
+    for (const key of IDENTITY_KEYS)
+      if (key in usable && typeof usable[key] != "string")
+        delete usable[key];
+    return usable;
+  } catch {
+    return;
+  }
+}
+function resolveBeforeSpanSend(beforeSpanSend, logger) {
+  if (!beforeSpanSend)
+    return [];
+  const supplied = [
+    beforeSpanSend
+  ].flat().filter((hook) => Boolean(hook));
+  const hooks = supplied.filter((hook) => typeof hook == "function");
+  if (hooks.length !== supplied.length)
+    logger?.critical(`beforeSpanSend: ignoring ${supplied.length - hooks.length} of ${supplied.length} entries that are not functions. Spans export without them, so whatever they were redacting is not redacted.`);
+  return hooks;
+}
+function resolveTracesConfig(config, hostResourceAttributes, logger) {
+  const resourceAttributes = assignUserAttributes({
+    ...hostResourceAttributes
+  }, withUsableIdentityKeys(config?.resourceAttributes));
+  const maxExportBatchSize = positiveInteger(config?.maxExportBatchSize, DEFAULT_MAX_EXPORT_BATCH_SIZE);
+  return {
+    serviceName: resourceAttributes?.["service.name"] ?? config?.serviceName,
+    serviceVersion: resourceAttributes?.["service.version"] ?? config?.serviceVersion,
+    environment: resourceAttributes?.["deployment.environment"] ?? config?.environment,
+    resourceAttributes,
+    beforeSpanSend: resolveBeforeSpanSend(config?.beforeSpanSend, logger),
+    maxAttributesPerSpan: positiveInteger(config?.maxAttributesPerSpan, DEFAULT_MAX_ATTRIBUTES_PER_SPAN),
+    maxEventsPerSpan: positiveInteger(config?.maxEventsPerSpan, DEFAULT_MAX_EVENTS_PER_SPAN),
+    maxAttributesPerEvent: DEFAULT_MAX_ATTRIBUTES_PER_EVENT,
+    maxAttributeValueLength: positiveInteger(config?.maxAttributeValueLength, DEFAULT_MAX_ATTRIBUTE_VALUE_LENGTH),
+    flushIntervalMs: positiveInteger(config?.flushIntervalMs, DEFAULT_FLUSH_INTERVAL_MS2),
+    maxExportBatchSize,
+    maxQueueSize: Math.max(positiveInteger(config?.maxQueueSize, DEFAULT_MAX_QUEUE_SIZE), maxExportBatchSize),
+    maxLiveSpans: positiveInteger(config?.maxLiveSpans, DEFAULT_MAX_LIVE_SPANS),
+    maxSpanAgeMs: positiveInteger(config?.maxSpanAgeMs, DEFAULT_MAX_SPAN_AGE_MS)
+  };
+}
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/context-lines.node.mjs
 import { constants as constants2 } from "node:fs";
 import { open as promises_open } from "node:fs/promises";
 import { isAbsolute } from "node:path";
@@ -4133,7 +6532,7 @@ function snipLine(line, colno) {
   return newLine;
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/relative-path.node.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/relative-path.node.mjs
 import { isAbsolute as isAbsolute2, relative, sep as sep2 } from "node:path";
 function createRelativePathModifier(basePath = process.cwd()) {
   const isWindows = sep2 === "\\";
@@ -4149,10 +6548,10 @@ function createRelativePathModifier(basePath = process.cwd()) {
   };
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/version.mjs
-var version = "5.51.1";
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/version.mjs
+var version = "5.52.4";
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/types.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/types.mjs
 var FeatureFlagError2 = {
   ERRORS_WHILE_COMPUTING: "errors_while_computing_flags",
   FLAG_MISSING: "flag_missing",
@@ -4160,7 +6559,7 @@ var FeatureFlagError2 = {
   UNKNOWN_ERROR: "unknown_error"
 };
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/feature-flag-evaluations.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/feature-flag-evaluations.mjs
 class FeatureFlagEvaluations {
   constructor(init) {
     this._host = init.host;
@@ -4293,23 +6692,8 @@ class FeatureFlagEvaluations {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/feature-flags/crypto.mjs
-async function hashSHA1(text) {
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle)
-    throw new Error("SubtleCrypto API not available");
-  const hashBuffer = await subtle.digest("SHA-1", new TextEncoder().encode(text));
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/feature-flags/feature-flags.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/extensions/feature-flags/feature-flags.mjs
 var SIXTY_SECONDS = 60000;
-var LONG_SCALE = 1152921504606847000;
-var NULL_VALUES_ALLOWED_OPERATORS = [
-  "is_not",
-  "is_set"
-];
 
 class ClientError extends Error {
   constructor(message) {
@@ -4326,13 +6710,6 @@ function setCustomErrorPrototype(error, constructor) {
   Object.setPrototypeOf(error, constructor.prototype);
 }
 
-class InconclusiveMatchError extends Error {
-  constructor(message) {
-    super(message);
-    setCustomErrorPrototype(this, InconclusiveMatchError);
-  }
-}
-
 class RequiresServerEvaluation extends Error {
   constructor(message) {
     super(message);
@@ -4346,6 +6723,7 @@ class FeatureFlagsPoller {
     this.shouldBeginExponentialBackoff = false;
     this.backOffCount = 0;
     this.pollerStopped = false;
+    this.filteredOutFlagKeys = new Set;
     this.pollingInterval = pollingInterval;
     this.personalApiKey = personalApiKey;
     this.featureFlags = [];
@@ -4364,6 +6742,7 @@ class FeatureFlagsPoller {
     this.onMinimalFlagCalledEvents = options.onMinimalFlagCalledEvents;
     this.cacheProvider = options.cacheProvider;
     this.strictLocalEvaluation = options.strictLocalEvaluation ?? false;
+    this.evaluationContexts = options.evaluationContexts;
     this.loadFeatureFlags();
   }
   debug(enabled = true) {
@@ -4495,23 +6874,7 @@ class FeatureFlagsPoller {
     return distinctId;
   }
   getFeatureFlagPayload(key, flagValue) {
-    let payload = null;
-    if (flagValue !== false && flagValue != null) {
-      if (typeof flagValue == "boolean")
-        payload = this.featureFlagsByKey?.[key]?.filters?.payloads?.[flagValue.toString()] || null;
-      else if (typeof flagValue == "string")
-        payload = this.featureFlagsByKey?.[key]?.filters?.payloads?.[flagValue] || null;
-      if (payload != null) {
-        if (typeof payload == "object")
-          return payload;
-        if (typeof payload == "string")
-          try {
-            return JSON.parse(payload);
-          } catch {}
-        return payload;
-      }
-    }
-    return null;
+    return resolveFeatureFlagPayload(this.featureFlagsByKey?.[key]?.filters?.payloads, flagValue);
   }
   async evaluateFlagDependency(property, properties, evaluationContext) {
     const { evaluationCache } = evaluationContext;
@@ -4538,6 +6901,8 @@ class FeatureFlagsPoller {
             }
           else
             evaluationCache[depFlagKey] = false;
+        else if (this.filteredOutFlagKeys.has(depFlagKey))
+          evaluationCache[depFlagKey] = false;
         else
           throw new InconclusiveMatchError(`Missing flag dependency '${depFlagKey}' for flag '${targetFlagKey}'`);
       }
@@ -4590,8 +6955,11 @@ class FeatureFlagsPoller {
           result = variantOverride && flagVariants.some((variant) => variant.key === variantOverride) ? variantOverride : await this.getMatchingVariant(flag, effectiveBucketingValue) || true;
           break;
         }
-        if (earlyExitEnabled && matchResult === "out_of_rollout_bound")
+        if (earlyExitEnabled && matchResult === "out_of_rollout_bound") {
+          if (isInconclusive)
+            break;
           return false;
+        }
       } catch (e) {
         if (e instanceof RequiresServerEvaluation)
           throw e;
@@ -4626,36 +6994,33 @@ class FeatureFlagsPoller {
       if (rolloutPercentage == undefined)
         return "match";
     }
-    if (rolloutPercentage != null && await _hash(flag.key, bucketingValue) > rolloutPercentage / 100)
+    if (rolloutPercentage != null && await getFeatureFlagHash(flag.key, bucketingValue) > rolloutPercentage / 100)
       return "out_of_rollout_bound";
     return "match";
   }
   async getMatchingVariant(flag, bucketingValue) {
-    const hashValue = await _hash(flag.key, bucketingValue, "variant");
-    const matchingVariant = this.variantLookupTable(flag).find((variant) => hashValue >= variant.valueMin && hashValue < variant.valueMax);
-    if (matchingVariant)
-      return matchingVariant.key;
+    return getFeatureFlagVariant(flag.key, bucketingValue, flag.filters?.multivariate?.variants || []);
   }
   variantLookupTable(flag) {
-    const lookupTable = [];
-    let valueMin = 0;
-    let valueMax = 0;
-    const flagFilters = flag.filters || {};
-    const multivariates = flagFilters.multivariate?.variants || [];
-    multivariates.forEach((variant) => {
-      valueMax = valueMin + variant.rollout_percentage / 100;
-      lookupTable.push({
-        valueMin,
-        valueMax,
-        key: variant.key
-      });
-      valueMin = valueMax;
+    return getFeatureFlagVariantLookupTable(flag.filters?.multivariate?.variants || []);
+  }
+  filterFlagsByEvaluationContexts(flags) {
+    if (!this.evaluationContexts || this.evaluationContexts.length === 0)
+      return flags;
+    const contexts = new Set(this.evaluationContexts);
+    return flags.filter((flag) => {
+      const tags = flag.evaluation_contexts ?? flag.evaluation_tags;
+      if (!tags || tags.length === 0)
+        return true;
+      return tags.some((tag) => contexts.has(tag));
     });
-    return lookupTable;
   }
   updateFlagState(flagData) {
-    this.featureFlags = flagData.flags;
-    this.featureFlagsByKey = flagData.flags.reduce((acc, curr) => (acc[curr.key] = curr, acc), {});
+    const flags = this.filterFlagsByEvaluationContexts(flagData.flags);
+    this.featureFlags = flags;
+    this.featureFlagsByKey = flags.reduce((acc, curr) => (acc[curr.key] = curr, acc), {});
+    const keptKeys = new Set(flags.map((flag) => flag.key));
+    this.filteredOutFlagKeys = new Set(flagData.flags.filter((flag) => !keptKeys.has(flag.key)).map((flag) => flag.key));
     this.groupTypeMapping = flagData.groupTypeMapping;
     this.cohorts = flagData.cohorts;
     this.loadedSuccessfullyOnce = true;
@@ -4677,7 +7042,7 @@ class FeatureFlagsPoller {
         this.updateFlagState(cached);
         this.logMsgIfDebug(() => console.debug(`[FEATURE FLAGS] ${debugMessage} (${cached.flags.length} flags)`));
         this.onLoad?.(this.featureFlags.length);
-        this.warnAboutExperienceContinuityFlags(cached.flags);
+        this.warnAboutExperienceContinuityFlags(this.featureFlags);
         return true;
       }
       return false;
@@ -4755,6 +7120,7 @@ class FeatureFlagsPoller {
           console.warn("[FEATURE FLAGS] Feature flags quota limit exceeded - unsetting all local flags. Learn more about billing limits at https://posthog.com/docs/billing/limits-alerts");
           this.featureFlags = [];
           this.featureFlagsByKey = {};
+          this.filteredOutFlagKeys = new Set;
           this.groupTypeMapping = {};
           this.cohorts = {};
           this.onMinimalFlagCalledEvents?.(false);
@@ -4786,7 +7152,7 @@ class FeatureFlagsPoller {
               this.onError?.(new Error(`Failed to store in cache: ${err}`));
             }
           this.onLoad?.(this.featureFlags.length);
-          this.warnAboutExperienceContinuityFlags(flagData.flags);
+          this.warnAboutExperienceContinuityFlags(this.featureFlags);
           break;
         }
         default:
@@ -4872,136 +7238,10 @@ class FeatureFlagsPoller {
       }
   }
 }
-async function _hash(key, bucketingValue, salt = "") {
-  const hashString = await hashSHA1(`${key}.${bucketingValue}${salt}`);
-  return parseInt(hashString.slice(0, 15), 16) / LONG_SCALE;
-}
 function matchProperty(property, propertyValues, warnFunction) {
-  const key = property.key;
-  const value = property.value;
-  const operator = property.operator || "exact";
-  if (key in propertyValues) {
-    if (operator === "is_not_set")
-      return false;
-  } else {
-    if (operator === "is_not_set")
-      return true;
-    throw new InconclusiveMatchError(`Property ${key} not found in propertyValues`);
-  }
-  const overrideValue = propertyValues[key];
-  if (overrideValue == null && !NULL_VALUES_ALLOWED_OPERATORS.includes(operator)) {
-    if (warnFunction)
-      warnFunction(`Property ${key} cannot have a value of null/undefined with the ${operator} operator`);
-    return false;
-  }
-  function computeExactMatch(value, overrideValue) {
-    if (Array.isArray(value))
-      return value.map((val) => String(val).toLowerCase()).includes(String(overrideValue).toLowerCase());
-    return String(value).toLowerCase() === String(overrideValue).toLowerCase();
-  }
-  function compare(lhs, rhs, operator) {
-    if (operator === "gt")
-      return lhs > rhs;
-    if (operator === "gte")
-      return lhs >= rhs;
-    if (operator === "lt")
-      return lhs < rhs;
-    if (operator === "lte")
-      return lhs <= rhs;
-    throw new Error(`Invalid operator: ${operator}`);
-  }
-  switch (operator) {
-    case "exact":
-      return computeExactMatch(value, overrideValue);
-    case "is_not":
-      return !computeExactMatch(value, overrideValue);
-    case "is_set":
-      return key in propertyValues;
-    case "icontains":
-      return String(overrideValue).toLowerCase().includes(String(value).toLowerCase());
-    case "not_icontains":
-      return !String(overrideValue).toLowerCase().includes(String(value).toLowerCase());
-    case "starts_with":
-      return String(overrideValue).toLowerCase().startsWith(String(value).toLowerCase());
-    case "not_starts_with":
-      return !String(overrideValue).toLowerCase().startsWith(String(value).toLowerCase());
-    case "ends_with":
-      return String(overrideValue).toLowerCase().endsWith(String(value).toLowerCase());
-    case "not_ends_with":
-      return !String(overrideValue).toLowerCase().endsWith(String(value).toLowerCase());
-    case "regex":
-      return isValidRegex(String(value)) && String(overrideValue).match(String(value)) !== null;
-    case "not_regex":
-      return isValidRegex(String(value)) && String(overrideValue).match(String(value)) === null;
-    case "gt":
-    case "gte":
-    case "lt":
-    case "lte": {
-      const parsedValue = typeof value == "number" ? value : parseFloat(String(value));
-      let parsedOverride;
-      parsedOverride = typeof overrideValue == "number" ? overrideValue : overrideValue != null ? parseFloat(String(overrideValue)) : NaN;
-      if (Number.isFinite(parsedValue) && Number.isFinite(parsedOverride))
-        return compare(parsedOverride, parsedValue, operator);
-      return compare(String(overrideValue), String(value), operator);
-    }
-    case "is_date_after":
-    case "is_date_before": {
-      if (typeof value == "boolean")
-        throw new InconclusiveMatchError("Date operations cannot be performed on boolean values");
-      let parsedDate = relativeDateParseForFeatureFlagMatching(String(value));
-      if (parsedDate == null)
-        parsedDate = convertToDateTime(value);
-      if (parsedDate == null)
-        throw new InconclusiveMatchError(`Invalid date: ${value}`);
-      const overrideDate = convertToDateTime(overrideValue);
-      if ([
-        "is_date_before"
-      ].includes(operator))
-        return overrideDate < parsedDate;
-      return overrideDate > parsedDate;
-    }
-    case "semver_eq": {
-      const cmp = compareSemverTuples(parseSemver(String(overrideValue)), parseSemver(String(value)));
-      return cmp === 0;
-    }
-    case "semver_neq": {
-      const cmp = compareSemverTuples(parseSemver(String(overrideValue)), parseSemver(String(value)));
-      return cmp !== 0;
-    }
-    case "semver_gt": {
-      const cmp = compareSemverTuples(parseSemver(String(overrideValue)), parseSemver(String(value)));
-      return cmp > 0;
-    }
-    case "semver_gte": {
-      const cmp = compareSemverTuples(parseSemver(String(overrideValue)), parseSemver(String(value)));
-      return cmp >= 0;
-    }
-    case "semver_lt": {
-      const cmp = compareSemverTuples(parseSemver(String(overrideValue)), parseSemver(String(value)));
-      return cmp < 0;
-    }
-    case "semver_lte": {
-      const cmp = compareSemverTuples(parseSemver(String(overrideValue)), parseSemver(String(value)));
-      return cmp <= 0;
-    }
-    case "semver_tilde": {
-      const overrideParsed = parseSemver(String(overrideValue));
-      const { lower, upper } = computeTildeBounds(String(value));
-      return compareSemverTuples(overrideParsed, lower) >= 0 && compareSemverTuples(overrideParsed, upper) < 0;
-    }
-    case "semver_caret": {
-      const overrideParsed = parseSemver(String(overrideValue));
-      const { lower, upper } = computeCaretBounds(String(value));
-      return compareSemverTuples(overrideParsed, lower) >= 0 && compareSemverTuples(overrideParsed, upper) < 0;
-    }
-    case "semver_wildcard": {
-      const overrideParsed = parseSemver(String(overrideValue));
-      const { lower, upper } = computeWildcardBounds(String(value));
-      return compareSemverTuples(overrideParsed, lower) >= 0 && compareSemverTuples(overrideParsed, upper) < 0;
-    }
-    default:
-      throw new InconclusiveMatchError(`Unknown operator: ${operator}`);
-  }
+  return matchFeatureFlagProperty(property, propertyValues, {
+    warnFunction
+  });
 }
 function checkCohortExists(cohortId, cohortProperties) {
   if (!(cohortId in cohortProperties))
@@ -5081,181 +7321,8 @@ async function matchPropertyGroup(propertyGroup, propertyValues, cohortPropertie
     throw new InconclusiveMatchError("can't match cohort without a given cohort property value");
   return propertyGroupType === "AND";
 }
-function isValidRegex(regex) {
-  try {
-    new RegExp(regex);
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
-function parseSemverNumericIdentifier(part, raw) {
-  if (!/^\d+$/.test(part))
-    throw new InconclusiveMatchError(`Invalid semver: ${raw}`);
-  if (part.length > 1 && part[0] === "0")
-    throw new InconclusiveMatchError(`Invalid semver: ${raw}`);
-  return parseInt(part, 10);
-}
-function parseSemver(value) {
-  const text = String(value).trim().replace(/^[vV]/, "");
-  const baseVersion = text.split("-")[0].split("+")[0];
-  if (!baseVersion || baseVersion.startsWith("."))
-    throw new InconclusiveMatchError(`Invalid semver: ${value}`);
-  const parts = baseVersion.split(".");
-  const parsePart = (part) => {
-    if (part === undefined || part === "")
-      return 0;
-    return parseSemverNumericIdentifier(part, value);
-  };
-  const major = parsePart(parts[0]);
-  const minor = parsePart(parts[1]);
-  const patch = parsePart(parts[2]);
-  return [
-    major,
-    minor,
-    patch
-  ];
-}
-function compareSemverTuples(a, b) {
-  for (let i = 0;i < 3; i++) {
-    if (a[i] < b[i])
-      return -1;
-    if (a[i] > b[i])
-      return 1;
-  }
-  return 0;
-}
-function computeTildeBounds(value) {
-  const parsed = parseSemver(value);
-  const lower = [
-    parsed[0],
-    parsed[1],
-    parsed[2]
-  ];
-  const upper = [
-    parsed[0],
-    parsed[1] + 1,
-    0
-  ];
-  return {
-    lower,
-    upper
-  };
-}
-function computeCaretBounds(value) {
-  const parsed = parseSemver(value);
-  const [major, minor, patch] = parsed;
-  const lower = [
-    major,
-    minor,
-    patch
-  ];
-  let upper;
-  upper = major > 0 ? [
-    major + 1,
-    0,
-    0
-  ] : minor > 0 ? [
-    0,
-    minor + 1,
-    0
-  ] : [
-    0,
-    0,
-    patch + 1
-  ];
-  return {
-    lower,
-    upper
-  };
-}
-function computeWildcardBounds(value) {
-  const text = String(value).trim().replace(/^[vV]/, "");
-  const cleanedText = text.replace(/\.\*$/, "").replace(/\*$/, "");
-  if (!cleanedText)
-    throw new InconclusiveMatchError(`Invalid wildcard semver: ${value}`);
-  const parts = cleanedText.split(".");
-  const parseWildcardPart = (part) => {
-    try {
-      return parseSemverNumericIdentifier(part, value);
-    } catch {
-      throw new InconclusiveMatchError(`Invalid wildcard semver: ${value}`);
-    }
-  };
-  const major = parseWildcardPart(parts[0]);
-  let lower;
-  let upper;
-  if (parts.length === 1) {
-    lower = [
-      major,
-      0,
-      0
-    ];
-    upper = [
-      major + 1,
-      0,
-      0
-    ];
-  } else {
-    const minor = parseWildcardPart(parts[1]);
-    lower = [
-      major,
-      minor,
-      0
-    ];
-    upper = [
-      major,
-      minor + 1,
-      0
-    ];
-  }
-  return {
-    lower,
-    upper
-  };
-}
-function convertToDateTime(value) {
-  if (value instanceof Date)
-    return value;
-  if (typeof value == "string" || typeof value == "number") {
-    const date = new Date(value);
-    if (!isNaN(date.valueOf()))
-      return date;
-    throw new InconclusiveMatchError(`${value} is in an invalid date format`);
-  }
-  throw new InconclusiveMatchError(`The date provided ${value} must be a string, number, or date object`);
-}
-function relativeDateParseForFeatureFlagMatching(value) {
-  const regex = /^-?(?<number>[0-9]+)(?<interval>[a-z])$/;
-  const match = value.match(regex);
-  const parsedDt = new Date(new Date().toISOString());
-  if (!match)
-    return null;
-  {
-    if (!match.groups)
-      return null;
-    const number = parseInt(match.groups["number"]);
-    if (number >= 1e4)
-      return null;
-    const interval = match.groups["interval"];
-    if (interval == "h")
-      parsedDt.setUTCHours(parsedDt.getUTCHours() - number);
-    else if (interval == "d")
-      parsedDt.setUTCDate(parsedDt.getUTCDate() - number);
-    else if (interval == "w")
-      parsedDt.setUTCDate(parsedDt.getUTCDate() - 7 * number);
-    else if (interval == "m")
-      parsedDt.setUTCMonth(parsedDt.getUTCMonth() - number);
-    else {
-      if (interval != "y")
-        return null;
-      parsedDt.setUTCFullYear(parsedDt.getUTCFullYear() - number);
-    }
-    return parsedDt;
-  }
-}
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/autocapture.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/extensions/error-tracking/autocapture.mjs
 var UNHANDLED_REJECTION_OPTION_NAMES = [
   "--unhandled-rejections",
   "--unhandled_rejections"
@@ -5353,7 +7420,7 @@ function addUnhandledRejectionListener(captureFn, mode = STARTUP_UNHANDLED_REJEC
   });
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/index.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/extensions/error-tracking/index.mjs
 var SHUTDOWN_TIMEOUT = 2000;
 
 class error_tracking_ErrorTracking {
@@ -5423,8 +7490,9 @@ class error_tracking_ErrorTracking {
     this._rateLimiter.stop();
   }
 }
+var error_tracking_default = error_tracking_ErrorTracking;
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/storage-memory.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/storage-memory.mjs
 class PostHogMemoryStorage {
   getProperty(key) {
     return this._memoryStorage[key];
@@ -5437,16 +7505,16 @@ class PostHogMemoryStorage {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/config.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/capture-v1/config.mjs
 function isCaptureMode(value) {
   return value === "v0" || value === "v1";
 }
 function resolveCaptureMode() {
-  const envMode = typeof process != "undefined" ? process.env?.POSTHOG_CAPTURE_MODE : undefined;
+  const envMode = "u" > typeof process ? process.env?.POSTHOG_CAPTURE_MODE : undefined;
   return isCaptureMode(envMode) ? envMode : "v0";
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/routing.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/capture-v1/routing.mjs
 var AI_EVENT_PREFIX = "$ai_";
 var ANALYTICS_ROUTE = "analytics";
 var AI_ROUTE = "ai";
@@ -5454,7 +7522,7 @@ function isLegacyOnlyEvent(message) {
   return typeof message.event == "string" && message.event.startsWith(AI_EVENT_PREFIX);
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/errors.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/capture-v1/errors.mjs
 class CaptureV1Error extends Error {
   constructor({ requestId, drops, retryExhausted, cause }) {
     super(CaptureV1Error.buildMessage(requestId, drops, retryExhausted, cause)), this.name = "CaptureV1Error";
@@ -5471,7 +7539,7 @@ class CaptureV1Error extends Error {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/transform.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/capture-v1/transform.mjs
 function coerceBool(value) {
   if (typeof value == "boolean")
     return value;
@@ -5586,7 +7654,7 @@ function buildV1Batch(messages, { createdAt, historicalMigration }) {
   return batch;
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/sender.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/capture-v1/sender.mjs
 var V1_ANALYTICS_PATH = "/i/v1/analytics/events";
 var DEFAULT_MAX_BACKOFF_MS = 30000;
 var RETRYABLE_STATUSES = new Set([
@@ -5839,13 +7907,13 @@ class V1CaptureSender {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/ai-capture/routing.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/ai-capture/routing.mjs
 var AI_CAPTURE_ROUTE = "ai-capture";
 var AI_CAPTURE_ENDPOINT_PATH = "/i/v0/ai/batch/";
 var AI_MAX_EVENT_BYTES = 8388608;
 var AI_BATCH_TARGET_BYTES = 5242880;
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/ai-capture/batching.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/ai-capture/batching.mjs
 var encoder = new TextEncoder;
 function eventByteSize(message) {
   return encoder.encode(safeJsonStringify(message)).length;
@@ -5882,7 +7950,7 @@ function partitionAiBatch(messages, maxEventBytes = AI_MAX_EVENT_BYTES, targetBa
   };
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/client.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/client.mjs
 var MINIMUM_POLLING_INTERVAL = 100;
 var THIRTY_SECONDS = 30000;
 var MAX_CACHE_SIZE = 50000;
@@ -5968,10 +8036,11 @@ class PostHogBackendClient extends PostHogCoreStateless {
           },
           customHeaders: this.getCustomHeaders(),
           cacheProvider: normalizedOptions.flagDefinitionCacheProvider,
-          strictLocalEvaluation: normalizedOptions.strictLocalEvaluation
+          strictLocalEvaluation: normalizedOptions.strictLocalEvaluation,
+          evaluationContexts: normalizedOptions.evaluationContexts ?? normalizedOptions.evaluationEnvironments
         });
     }
-    this.errorTracking = new error_tracking_ErrorTracking(this, normalizedOptions, this._logger);
+    this.errorTracking = new error_tracking_default(this, normalizedOptions, this._logger);
     this.distinctIdHasSentFlagCalls = {};
     this.maxCacheSize = normalizedOptions.maxCacheSize || MAX_CACHE_SIZE;
   }
@@ -5979,8 +8048,26 @@ class PostHogBackendClient extends PostHogCoreStateless {
     super.enqueue(type, message, options, explicitRoute);
     this.scheduleDebouncedFlush();
   }
+  _flushEventsAndSpans(skipThrottledSpans = false) {
+    const events = this.flushWithPendingPromises();
+    if (!this._traces || skipThrottledSpans && this._traces.throttled)
+      return events;
+    return allSettled([
+      events,
+      this._traces.flush().catch(() => {})
+    ]).then(([eventsResult]) => {
+      if (eventsResult.status === "rejected")
+        throw eventsResult.reason;
+    });
+  }
+  flushAutomatic() {
+    return this._flushKeepingRuntimeAlive(true);
+  }
   async flush() {
-    const flushPromise = this.flushWithPendingPromises();
+    return this._flushKeepingRuntimeAlive(false);
+  }
+  _flushKeepingRuntimeAlive(skipThrottledSpans) {
+    const flushPromise = this._flushEventsAndSpans(skipThrottledSpans);
     const waitUntil = this.options.waitUntil;
     if (waitUntil && !this._waitUntilCycle)
       try {
@@ -6033,7 +8120,7 @@ class PostHogBackendClient extends PostHogCoreStateless {
   async resolveWaitUntilFlush() {
     const resolve = this._consumeWaitUntilCycle();
     try {
-      await this.flushWithPendingPromises();
+      await this._flushEventsAndSpans();
     } catch {} finally {
       resolve?.();
     }
@@ -6135,8 +8222,50 @@ class PostHogBackendClient extends PostHogCoreStateless {
       this._metrics = new PostHogMetrics(this, resolveMetricsConfig(this.options.metrics), this._logger);
     return this._metrics;
   }
+  initializeSpanContextManager() {
+    return new SyncSpanContextManager;
+  }
+  hostResourceAttributes() {
+    return {};
+  }
+  get _spanContextManager() {
+    if (!this._spanContext)
+      this._spanContext = this.initializeSpanContextManager();
+    return this._spanContext;
+  }
+  get _tracesPipeline() {
+    if (!this.options.traces)
+      return;
+    if (!this._traces)
+      this._traces = new PostHogTraces(this, resolveTracesConfig(this.options.traces, this.hostResourceAttributes(), this._logger), this._logger, () => this._tracingContext(), this._spanContextManager, () => this.scheduleDebouncedFlush());
+    return this._traces;
+  }
+  _tracingContext() {
+    const context = this.context?.get();
+    return {
+      distinctId: context?.distinctId,
+      sessionId: context?.sessionId
+    };
+  }
+  startSpan(name, options) {
+    return this._tracesPipeline?.startSpan(name, options) ?? inertSpan(options, this._spanContextManager.active());
+  }
+  withSpan(name, optionsOrFn, maybeFn) {
+    const options = typeof optionsOrFn == "function" ? undefined : optionsOrFn;
+    const fn = typeof optionsOrFn == "function" ? optionsOrFn : maybeFn;
+    const pipeline = this._tracesPipeline;
+    if (!pipeline)
+      return runWithActiveSpan(this._spanContextManager, inertSpan(options, this._spanContextManager.active()), fn);
+    return options ? pipeline.withSpan(name, options, fn) : pipeline.withSpan(name, fn);
+  }
+  getActiveSpan() {
+    return this._spanContextManager.active() ?? null;
+  }
   getCustomUserAgent() {
     return `${this.getLibraryId()}/${this.getLibraryVersion()}`;
+  }
+  getEvaluationRuntime() {
+    return "server";
   }
   getCommonEventProperties() {
     const commonProperties = super.getCommonEventProperties();
@@ -6625,7 +8754,16 @@ class PostHogBackendClient extends PostHogCoreStateless {
         flags: {}
       });
     }
-    const { groups, disableGeoip, flagKeys } = resolvedOptions || {};
+    const { groups, disableGeoip } = resolvedOptions || {};
+    const flagKeys = resolvedOptions?.flagKeys ?? undefined;
+    if (flagKeys?.length === 0)
+      return new FeatureFlagEvaluations({
+        host: this._getFeatureFlagEvaluationsHost(),
+        distinctId: resolvedDistinctId,
+        groups,
+        disableGeoip,
+        flags: {}
+      });
     let { onlyEvaluateLocally, personProperties, groupProperties } = resolvedOptions || {};
     const adjustedProperties = this.addLocalPersonAndGroupProperties(resolvedDistinctId, groups, personProperties, groupProperties);
     personProperties = adjustedProperties.allPersonProperties;
@@ -6879,6 +9017,10 @@ class PostHogBackendClient extends PostHogCoreStateless {
       await raceWithTimeout(this._metrics.flush().catch(() => {}), Math.max(0, shutdownDeadlineMs - Date.now()));
       this._metrics.reset();
     }
+    if (this._traces) {
+      await raceWithTimeout(this._traces.flush().catch(() => {}), Math.max(0, shutdownDeadlineMs - Date.now()));
+      this._traces.reset();
+    }
     try {
       return await super._shutdown(Math.max(0, shutdownDeadlineMs - Date.now()));
     } finally {
@@ -7007,9 +9149,9 @@ class PostHogBackendClient extends PostHogCoreStateless {
     };
   }
   captureException(error, distinctId, additionalProperties, uuid, flags) {
-    if (!error_tracking_ErrorTracking.isPreviouslyCapturedError(error)) {
+    if (!error_tracking_default.isPreviouslyCapturedError(error)) {
       const syntheticException = new Error("PostHog syntheticException");
-      this.addPendingPromise(error_tracking_ErrorTracking.buildEventMessage(this.getErrorPropertiesBuilder(), error, {
+      this.addPendingPromise(error_tracking_default.buildEventMessage(this.getErrorPropertiesBuilder(), error, {
         syntheticException
       }, distinctId, additionalProperties).then((msg) => this._capturePreparedEvent({
         ...msg,
@@ -7019,9 +9161,9 @@ class PostHogBackendClient extends PostHogCoreStateless {
     }
   }
   async captureExceptionImmediate(error, distinctId, additionalProperties, flags) {
-    if (!error_tracking_ErrorTracking.isPreviouslyCapturedError(error)) {
+    if (!error_tracking_default.isPreviouslyCapturedError(error)) {
       const syntheticException = new Error("PostHog syntheticException");
-      return this.addPendingPromise(error_tracking_ErrorTracking.buildEventMessage(this.getErrorPropertiesBuilder(), error, {
+      return this.addPendingPromise(error_tracking_default.buildEventMessage(this.getErrorPropertiesBuilder(), error, {
         syntheticException
       }, distinctId, additionalProperties).then((msg) => this.captureImmediate({
         ...msg,
@@ -7131,7 +9273,7 @@ class PostHogBackendClient extends PostHogCoreStateless {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/context/context.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/extensions/context/context.mjs
 import { AsyncLocalStorage } from "node:async_hooks";
 
 class PostHogContext {
@@ -7162,7 +9304,22 @@ class PostHogContext {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/gzip.node.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/extensions/context/span-context.node.mjs
+import { AsyncLocalStorage as AsyncLocalStorage2 } from "node:async_hooks";
+
+class AsyncLocalStorageSpanContextManager {
+  active() {
+    return this._storage.getStore();
+  }
+  with(span, fn) {
+    return this._storage.run(span, fn);
+  }
+  constructor() {
+    this._storage = new AsyncLocalStorage2;
+  }
+}
+
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/gzip.node.mjs
 import { gzip } from "node:zlib";
 import { promisify } from "node:util";
 var gzipAsync = promisify(gzip);
@@ -7177,7 +9334,19 @@ async function gzipCompress2(input, isDebug = true) {
   }
 }
 
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/sentry-integration.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/host-os.node.mjs
+import { platform, release as release2 } from "node:os";
+function hostOsResourceAttributes() {
+  let osName;
+  let osVersion;
+  try {
+    osName = platform();
+    osVersion = release2();
+  } catch {}
+  return osResourceAttributes(osName, osVersion);
+}
+
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/extensions/sentry-integration.mjs
 var NAME = "posthog-node";
 function createEventProcessor(_posthog, { organization, projectId, prefix, severityAllowList = [
   "error"
@@ -7232,7 +9401,9 @@ function createEventProcessor(_posthog, { organization, projectId, prefix, sever
   };
 }
 class PostHogSentryIntegration {
-  static #_ = this.POSTHOG_ID_TAG = "posthog_distinct_id";
+  static {
+    this.POSTHOG_ID_TAG = "posthog_distinct_id";
+  }
   constructor(_posthog, organization, prefix, severityAllowList, sendExceptionsToPostHog) {
     this.name = NAME;
     this.name = NAME;
@@ -7248,7 +9419,7 @@ class PostHogSentryIntegration {
     };
   }
 }
-// ../../../node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/entrypoints/index.node.mjs
+// ../../../node_modules/.bun/posthog-node@5.52.4/node_modules/posthog-node/dist/entrypoints/index.node.mjs
 class PostHog extends PostHogBackendClient {
   getLibraryId() {
     return "posthog-node";
@@ -7258,6 +9429,12 @@ class PostHog extends PostHogBackendClient {
   }
   initializeContext() {
     return new PostHogContext;
+  }
+  initializeSpanContextManager() {
+    return new AsyncLocalStorageSpanContextManager;
+  }
+  hostResourceAttributes() {
+    return hostOsResourceAttributes();
   }
   createErrorPropertiesBuilder() {
     return new ErrorPropertiesBuilder([

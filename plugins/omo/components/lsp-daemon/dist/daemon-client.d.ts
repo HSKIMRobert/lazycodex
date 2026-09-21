@@ -8,6 +8,8 @@ export interface CallToolOptions {
     requestTimeoutMs?: number;
     signal?: AbortSignal;
     ensure?: (paths: DaemonPaths, signal?: AbortSignal) => Promise<void>;
+    probe?: (paths: DaemonPaths, signal?: AbortSignal) => Promise<boolean>;
+    sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 export declare function callToolViaDaemon(name: string, args: Record<string, unknown>, options: CallToolOptions): Promise<ToolExecutionResult>;
 export declare function callDiagnosticsViaDaemon(filePath: string, options: CallToolOptions): Promise<ToolExecutionResult>;
