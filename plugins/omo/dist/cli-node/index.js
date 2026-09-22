@@ -65,7 +65,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.83",
+    version: "5.0.0-beta.84",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -248,7 +248,7 @@ var init_package = __esm(() => {
       zod: "^4.6.5"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.22-2",
+      "@code-yeongyu/senpi": "2026.9.22-4",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -288,18 +288,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.83",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.83",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.83",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.83",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.83",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.83",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.83",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.83",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.83",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.83",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.83",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.83"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.84",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.84",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.84",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.84",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.84",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.84",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.84",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.84",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.84",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.84",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.84",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.84"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -7181,7 +7181,7 @@ var init_agent_model_requirements = __esm(() => {
       fallbackChain: [
         {
           providers: ["anthropic", "github-copilot", "opencode"],
-          model: "claude-opus-5",
+          model: "claude-opus-5-5",
           variant: "max"
         },
         {
@@ -7189,7 +7189,7 @@ var init_agent_model_requirements = __esm(() => {
           model: "kimi-k3"
         },
         {
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",
           variant: "medium"
         },
@@ -7201,17 +7201,17 @@ var init_agent_model_requirements = __esm(() => {
     hephaestus: {
       fallbackChain: [
         {
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",
           variant: "medium"
         }
       ],
-      requiresProvider: ["openai", "openai-codex", "github-copilot", "opencode"],
+      requiresProvider: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
       requiresAnyModel: true
     },
     oracle: {
       fallbackChain: [
-        { providers: ["openai", "openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "xhigh" },
+        { providers: ["openai", "chatgpt-subscription", "opencode"], model: "gpt-5.6-sol", variant: "xhigh" },
         { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "high" },
         {
           providers: ["google", "github-copilot", "opencode"],
@@ -7220,7 +7220,7 @@ var init_agent_model_requirements = __esm(() => {
         },
         {
           providers: ["anthropic", "github-copilot", "opencode"],
-          model: "claude-opus-5",
+          model: "claude-opus-5-5",
           variant: "max"
         },
         { providers: ["opencode-go"], model: "glm-5.2" }
@@ -7229,35 +7229,35 @@ var init_agent_model_requirements = __esm(() => {
     librarian: {
       fallbackChain: [
         { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
-        { providers: ["openai", "openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
         { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
         { providers: ["opencode-go"], model: "minimax-m3" },
         { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
         { providers: ["opencode-go"], model: "minimax-m2.7" },
         { providers: ["anthropic", "github-copilot"], model: "claude-haiku-4-5" },
-        { providers: ["openai", "openai-codex"], model: "gpt-5.4-nano" }
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.4-nano" }
       ]
     },
     explore: {
       fallbackChain: [
         { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
-        { providers: ["openai", "openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
         { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
         { providers: ["opencode-go"], model: "minimax-m3" },
         { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
         { providers: ["opencode-go"], model: "minimax-m2.7" },
         { providers: ["anthropic", "github-copilot"], model: "claude-haiku-4-5" },
-        { providers: ["openai", "openai-codex"], model: "gpt-5.4-nano" }
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.4-nano" }
       ]
     },
     "multimodal-looker": {
       fallbackChain: [
-        { providers: ["openai", "openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "low" },
+        { providers: ["openai", "chatgpt-subscription", "opencode"], model: "gpt-5.6-sol", variant: "low" },
         { providers: ["opencode-go"], model: "kimi-k3" },
         { providers: ["zai-coding-plan"], model: "glm-4.6v" },
-        { providers: ["openai", "openai-codex", "github-copilot", "opencode"], model: "gpt-5-nano" }
+        { providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"], model: "gpt-5-nano" }
       ]
     },
     prometheus: {
@@ -7283,7 +7283,7 @@ var init_agent_model_requirements = __esm(() => {
         },
         {
           providers: ["anthropic", "github-copilot", "opencode"],
-          model: "claude-opus-5",
+          model: "claude-opus-5-5",
           variant: "max"
         },
         {
@@ -7295,12 +7295,12 @@ var init_agent_model_requirements = __esm(() => {
     },
     momus: {
       fallbackChain: [
-        { providers: ["openai", "openai-codex"], model: "gpt-6-astra", variant: "xhigh" },
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-astra", variant: "xhigh" },
         { providers: ["github-copilot"], model: "gpt-6-astra", variant: "high" },
-        { providers: ["openai", "openai-codex", "opencode"], model: "gpt-6-astra", variant: "high" },
+        { providers: ["openai", "chatgpt-subscription", "opencode"], model: "gpt-6-astra", variant: "high" },
         {
           providers: ["anthropic", "github-copilot", "opencode"],
-          model: "claude-opus-5",
+          model: "claude-opus-5-5",
           variant: "max"
         },
         {
@@ -7316,7 +7316,7 @@ var init_agent_model_requirements = __esm(() => {
         { providers: ["anthropic", "github-copilot", "opencode"], model: "claude-sonnet-5" },
         { providers: ["opencode-go"], model: "kimi-k3" },
         {
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",
           variant: "medium"
         },
@@ -7330,7 +7330,7 @@ var init_agent_model_requirements = __esm(() => {
         { providers: ["anthropic", "github-copilot", "opencode"], model: "claude-sonnet-5" },
         { providers: ["opencode-go"], model: "kimi-k3" },
         {
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",
           variant: "medium"
         },
@@ -7356,7 +7356,7 @@ var init_category_model_requirements = __esm(() => {
         },
         {
           providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-          model: "claude-opus-5",
+          model: "claude-opus-5-5",
           variant: "max"
         },
         {
@@ -7368,18 +7368,18 @@ var init_category_model_requirements = __esm(() => {
     },
     ultrabrain: {
       fallbackChain: [
-        { providers: ["openai", "openai-codex"], model: "gpt-6-astra", variant: "max" },
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-astra", variant: "max" },
         { providers: ["github-copilot"], model: "gpt-6-astra", variant: "max" },
-        { providers: ["openai", "openai-codex", "opencode"], model: "gpt-6-astra", variant: "max" },
-        { providers: ["openai", "openai-codex"], model: "gpt-5.6-sol", variant: "max" },
+        { providers: ["openai", "chatgpt-subscription", "opencode"], model: "gpt-6-astra", variant: "max" },
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.6-sol", variant: "max" },
         { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "max" },
-        { providers: ["openai", "openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "max" }
+        { providers: ["openai", "chatgpt-subscription", "opencode"], model: "gpt-5.6-sol", variant: "max" }
       ]
     },
     "deep-low": {
       fallbackChain: [
         {
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",
           variant: "medium"
         }
@@ -7388,7 +7388,7 @@ var init_category_model_requirements = __esm(() => {
     "deep-high": {
       fallbackChain: [
         {
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-6-astra",
           variant: "high"
         }
@@ -7408,14 +7408,14 @@ var init_category_model_requirements = __esm(() => {
         },
         {
           providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-          model: "claude-opus-5",
-          variant: "xhigh"
+          model: "claude-opus-5-5",
+          variant: "max"
         }
       ]
     },
     quick: {
       fallbackChain: [
-        { providers: ["openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
+        { providers: ["chatgpt-subscription"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "off" },
         {
           providers: ["qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan"],
@@ -7437,7 +7437,7 @@ var init_category_model_requirements = __esm(() => {
         { providers: ["xiaomi", "opencode-go"], model: "mimo-v2.6-pro", variant: "max" },
         { providers: ["xai", "github-copilot", "opencode-go"], model: "grok-4.7", variant: "xhigh" },
         {
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5.6-terra",
           variant: "high"
         },
@@ -7459,8 +7459,8 @@ var init_category_model_requirements = __esm(() => {
       fallbackChain: [
         {
           providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-          model: "claude-opus-5",
-          variant: "xhigh"
+          model: "claude-opus-5-5",
+          variant: "max"
         },
         { providers: ["zai-coding-plan", "opencode-go"], model: "glm-5.3", variant: "max" },
         {
@@ -7478,14 +7478,14 @@ var init_category_model_requirements = __esm(() => {
           variant: "low"
         },
         {
-          providers: ["kimi-for-coding", "moonshotai", "opencode-go", "opencode"],
-          model: "kimi-k3",
+          providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
+          model: "claude-opus-5-5",
           variant: "low"
         },
         {
           providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
           model: "claude-opus-4-6",
-          variant: "low"
+          variant: "max"
         }
       ]
     }
@@ -9368,7 +9368,7 @@ var init_openai_categories = __esm(() => {
     },
     {
       name: "unspecified-high",
-      config: { model: "anthropic/claude-opus-5", variant: "xhigh" },
+      config: { model: "anthropic/claude-opus-5-5", variant: "max" },
       description: "Tasks that don't fit other categories, high effort required",
       callerGuidance: UNSPECIFIED_HIGH_CATEGORY_CALLER_GUIDANCE,
       promptAppend: UNSPECIFIED_HIGH_CATEGORY_PROMPT_APPEND,
@@ -64329,6 +64329,216 @@ var init_model_capabilities_generated = __esm(() => {
           context: 500000,
           output: 500000
         }
+      },
+      "claude-opus-5-5": {
+        id: "claude-opus-5-5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
+      "claude-opus-5-5@default": {
+        id: "claude-opus-5-5@default",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
+      "anthropic/claude-opus-5.5": {
+        id: "anthropic/claude-opus-5.5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
+      "au.anthropic.claude-opus-5-5": {
+        id: "au.anthropic.claude-opus-5-5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
+      "anthropic.claude-opus-5-5": {
+        id: "anthropic.claude-opus-5-5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
+      "eu.anthropic.claude-opus-5-5": {
+        id: "eu.anthropic.claude-opus-5-5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
+      "global.anthropic.claude-opus-5-5": {
+        id: "global.anthropic.claude-opus-5-5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
+      "jp.anthropic.claude-opus-5-5": {
+        id: "jp.anthropic.claude-opus-5-5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
+      "us.anthropic.claude-opus-5-5": {
+        id: "us.anthropic.claude-opus-5-5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
+      },
+      "anthropic/claude-opus-5-5": {
+        id: "anthropic/claude-opus-5-5",
+        family: "claude-opus",
+        reasoning: true,
+        temperature: false,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 128000
+        }
       }
     }
   };
@@ -77840,6 +78050,63 @@ var init_harness_native_rename = __esm(() => {
   init_src4();
 });
 
+// packages/omo-opencode/src/config-migration/subscription-provider-rename.ts
+function renameProviderId(providerId) {
+  return LEGACY_PROVIDER_IDS[providerId];
+}
+function renameModelReference(modelReference) {
+  const providerSeparator = modelReference.indexOf("/");
+  if (providerSeparator <= 0)
+    return;
+  const canonicalProvider = renameProviderId(modelReference.slice(0, providerSeparator));
+  if (canonicalProvider === undefined)
+    return;
+  const modelPartVerbatim = modelReference.slice(providerSeparator);
+  return `${canonicalProvider}${modelPartVerbatim}`;
+}
+function rewriteValue(value, path, rewrites) {
+  if (typeof value === "string") {
+    const renamed = renameModelReference(value) ?? renameProviderId(value);
+    if (renamed === undefined)
+      return value;
+    rewrites.push({ from: value, path, to: renamed });
+    return renamed;
+  }
+  if (Array.isArray(value))
+    return value.map((entry, index) => rewriteValue(entry, `${path}[${index}]`, rewrites));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => {
+      const canonicalKey = renameModelReference(key) ?? renameProviderId(key);
+      const nextKey = canonicalKey ?? key;
+      if (canonicalKey !== undefined)
+        rewrites.push({ from: key, path: `${path}.${key}`, to: canonicalKey });
+      return [nextKey, rewriteValue(entry, `${path}.${nextKey}`, rewrites)];
+    }));
+  }
+  return value;
+}
+function hasLegacySubscriptionProviderIds(document) {
+  const rewrites = [];
+  rewriteValue(document, "$", rewrites);
+  return rewrites.length > 0;
+}
+function transformSubscriptionProviderRename(document) {
+  const rewrites = [];
+  const rewritten = rewriteValue(document, "$", rewrites);
+  const next = rewritten !== null && typeof rewritten === "object" && !Array.isArray(rewritten) ? rewritten : {};
+  return {
+    diagnostics: rewrites.map((rewrite) => `${rewrite.path}: ${rewrite.from} renamed to ${rewrite.to}`),
+    document: next
+  };
+}
+var SUBSCRIPTION_PROVIDER_RENAME_MIGRATION_ID = "2026-09-subscription-provider-rename", LEGACY_PROVIDER_IDS;
+var init_subscription_provider_rename = __esm(() => {
+  LEGACY_PROVIDER_IDS = Object.freeze({
+    "claude-sdk-oauth": "anthropic-subscription",
+    "openai-codex": "chatgpt-subscription"
+  });
+});
+
 // packages/omo-opencode/src/config-migration/migration-plans.ts
 function backupTimestamp(value) {
   return value ?? new Date().toISOString().replace(/[:.]/g, "-");
@@ -77930,6 +78197,18 @@ function harnessNativeRenamePlan(targetPath) {
     transform: inspect
   };
 }
+function subscriptionProviderRenamePlan(targetPath) {
+  const inspect = (sources) => transformSubscriptionProviderRename(sources[0]?.value);
+  return {
+    id: SUBSCRIPTION_PROVIDER_RENAME_MIGRATION_ID,
+    inspect,
+    mode: "replace-target",
+    shouldRun: hasLegacySubscriptionProviderIds,
+    sources: [],
+    targetPath,
+    transform: inspect
+  };
+}
 function existingOmoConfigPath(directory, options) {
   const fileSystem = discoveryFileSystem(options);
   for (const fileName of ["omo.jsonc", "omo.json"]) {
@@ -77994,7 +78273,8 @@ function createLegacyConfigMigrationPlans(options) {
     ...legacyPlans,
     ...inPlaceTargets.map(reasoningPlan),
     ...inPlaceTargets.map(categoryDeepSplitPlan),
-    ...inPlaceTargets.map(harnessNativeRenamePlan)
+    ...inPlaceTargets.map(harnessNativeRenamePlan),
+    ...inPlaceTargets.map(subscriptionProviderRenamePlan)
   ];
 }
 var init_migration_plans = __esm(() => {
@@ -78006,6 +78286,7 @@ var init_migration_plans = __esm(() => {
   init_reasoning_unification();
   init_category_deep_split();
   init_harness_native_rename();
+  init_subscription_provider_rename();
   init_src4();
 });
 
@@ -88458,7 +88739,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.83",
+    version: "5.0.0-beta.84",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
