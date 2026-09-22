@@ -7315,6 +7315,31 @@ var OmoTaskTeamSettingsSchema = object({
 var OmoTaskWarningsSchema = object({
   unavailable_categories: boolean2().default(true)
 }).strict();
+var IsolationBackendKindSchema = _enum([
+  "auto",
+  "apfs",
+  "btrfs",
+  "zfs",
+  "reflink",
+  "overlayfs",
+  "block-clone",
+  "rcopy"
+]);
+var OmoTaskIsolationSchema = object({
+  enabled: boolean2().default(false),
+  backend: IsolationBackendKindSchema.default("auto"),
+  apply: boolean2().default(true),
+  merge: _enum(["patch", "branch"]).default("patch"),
+  commits: _enum(["generic", "ai"]).default("generic")
+}).strict();
+var isolationDefaults = OmoTaskIsolationSchema.parse({});
+var OmoTaskIsolationLayerSchema = object({
+  enabled: boolean2().optional(),
+  backend: IsolationBackendKindSchema.optional(),
+  apply: boolean2().optional(),
+  merge: _enum(["patch", "branch"]).optional(),
+  commits: _enum(["generic", "ai"]).optional()
+}).strict();
 var OmoTaskDagSettingsSchema = object({
   max_nodes_per_run: number2().int().positive().default(64),
   max_runs_per_session: number2().int().positive().default(16),
@@ -7326,6 +7351,7 @@ var OmoTaskDagSettingsSchema = object({
   max_prompt_bytes: number2().int().positive().default(262144)
 }).strict();
 var OmoTaskSettingsSchema = object({
+  isolation: OmoTaskIsolationSchema.default(isolationDefaults),
   default_execution_mode: _enum(["auto", "in-process", "process"]).default("auto"),
   process_runner: _enum(["host", "child-process"]).default("host"),
   host_engine_policy: _enum(["upgrade", "fallback"]).default("upgrade"),
@@ -7374,6 +7400,7 @@ var OmoTaskWarningsLayerSchema = object({
   unavailable_categories: boolean2().optional()
 }).strict();
 var OmoTaskSettingsLayerSchema = object({
+  isolation: OmoTaskIsolationLayerSchema.optional(),
   default_execution_mode: _enum(["auto", "in-process", "process"]).optional(),
   process_runner: _enum(["host", "child-process"]).optional(),
   host_engine_policy: _enum(["upgrade", "fallback"]).optional(),

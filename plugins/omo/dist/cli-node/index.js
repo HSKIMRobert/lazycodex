@@ -65,7 +65,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.81",
+    version: "5.0.0-beta.82",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -89,6 +89,7 @@ var init_package = __esm(() => {
       "packages/openclaw-core",
       "packages/boulder-state",
       "packages/memory-core",
+      "packages/isolation-core",
       "packages/telemetry-core",
       "packages/claude-code-compat-core",
       "packages/skills-loader-core",
@@ -198,7 +199,7 @@ var init_package = __esm(() => {
       prepublishOnly: "bun run clean && bun run build:lsp-tools-mcp && bun run build:lsp-daemon && bun run build",
       "test:model-capabilities": "bun test --timeout 20000 packages/model-core/src/model-capability-aliases.test.ts packages/model-core/src/model-capability-guardrails.test.ts packages/model-core/src/model-capabilities.test.ts packages/omo-opencode/src/cli/doctor/checks/model-resolution.test.ts --bail",
       typecheck: "tsgo --noEmit && bun run typecheck:script && bun run typecheck:packages",
-      "typecheck:packages": "tsgo --noEmit -p packages/rules-engine/tsconfig.json && tsgo --noEmit -p packages/delegate-core/tsconfig.json && tsgo --noEmit -p packages/mcp-stdio-core/tsconfig.json && tsgo --noEmit -p packages/mcp-client-core/tsconfig.json && tsgo --noEmit -p packages/git-bash-mcp/tsconfig.json && tsgo --noEmit -p packages/ast-grep-mcp/tsconfig.json && tsgo --noEmit -p packages/lsp-core/tsconfig.json && tsgo --noEmit -p packages/utils/tsconfig.json && tsgo --noEmit -p packages/model-core/tsconfig.json && tsgo --noEmit -p packages/omo-config-core/tsconfig.json && tsgo --noEmit -p packages/prompts-core/tsconfig.json && tsgo --noEmit -p packages/comment-checker-core/tsconfig.json && tsgo --noEmit -p packages/hashline-core/tsconfig.json && tsgo --noEmit -p packages/tmux-core/tsconfig.json && tsgo --noEmit -p packages/team-core/tsconfig.json && tsgo --noEmit -p packages/openclaw-core/tsconfig.json && tsgo --noEmit -p packages/boulder-state/tsconfig.json && tsgo --noEmit -p packages/memory-core/tsconfig.json && tsgo --noEmit -p packages/telemetry-core/tsconfig.json && tsgo --noEmit -p packages/claude-code-compat-core/tsconfig.json && tsgo --noEmit -p packages/skills-loader-core/tsconfig.json && tsgo --noEmit -p packages/agents-md-core/tsconfig.json && tsgo --noEmit -p packages/omo-codex/plugin/shared/tsconfig.json && tsgo --noEmit -p packages/omo-codex/tsconfig.json && tsgo --noEmit -p packages/omo-senpi/tsconfig.json && tsgo --noEmit -p packages/senpi-task/tsconfig.json && tsgo --noEmit -p packages/omo-opencode/tsconfig.json && tsgo --noEmit -p packages/omo-native/tsconfig.json",
+      "typecheck:packages": "tsgo --noEmit -p packages/rules-engine/tsconfig.json && tsgo --noEmit -p packages/delegate-core/tsconfig.json && tsgo --noEmit -p packages/mcp-stdio-core/tsconfig.json && tsgo --noEmit -p packages/mcp-client-core/tsconfig.json && tsgo --noEmit -p packages/git-bash-mcp/tsconfig.json && tsgo --noEmit -p packages/ast-grep-mcp/tsconfig.json && tsgo --noEmit -p packages/lsp-core/tsconfig.json && tsgo --noEmit -p packages/utils/tsconfig.json && tsgo --noEmit -p packages/model-core/tsconfig.json && tsgo --noEmit -p packages/omo-config-core/tsconfig.json && tsgo --noEmit -p packages/prompts-core/tsconfig.json && tsgo --noEmit -p packages/comment-checker-core/tsconfig.json && tsgo --noEmit -p packages/hashline-core/tsconfig.json && tsgo --noEmit -p packages/tmux-core/tsconfig.json && tsgo --noEmit -p packages/team-core/tsconfig.json && tsgo --noEmit -p packages/openclaw-core/tsconfig.json && tsgo --noEmit -p packages/boulder-state/tsconfig.json && tsgo --noEmit -p packages/isolation-core/tsconfig.json && tsgo --noEmit -p packages/memory-core/tsconfig.json && tsgo --noEmit -p packages/telemetry-core/tsconfig.json && tsgo --noEmit -p packages/claude-code-compat-core/tsconfig.json && tsgo --noEmit -p packages/skills-loader-core/tsconfig.json && tsgo --noEmit -p packages/agents-md-core/tsconfig.json && tsgo --noEmit -p packages/omo-codex/plugin/shared/tsconfig.json && tsgo --noEmit -p packages/omo-codex/tsconfig.json && tsgo --noEmit -p packages/omo-senpi/tsconfig.json && tsgo --noEmit -p packages/senpi-task/tsconfig.json && tsgo --noEmit -p packages/omo-opencode/tsconfig.json && tsgo --noEmit -p packages/omo-native/tsconfig.json",
       "typecheck:script": "tsgo --noEmit -p script/tsconfig.json",
       test: "bun test --timeout 20000",
       "changelog:section": "bun script/changelog-section.ts",
@@ -247,7 +248,7 @@ var init_package = __esm(() => {
       zod: "^4.6.5"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.21-2",
+      "@code-yeongyu/senpi": "2026.9.22",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -257,6 +258,7 @@ var init_package = __esm(() => {
       "@oh-my-opencode/git-bash-mcp": "workspace:*",
       "@oh-my-opencode/hashline-core": "workspace:*",
       "@oh-my-opencode/lsp-core": "workspace:*",
+      "@oh-my-opencode/isolation-core": "workspace:*",
       "@oh-my-opencode/memory-core": "workspace:*",
       "@oh-my-opencode/mcp-client-core": "workspace:*",
       "@oh-my-opencode/mcp-stdio-core": "workspace:*",
@@ -286,18 +288,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.81",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.81",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.81",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.81",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.81",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.81",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.81",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.81",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.81",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.81",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.81",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.81"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.82",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.82",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.82",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.82",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.82",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.82",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.82",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.82",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.82",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.82",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.82",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.82"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -74216,7 +74218,7 @@ function resolveOmoTaskSettings(input, resolveParallelism = availableParallelism
     global_concurrency: record2["global_concurrency"] ?? Math.max(8, resolveParallelism() * 2)
   });
 }
-var DEFAULT_RESIDENCY_MAX_CHILDREN = 16, ResidencyMaxChildrenInputSchema, OmoTaskWaitSchema, OmoTaskTeamSettingsSchema, OmoTaskWarningsSchema, OmoTaskDagSettingsSchema, OmoTaskSettingsSchema, OmoTaskDagSettingsLayerSchema, OmoTaskWaitLayerSchema, OmoTaskTeamSettingsLayerSchema, OmoTaskWarningsLayerSchema, OmoTaskSettingsLayerSchema;
+var DEFAULT_RESIDENCY_MAX_CHILDREN = 16, ResidencyMaxChildrenInputSchema, OmoTaskWaitSchema, OmoTaskTeamSettingsSchema, OmoTaskWarningsSchema, IsolationBackendKindSchema, OmoTaskIsolationSchema, isolationDefaults, OmoTaskIsolationLayerSchema, OmoTaskDagSettingsSchema, OmoTaskSettingsSchema, OmoTaskDagSettingsLayerSchema, OmoTaskWaitLayerSchema, OmoTaskTeamSettingsLayerSchema, OmoTaskWarningsLayerSchema, OmoTaskSettingsLayerSchema;
 var init_task = __esm(() => {
   init_zod();
   ResidencyMaxChildrenInputSchema = union([number2().int().nonnegative(), literal("unlimited")]);
@@ -74233,6 +74235,31 @@ var init_task = __esm(() => {
   OmoTaskWarningsSchema = object({
     unavailable_categories: boolean2().default(true)
   }).strict();
+  IsolationBackendKindSchema = _enum([
+    "auto",
+    "apfs",
+    "btrfs",
+    "zfs",
+    "reflink",
+    "overlayfs",
+    "block-clone",
+    "rcopy"
+  ]);
+  OmoTaskIsolationSchema = object({
+    enabled: boolean2().default(false),
+    backend: IsolationBackendKindSchema.default("auto"),
+    apply: boolean2().default(true),
+    merge: _enum(["patch", "branch"]).default("patch"),
+    commits: _enum(["generic", "ai"]).default("generic")
+  }).strict();
+  isolationDefaults = OmoTaskIsolationSchema.parse({});
+  OmoTaskIsolationLayerSchema = object({
+    enabled: boolean2().optional(),
+    backend: IsolationBackendKindSchema.optional(),
+    apply: boolean2().optional(),
+    merge: _enum(["patch", "branch"]).optional(),
+    commits: _enum(["generic", "ai"]).optional()
+  }).strict();
   OmoTaskDagSettingsSchema = object({
     max_nodes_per_run: number2().int().positive().default(64),
     max_runs_per_session: number2().int().positive().default(16),
@@ -74244,6 +74271,7 @@ var init_task = __esm(() => {
     max_prompt_bytes: number2().int().positive().default(262144)
   }).strict();
   OmoTaskSettingsSchema = object({
+    isolation: OmoTaskIsolationSchema.default(isolationDefaults),
     default_execution_mode: _enum(["auto", "in-process", "process"]).default("auto"),
     process_runner: _enum(["host", "child-process"]).default("host"),
     host_engine_policy: _enum(["upgrade", "fallback"]).default("upgrade"),
@@ -74292,6 +74320,7 @@ var init_task = __esm(() => {
     unavailable_categories: boolean2().optional()
   }).strict();
   OmoTaskSettingsLayerSchema = object({
+    isolation: OmoTaskIsolationLayerSchema.optional(),
     default_execution_mode: _enum(["auto", "in-process", "process"]).optional(),
     process_runner: _enum(["host", "child-process"]).optional(),
     host_engine_policy: _enum(["upgrade", "fallback"]).optional(),
@@ -88261,7 +88290,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.81",
+    version: "5.0.0-beta.82",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -97451,6 +97480,26 @@ function findRepoRoot2(importerDir) {
 function fileExistsSync(path) {
   return existsSync30(path);
 }
+// packages/omo-opencode/src/cli/senpi-edition-hint.ts
+var SENPI_EDITION_INSTALL_COMMAND = "bun add -g omo-ai@beta";
+var SENPI_EDITION_GUIDE_URL = "https://github.com/code-yeongyu/oh-my-openagent/blob/dev/docs/guide/installation.md#senpi-edition-beta-omo-via-omo-ai";
+var SENPI_EDITION_HINT_TITLE = "Standalone Senpi edition (beta)";
+var PLAIN_PAINT = {
+  command: (text) => text,
+  link: (text) => text
+};
+function shouldShowSenpiEditionHint(config) {
+  return !config.hasSenpi;
+}
+function senpiEditionHintLines(paint = PLAIN_PAINT) {
+  return [
+    `omo also ships as a standalone Senpi edition: one ${paint.command("omo")} command, no OpenCode host required.`,
+    `Try it next to this install: ${paint.command(SENPI_EDITION_INSTALL_COMMAND)}, then run ${paint.command("omo")}.`,
+    "This install keeps working as-is.",
+    `Guide: ${paint.link(SENPI_EDITION_GUIDE_URL)}`
+  ];
+}
+
 // packages/omo-opencode/src/cli/star-request.ts
 import { execFile as execFile4 } from "node:child_process";
 import { promisify as promisify3 } from "node:util";
@@ -97982,6 +98031,13 @@ async function runCliInstaller(args, version) {
   printBox(`${import_picocolors3.default.bold("Pro Tip:")} Include ${import_picocolors3.default.cyan("ultrawork")} (or ${import_picocolors3.default.cyan("ulw")}) in your prompt.
 ` + `All features work like magic-parallel agents, background tasks,
 ` + `deep exploration, and relentless execution until completion.`, "The Magic Word");
+  if (shouldShowSenpiEditionHint(config)) {
+    printInfo(import_picocolors3.default.bold(SENPI_EDITION_HINT_TITLE));
+    for (const line of senpiEditionHintLines({ command: import_picocolors3.default.cyan, link: import_picocolors3.default.underline })) {
+      console.log(`    ${line}`);
+    }
+    console.log();
+  }
   if (args.tui) {
     await maybePromptForGitHubStars(config.platform);
   }
@@ -99473,6 +99529,11 @@ async function runTuiInstaller(args, version) {
   note(`Include ${import_picocolors4.default.cyan("ultrawork")} (or ${import_picocolors4.default.cyan("ulw")}) in your prompt.
 ` + `All features work like magic-parallel agents, background tasks,
 ` + `deep exploration, and relentless execution until completion.`, "The Magic Word");
+  if (shouldShowSenpiEditionHint(config)) {
+    log4.info(import_picocolors4.default.bold(SENPI_EDITION_HINT_TITLE));
+    log4.message(senpiEditionHintLines({ command: import_picocolors4.default.cyan, link: import_picocolors4.default.underline }).join(`
+`));
+  }
   const shouldStar = await confirm({
     message: "Star the repos on GitHub?",
     initialValue: false
