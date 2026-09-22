@@ -7,7 +7,7 @@ import { readUlwLoopPlanSync } from "./plan-io.js";
 import { atomicWriteJson, isNonEmptyFile, readAdmissionBreaker, readCount, readCounts } from "./spawn-budget-io.js";
 import { spawnRoleDenial } from "./spawn-role-guard.js";
 import { isStateLockTimeout, withStateLockSync } from "./state-lock.js";
-import { GATE_REVIEWER_AGENT_NAMES, REVIEWER_ROLES_BY_SURFACE, resolveToolkitSurface, reviewerRolesFor, } from "./surface.js";
+import { canonicalReviewerAgentName, GATE_REVIEWER_AGENT_NAMES, LEGACY_REVIEWER_AGENT_ALIASES, REVIEWER_ROLES_BY_SURFACE, resolveToolkitSurface, reviewerRolesFor, } from "./surface.js";
 // spawn_agent = v1; collaborationspawn_agent = the delimiter-free flattened v2
 // hook token from codex-rs hook_names.rs; collaboration.spawn_agent = the
 // dotted token observed live in the task-1 probe (hook-tool-tokens.txt).
@@ -19,11 +19,12 @@ const SPAWN_TOOL_TOKENS = new Set([
 ]);
 export const DEFAULT_FANOUT_LIMIT = 24;
 const DEFAULT_REVIEW_SPAWN_LIMIT = 3;
-const GATE_MESSAGE_PATTERN = /lazycodex-gate-reviewer|omo-senpi-gate-reviewer|final gate review/i;
+const GATE_MESSAGE_PATTERN = /lazycodex-gate-reviewer|omo-native-gate-reviewer|omo-senpi-gate-reviewer|final gate review/i;
 const REVIEW_AGENT_TYPES = [
     ...Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.gateReview),
     ...Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.codeReview),
     ...Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.manualQa),
+    ...Object.keys(LEGACY_REVIEWER_AGENT_ALIASES),
 ];
 const REVIEW_AGENT_TYPE_SET = new Set(REVIEW_AGENT_TYPES);
 export function applySpawnGuards(payload, options = {}) {
@@ -230,16 +231,17 @@ function reviewAgentType(toolInput) {
     return GATE_MESSAGE_PATTERN.test(message) ? reviewerRolesFor(resolveToolkitSurface()).gateReview : null;
 }
 function activeSurfaceReviewerAlias(reviewer) {
+    const canonical = canonicalReviewerAgentName(reviewer);
     const activeRoles = reviewerRolesFor(resolveToolkitSurface());
     for (const roles of Object.values(REVIEWER_ROLES_BY_SURFACE)) {
-        if (reviewer === roles.codeReview)
+        if (canonical === roles.codeReview)
             return activeRoles.codeReview;
-        if (reviewer === roles.manualQa)
+        if (canonical === roles.manualQa)
             return activeRoles.manualQa;
-        if (reviewer === roles.gateReview)
+        if (canonical === roles.gateReview)
             return activeRoles.gateReview;
     }
-    return reviewer;
+    return canonical;
 }
 function deny(reason) {
     return `${JSON.stringify({

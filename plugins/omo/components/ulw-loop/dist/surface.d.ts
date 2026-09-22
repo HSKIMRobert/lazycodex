@@ -5,6 +5,8 @@ export interface UlwLoopReviewerRoles {
     readonly gateReview: string;
 }
 export declare const REVIEWER_ROLES_BY_SURFACE: Readonly<Record<UlwLoopToolkitSurface, UlwLoopReviewerRoles>>;
+export declare const LEGACY_REVIEWER_AGENT_ALIASES: Readonly<Record<string, string>>;
+export declare function canonicalReviewerAgentName(reviewer: string): string;
 export declare const GATE_REVIEWER_AGENT_NAMES: ReadonlySet<string>;
 export type UlwLoopGateSection = "codeReview" | "manualQa" | "gateReview" | "iteration" | "criteriaCoverage";
 export declare const REQUIRED_GATE_SECTIONS_BY_SURFACE: Readonly<Record<UlwLoopToolkitSurface, readonly UlwLoopGateSection[]>>;

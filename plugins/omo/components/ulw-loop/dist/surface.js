@@ -8,12 +8,29 @@ export const REVIEWER_ROLES_BY_SURFACE = {
         gateReview: "lazycodex-gate-reviewer",
     },
     "omo-senpi": {
-        codeReview: "omo-senpi-code-reviewer",
-        manualQa: "omo-senpi-qa-executor",
-        gateReview: "omo-senpi-gate-reviewer",
+        codeReview: "omo-native-code-reviewer",
+        manualQa: "omo-native-qa-executor",
+        gateReview: "omo-native-gate-reviewer",
     },
 };
-export const GATE_REVIEWER_AGENT_NAMES = new Set(Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.gateReview));
+// The reviewer agents were renamed omo-senpi-* -> omo-native-*. The retired spellings stay
+// resolvable for one release line so a caller that still names one is recognized rather than
+// silently treated as a non-review spawn.
+export const LEGACY_REVIEWER_AGENT_ALIASES = {
+    "omo-senpi-code-reviewer": REVIEWER_ROLES_BY_SURFACE["omo-senpi"].codeReview,
+    "omo-senpi-qa-executor": REVIEWER_ROLES_BY_SURFACE["omo-senpi"].manualQa,
+    "omo-senpi-gate-reviewer": REVIEWER_ROLES_BY_SURFACE["omo-senpi"].gateReview,
+};
+export function canonicalReviewerAgentName(reviewer) {
+    return LEGACY_REVIEWER_AGENT_ALIASES[reviewer] ?? reviewer;
+}
+const CANONICAL_GATE_REVIEW_NAMES = Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.gateReview);
+export const GATE_REVIEWER_AGENT_NAMES = new Set([
+    ...CANONICAL_GATE_REVIEW_NAMES,
+    ...Object.entries(LEGACY_REVIEWER_AGENT_ALIASES)
+        .filter(([, canonical]) => CANONICAL_GATE_REVIEW_NAMES.includes(canonical))
+        .map(([legacy]) => legacy),
+]);
 export const REQUIRED_GATE_SECTIONS_BY_SURFACE = {
     lazycodex: ["manualQa", "gateReview", "iteration", "criteriaCoverage"],
     "omo-senpi": ["manualQa", "gateReview", "iteration", "criteriaCoverage"],

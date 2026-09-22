@@ -1362,12 +1362,24 @@ var REVIEWER_ROLES_BY_SURFACE = {
     gateReview: "lazycodex-gate-reviewer"
   },
   "omo-senpi": {
-    codeReview: "omo-senpi-code-reviewer",
-    manualQa: "omo-senpi-qa-executor",
-    gateReview: "omo-senpi-gate-reviewer"
+    codeReview: "omo-native-code-reviewer",
+    manualQa: "omo-native-qa-executor",
+    gateReview: "omo-native-gate-reviewer"
   }
 };
-var GATE_REVIEWER_AGENT_NAMES = new Set(Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.gateReview));
+var LEGACY_REVIEWER_AGENT_ALIASES = {
+  "omo-senpi-code-reviewer": REVIEWER_ROLES_BY_SURFACE["omo-senpi"].codeReview,
+  "omo-senpi-qa-executor": REVIEWER_ROLES_BY_SURFACE["omo-senpi"].manualQa,
+  "omo-senpi-gate-reviewer": REVIEWER_ROLES_BY_SURFACE["omo-senpi"].gateReview
+};
+function canonicalReviewerAgentName(reviewer) {
+  return LEGACY_REVIEWER_AGENT_ALIASES[reviewer] ?? reviewer;
+}
+var CANONICAL_GATE_REVIEW_NAMES = Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.gateReview);
+var GATE_REVIEWER_AGENT_NAMES = new Set([
+  ...CANONICAL_GATE_REVIEW_NAMES,
+  ...Object.entries(LEGACY_REVIEWER_AGENT_ALIASES).filter(([, canonical]) => CANONICAL_GATE_REVIEW_NAMES.includes(canonical)).map(([legacy]) => legacy)
+]);
 var REQUIRED_GATE_SECTIONS_BY_SURFACE = {
   lazycodex: ["manualQa", "gateReview", "iteration", "criteriaCoverage"],
   "omo-senpi": ["manualQa", "gateReview", "iteration", "criteriaCoverage"]
@@ -4437,11 +4449,12 @@ var SPAWN_TOOL_TOKENS = new Set([
 ]);
 var DEFAULT_FANOUT_LIMIT = 24;
 var DEFAULT_REVIEW_SPAWN_LIMIT = 3;
-var GATE_MESSAGE_PATTERN = /lazycodex-gate-reviewer|omo-senpi-gate-reviewer|final gate review/i;
+var GATE_MESSAGE_PATTERN = /lazycodex-gate-reviewer|omo-native-gate-reviewer|omo-senpi-gate-reviewer|final gate review/i;
 var REVIEW_AGENT_TYPES = [
   ...Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.gateReview),
   ...Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.codeReview),
-  ...Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.manualQa)
+  ...Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.manualQa),
+  ...Object.keys(LEGACY_REVIEWER_AGENT_ALIASES)
 ];
 var REVIEW_AGENT_TYPE_SET = new Set(REVIEW_AGENT_TYPES);
 function applySpawnGuards(payload, options = {}) {
@@ -4623,16 +4636,17 @@ function reviewAgentType(toolInput) {
   return GATE_MESSAGE_PATTERN.test(message) ? reviewerRolesFor(resolveToolkitSurface()).gateReview : null;
 }
 function activeSurfaceReviewerAlias(reviewer) {
+  const canonical = canonicalReviewerAgentName(reviewer);
   const activeRoles = reviewerRolesFor(resolveToolkitSurface());
   for (const roles of Object.values(REVIEWER_ROLES_BY_SURFACE)) {
-    if (reviewer === roles.codeReview)
+    if (canonical === roles.codeReview)
       return activeRoles.codeReview;
-    if (reviewer === roles.manualQa)
+    if (canonical === roles.manualQa)
       return activeRoles.manualQa;
-    if (reviewer === roles.gateReview)
+    if (canonical === roles.gateReview)
       return activeRoles.gateReview;
   }
-  return reviewer;
+  return canonical;
 }
 function deny(reason) {
   return `${JSON.stringify({

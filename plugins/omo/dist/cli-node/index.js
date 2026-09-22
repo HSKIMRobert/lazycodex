@@ -65,7 +65,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.82",
+    version: "5.0.0-beta.83",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -248,7 +248,7 @@ var init_package = __esm(() => {
       zod: "^4.6.5"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.22",
+      "@code-yeongyu/senpi": "2026.9.22-2",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -288,18 +288,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.82",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.82",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.82",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.82",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.82",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.82",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.82",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.82",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.82",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.82",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.82",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.82"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.83",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.83",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.83",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.83",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.83",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.83",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.83",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.83",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.83",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.83",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.83",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.83"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -7228,6 +7228,7 @@ var init_agent_model_requirements = __esm(() => {
     },
     librarian: {
       fallbackChain: [
+        { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
         { providers: ["openai", "openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
         { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
@@ -7240,6 +7241,7 @@ var init_agent_model_requirements = __esm(() => {
     },
     explore: {
       fallbackChain: [
+        { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
         { providers: ["openai", "openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
         { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
@@ -7413,7 +7415,6 @@ var init_category_model_requirements = __esm(() => {
     },
     quick: {
       fallbackChain: [
-        { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed" },
         { providers: ["openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "off" },
         {
@@ -7433,7 +7434,8 @@ var init_category_model_requirements = __esm(() => {
     },
     "unspecified-low": {
       fallbackChain: [
-        { providers: ["xai", "github-copilot", "opencode"], model: "grok-4.6", variant: "xhigh" },
+        { providers: ["xiaomi", "opencode-go"], model: "mimo-v2.6-pro", variant: "max" },
+        { providers: ["xai", "github-copilot", "opencode-go"], model: "grok-4.7", variant: "xhigh" },
         {
           providers: ["openai", "openai-codex", "github-copilot", "opencode"],
           model: "gpt-5.6-terra",
@@ -7455,11 +7457,6 @@ var init_category_model_requirements = __esm(() => {
     },
     "unspecified-high": {
       fallbackChain: [
-        {
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
-          model: "gpt-6-astra",
-          variant: "high"
-        },
         {
           providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
           model: "claude-opus-5",
@@ -8295,6 +8292,36 @@ var init_supplemental_entries = __esm(() => {
         output: 32768
       }
     },
+    "grok-4.7": {
+      id: "grok-4.7",
+      family: "grok",
+      reasoning: false,
+      temperature: true,
+      toolCall: true,
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      },
+      limit: {
+        context: 500000,
+        output: 32768
+      }
+    },
+    "xai/grok-4.7": {
+      id: "xai/grok-4.7",
+      family: "grok",
+      reasoning: false,
+      temperature: true,
+      toolCall: true,
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      },
+      limit: {
+        context: 500000,
+        output: 32768
+      }
+    },
     "xai/grok-build-0.1": {
       id: "xai/grok-build-0.1",
       family: "grok",
@@ -8323,6 +8350,36 @@ var init_supplemental_entries = __esm(() => {
       limit: {
         context: 256000,
         output: 32768
+      }
+    },
+    "mimo-v2.6-pro": {
+      id: "mimo-v2.6-pro",
+      family: "mimo",
+      reasoning: true,
+      temperature: true,
+      toolCall: true,
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      },
+      limit: {
+        context: 1048576,
+        output: 131072
+      }
+    },
+    "xiaomi/mimo-v2.6-pro": {
+      id: "xiaomi/mimo-v2.6-pro",
+      family: "mimo",
+      reasoning: true,
+      temperature: true,
+      toolCall: true,
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      },
+      limit: {
+        context: 1048576,
+        output: 131072
       }
     }
   };
@@ -9297,21 +9354,21 @@ var init_openai_categories = __esm(() => {
     },
     {
       name: "quick",
-      config: { model: "kimi-for-coding/kimi-for-coding-highspeed" },
+      config: { model: "openai/gpt-5.6-luna-fast", variant: "low" },
       description: "Trivial tasks - single file changes, typo fixes, simple modifications",
       callerGuidance: QUICK_CATEGORY_CALLER_GUIDANCE,
       promptAppend: QUICK_CATEGORY_PROMPT_APPEND
     },
     {
       name: "unspecified-low",
-      config: { model: "xai/grok-4.6", variant: "xhigh" },
+      config: { model: "xiaomi/mimo-v2.6-pro", variant: "max" },
       description: "Tasks that don't fit other categories, low effort required",
       callerGuidance: UNSPECIFIED_LOW_CATEGORY_CALLER_GUIDANCE,
       promptAppend: UNSPECIFIED_LOW_CATEGORY_PROMPT_APPEND
     },
     {
       name: "unspecified-high",
-      config: { model: "openai/gpt-6-astra", variant: "high" },
+      config: { model: "anthropic/claude-opus-5", variant: "xhigh" },
       description: "Tasks that don't fit other categories, high effort required",
       callerGuidance: UNSPECIFIED_HIGH_CATEGORY_CALLER_GUIDANCE,
       promptAppend: UNSPECIFIED_HIGH_CATEGORY_PROMPT_APPEND,
@@ -73962,12 +74019,14 @@ var init_git_master = __esm(() => {
 });
 
 // packages/omo-config-core/src/schema/harness.ts
-var HARNESS_IDS, OMO_CONFIG_HARNESS_IDS, OmoHarnessIdSchema;
+var HARNESS_IDS, OMO_CONFIG_HARNESS_IDS, OmoHarnessIdSchema, OMO_CONFIG_LEGACY_HARNESS_ALIASES, OMO_CONFIG_LEGACY_HARNESS_IDS;
 var init_harness = __esm(() => {
   init_zod();
   HARNESS_IDS = ["codex", "opencode", "omo"];
-  OMO_CONFIG_HARNESS_IDS = ["opencode", "senpi", "codex"];
+  OMO_CONFIG_HARNESS_IDS = ["opencode", "native", "codex"];
   OmoHarnessIdSchema = _enum(OMO_CONFIG_HARNESS_IDS);
+  OMO_CONFIG_LEGACY_HARNESS_ALIASES = { senpi: "native" };
+  OMO_CONFIG_LEGACY_HARNESS_IDS = Object.keys(OMO_CONFIG_LEGACY_HARNESS_ALIASES);
 });
 
 // packages/omo-config-core/src/schema/memory.ts
@@ -74470,6 +74529,7 @@ var init_config = __esm(() => {
     telemetry: OmoTelemetrySettingsLayerSchema.optional(),
     disabled_skills: OmoDisabledSkillsSchema.optional(),
     "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
+    "[native]": OmoTypedHarnessConfigSchema.optional(),
     "[senpi]": OmoTypedHarnessConfigSchema.optional(),
     "[codex]": OmoTypedHarnessConfigSchema.optional()
   }).strict();
@@ -74488,6 +74548,7 @@ var init_config = __esm(() => {
     telemetry: OmoTelemetrySettingsSchema.optional(),
     disabled_skills: OmoDisabledSkillsSchema.optional(),
     "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
+    "[native]": OmoTypedHarnessConfigSchema.optional(),
     "[senpi]": OmoTypedHarnessConfigSchema.optional(),
     "[codex]": OmoTypedHarnessConfigSchema.optional(),
     profiles: record(string2(), OmoConfigProfileSchema).default({}),
@@ -74509,6 +74570,7 @@ var init_config = __esm(() => {
     telemetry: OmoTelemetrySettingsLayerSchema.optional(),
     disabled_skills: OmoDisabledSkillsSchema.optional(),
     "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
+    "[native]": OmoTypedHarnessConfigSchema.optional(),
     "[senpi]": OmoTypedHarnessConfigSchema.optional(),
     "[codex]": OmoTypedHarnessConfigSchema.optional(),
     profiles: record(string2(), OmoConfigProfileSchema).optional(),
@@ -74579,6 +74641,60 @@ var init_legacy_category_names = __esm(() => {
   LEGACY_CATEGORY_NAME_ALIASES = { deep: "deep-low" };
 });
 
+// packages/omo-config-core/src/schema/legacy-harness-names.ts
+function canonicalHarnessName(name) {
+  return Object.hasOwn(OMO_CONFIG_LEGACY_HARNESS_ALIASES, name) ? OMO_CONFIG_LEGACY_HARNESS_ALIASES[name] : name;
+}
+function harnessBlockKey(harness) {
+  return `[${harness}]`;
+}
+function legacyHarnessOfBlockKey(key) {
+  if (!key.startsWith("[") || !key.endsWith("]"))
+    return;
+  const harness = key.slice(1, -1);
+  return Object.hasOwn(OMO_CONFIG_LEGACY_HARNESS_ALIASES, harness) ? harness : undefined;
+}
+function isRecord10(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function canonicalizeBlocksIn(container, path, renames) {
+  const result = {};
+  for (const [key, value] of Object.entries(container)) {
+    const legacyHarness = legacyHarnessOfBlockKey(key);
+    if (legacyHarness === undefined) {
+      result[key] = value;
+      continue;
+    }
+    const canonical = harnessBlockKey(canonicalHarnessName(legacyHarness));
+    const dropped = Object.hasOwn(container, canonical);
+    renames.push({ canonical, dropped, legacy: key, path: [...path, key].join(".") });
+    if (!dropped)
+      result[canonical] = value;
+  }
+  return result;
+}
+function canonicalizeLegacyHarnessBlocks(document) {
+  if (!isRecord10(document))
+    return { document: {}, renames: [] };
+  const renames = [];
+  const canonicalized = canonicalizeBlocksIn(document, [], renames);
+  const profiles = canonicalized["profiles"];
+  if (isRecord10(profiles)) {
+    const canonicalProfiles = {};
+    for (const [name, profile] of Object.entries(profiles)) {
+      canonicalProfiles[name] = isRecord10(profile) ? canonicalizeBlocksIn(profile, ["profiles", name], renames) : profile;
+    }
+    canonicalized["profiles"] = canonicalProfiles;
+  }
+  return { document: canonicalized, renames };
+}
+function hasLegacyHarnessBlocks(document) {
+  return canonicalizeLegacyHarnessBlocks(document).renames.length > 0;
+}
+var init_legacy_harness_names = __esm(() => {
+  init_harness();
+});
+
 // packages/omo-config-core/src/schema/index.ts
 var init_schema = __esm(() => {
   init_agent();
@@ -74589,6 +74705,7 @@ var init_schema = __esm(() => {
   init_git_master();
   init_harness();
   init_legacy_category_names();
+  init_legacy_harness_names();
   init_memory();
   init_model_catalog();
   init_model_profile();
@@ -74597,6 +74714,9 @@ var init_schema = __esm(() => {
   init_team();
   init_telemetry();
 });
+
+// packages/omo-config-core/src/loader/disabled-skills.ts
+var init_disabled_skills = () => {};
 
 // packages/omo-config-core/src/loader/merge.ts
 function isUnsafeObjectKey2(key) {
@@ -74772,7 +74892,13 @@ function withoutControlKeys(config) {
 function harnessLayer(config, harness) {
   if (harness === undefined)
     return {};
-  return toRecord(config[`[${harness}]`]) ?? {};
+  const canonical = canonicalHarnessName(harness);
+  const legacyKeys = Object.entries(OMO_CONFIG_LEGACY_HARNESS_ALIASES).filter(([, target]) => target === canonical).map(([legacy]) => harnessBlockKey(legacy));
+  let layer = {};
+  for (const key of [...legacyKeys, harnessBlockKey(canonical)]) {
+    layer = mergeOmoConfigRecords(layer, toRecord(config[key]) ?? {});
+  }
+  return layer;
 }
 function resolveOmoConfigView(options) {
   const profiles = toRecord(options.config["profiles"]);
@@ -74802,7 +74928,7 @@ var HARNESS_KEYS;
 var init_resolution = __esm(() => {
   init_schema();
   init_merge();
-  HARNESS_KEYS = [...new Set([...HARNESS_IDS, ...OMO_CONFIG_HARNESS_IDS])].map((harness) => `[${harness}]`);
+  HARNESS_KEYS = [...new Set([...HARNESS_IDS, ...OMO_CONFIG_HARNESS_IDS, ...OMO_CONFIG_LEGACY_HARNESS_IDS])].map((harness) => harnessBlockKey(harness));
 });
 
 // packages/omo-config-core/src/loader/loader.ts
@@ -74823,6 +74949,7 @@ function parseJsoncSafe2(content) {
 function stripResolutionControlKeys(config) {
   const {
     "[codex]": _codex,
+    "[native]": _native,
     "[opencode]": _opencode,
     "[senpi]": _senpi,
     profiles: _profiles,
@@ -74848,21 +74975,21 @@ function hasUnsafeUnrecognizedKey(issues) {
 function hasTamperedPrototype(value) {
   if (Array.isArray(value))
     return value.some((entry) => hasTamperedPrototype(entry));
-  if (!isRecord10(value))
+  if (!isRecord11(value))
     return false;
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null)
     return true;
   return Object.values(value).some((entry) => hasTamperedPrototype(entry));
 }
-function isRecord10(value) {
+function isRecord11(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function containerAt(record, path) {
   let container = record;
   for (const segment of path) {
     const next = container[segment];
-    if (!isRecord10(next))
+    if (!isRecord11(next))
       return null;
     container = next;
   }
@@ -74973,6 +75100,15 @@ function legacyCategoryDiagnostic(path, renames) {
     issuePaths: renames.map((rename) => rename.path)
   };
 }
+function legacyHarnessDiagnostic(path, renames) {
+  const detail = renames.map((rename) => rename.dropped ? `${rename.path} ignored because ${rename.canonical} is also configured` : `${rename.path} renamed to ${rename.canonical}`).join(", ");
+  return {
+    kind: "deprecated-keys",
+    message: `Deprecated harness block in ${path}: ${detail}. Rename it; the alias is removed in a future release.`,
+    path,
+    issuePaths: renames.map((rename) => rename.path)
+  };
+}
 function loadOmoConfig(options = {}) {
   const fileSystem = options.fileSystem ?? DEFAULT_READ_FILE_SYSTEM;
   const cwd = options.cwd ?? process.cwd();
@@ -74995,8 +75131,12 @@ function loadOmoConfig(options = {}) {
       if (canonicalized.renames.length > 0) {
         diagnostics.push(legacyCategoryDiagnostic(candidate.path, canonicalized.renames));
       }
-      layers.push({ config: canonicalized.document, source: loaded.source });
-      merged = mergeOmoConfigRecords(merged, canonicalized.document);
+      const harnessCanonicalized = canonicalizeLegacyHarnessBlocks(canonicalized.document);
+      if (harnessCanonicalized.renames.length > 0) {
+        diagnostics.push(legacyHarnessDiagnostic(candidate.path, harnessCanonicalized.renames));
+      }
+      layers.push({ config: harnessCanonicalized.document, source: loaded.source });
+      merged = mergeOmoConfigRecords(merged, harnessCanonicalized.document);
     }
   }
   const requestedProfile = resolveOmoProfileName({
@@ -75044,6 +75184,7 @@ var init_loader2 = __esm(() => {
 
 // packages/omo-config-core/src/loader/index.ts
 var init_loader3 = __esm(() => {
+  init_disabled_skills();
   init_loader2();
   init_merge();
   init_paths();
@@ -77361,14 +77502,14 @@ function transformConfigJsoncSources(input) {
   const omo = recordAt(legacy, "[omo]");
   const senpi = recordAt(legacy, "[senpi]");
   const history = legacyMigrationHistory(input.discovered, input.sources);
-  const diagnostics = omo !== undefined && senpi !== undefined ? ["conflict: [senpi] legacy [omo] kept [senpi]"] : [];
+  const diagnostics = omo !== undefined && senpi !== undefined ? ["conflict: [native] legacy [omo] kept [native]"] : [];
   return {
     diagnostics,
     document: {
       $schema: OMO_SCHEMA_URL,
       ...recordAt(legacy, "[opencode]") === undefined ? {} : { "[opencode]": recordAt(legacy, "[opencode]") },
       ...recordAt(legacy, "[codex]") === undefined ? {} : { "[codex]": recordAt(legacy, "[codex]") },
-      ...senpi === undefined && omo === undefined ? {} : { "[senpi]": senpi ?? omo },
+      ...senpi === undefined && omo === undefined ? {} : { "[native]": senpi ?? omo },
       ...Object.keys(history).length === 0 ? {} : { legacy_migrations: history }
     }
   };
@@ -77632,7 +77773,7 @@ function normalizeTypedBlock(value, path, diagnostics, recurseProfiles) {
   }
   if (result["models"] !== undefined)
     result["models"] = normalizeCatalog(result["models"]);
-  for (const harness of ["[senpi]", "[codex]"]) {
+  for (const harness of ["[senpi]", "[native]", "[codex]"]) {
     if (result[harness] !== undefined)
       result[harness] = normalizeTypedBlock(result[harness], [...path, harness], diagnostics, false);
   }
@@ -77683,6 +77824,19 @@ function transformCategoryDeepSplit(document) {
 }
 var CATEGORY_DEEP_SPLIT_MIGRATION_ID = "2026-09-category-deep-split";
 var init_category_deep_split = __esm(() => {
+  init_src4();
+});
+
+// packages/omo-opencode/src/config-migration/harness-native-rename.ts
+function transformHarnessNativeRename(document) {
+  const { document: canonicalized, renames } = canonicalizeLegacyHarnessBlocks(document);
+  return {
+    diagnostics: renames.map((rename) => rename.dropped ? `${rename.path} removed: ${rename.canonical} is already configured` : `${rename.path} renamed to ${rename.canonical}`),
+    document: canonicalized
+  };
+}
+var HARNESS_NATIVE_RENAME_MIGRATION_ID = "2026-09-harness-native-rename";
+var init_harness_native_rename = __esm(() => {
   init_src4();
 });
 
@@ -77764,6 +77918,18 @@ function categoryDeepSplitPlan(targetPath) {
     transform: inspect
   };
 }
+function harnessNativeRenamePlan(targetPath) {
+  const inspect = (sources) => transformHarnessNativeRename(sources[0]?.value);
+  return {
+    id: HARNESS_NATIVE_RENAME_MIGRATION_ID,
+    inspect,
+    mode: "replace-target",
+    shouldRun: hasLegacyHarnessBlocks,
+    sources: [],
+    targetPath,
+    transform: inspect
+  };
+}
 function existingOmoConfigPath(directory, options) {
   const fileSystem = discoveryFileSystem(options);
   for (const fileName of ["omo.jsonc", "omo.json"]) {
@@ -77827,7 +77993,8 @@ function createLegacyConfigMigrationPlans(options) {
   return [
     ...legacyPlans,
     ...inPlaceTargets.map(reasoningPlan),
-    ...inPlaceTargets.map(categoryDeepSplitPlan)
+    ...inPlaceTargets.map(categoryDeepSplitPlan),
+    ...inPlaceTargets.map(harnessNativeRenamePlan)
   ];
 }
 var init_migration_plans = __esm(() => {
@@ -77838,6 +78005,7 @@ var init_migration_plans = __esm(() => {
   init_transform_opencode();
   init_reasoning_unification();
   init_category_deep_split();
+  init_harness_native_rename();
   init_src4();
 });
 
@@ -78622,7 +78790,7 @@ function shouldRetainLine(line, cutoffMs) {
 function parseDiagnosticLine(line) {
   try {
     const parsed = JSON.parse(line);
-    if (!isRecord12(parsed)) {
+    if (!isRecord13(parsed)) {
       return null;
     }
     return parsed;
@@ -78633,7 +78801,7 @@ function parseDiagnosticLine(line) {
     throw error;
   }
 }
-function isRecord12(value) {
+function isRecord13(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function trimToMaxBytes(lines) {
@@ -86123,7 +86291,7 @@ function coerceBool(value) {
 function coerceString(value) {
   return typeof value == "string" ? value : undefined;
 }
-function isRecord13(value) {
+function isRecord14(value) {
   return typeof value == "object" && value !== null && !Array.isArray(value);
 }
 function toRfc3339(timestamp) {
@@ -86145,7 +86313,7 @@ function relocateInto(properties, key, value) {
     properties[key] = value;
 }
 function buildV1Event(message) {
-  const sourceProperties = isRecord13(message.properties) ? message.properties : {};
+  const sourceProperties = isRecord14(message.properties) ? message.properties : {};
   const properties = {
     ...sourceProperties
   };
@@ -88290,7 +88458,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.82",
+    version: "5.0.0-beta.83",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -91465,8 +91633,11 @@ function formatConfigSummary(config) {
   if (config.hasCodex) {
     lines.push(`  ${SYMBOLS.info} Codex autonomous mode: ${config.codexAutonomous ? "enabled" : "disabled"}`);
   }
-  if (config.hasSenpi) {
-    lines.push(`  ${SYMBOLS.info} Senpi adapter: enabled`);
+  if (config.hasNative) {
+    lines.push(`  ${SYMBOLS.info} OmO Native: installing from omo-ai@beta`);
+  }
+  if (config.hasNativeDev) {
+    lines.push(`  ${SYMBOLS.info} OmO Native development adapter: enabled`);
   }
   if (!config.hasOpenCode)
     return lines.join(`
@@ -91623,7 +91794,8 @@ function argsToConfig(args) {
   const platform = resolvePlatform(args);
   const hasOpenCode = platform === "opencode" || platform === "both";
   const hasCodex = platform === "codex" || platform === "both";
-  const hasSenpi = platform === "senpi";
+  const hasNative = platform === "native";
+  const hasNativeDev = platform === "native-dev";
   return {
     platform,
     hasOpenCode,
@@ -91633,7 +91805,8 @@ function argsToConfig(args) {
     hasGemini: hasOpenCode && args.gemini === "yes",
     hasCopilot: hasOpenCode && args.copilot === "yes",
     hasCodex,
-    hasSenpi,
+    hasNative,
+    hasNativeDev,
     hasOpencodeZen: hasOpenCode && args.opencodeZen === "yes",
     hasZaiCodingPlan: hasOpenCode && args.zaiCodingPlan === "yes",
     hasKimiForCoding: hasOpenCode && args.kimiForCoding === "yes",
@@ -94357,10 +94530,10 @@ function readCatalogMultiAgentVersion(model, cachePath) {
   } catch {
     return null;
   }
-  if (!isRecord11(cache) || !Array.isArray(cache.models))
+  if (!isRecord12(cache) || !Array.isArray(cache.models))
     return null;
   for (const entry of cache.models) {
-    if (!isRecord11(entry))
+    if (!isRecord12(entry))
       continue;
     if (entry.slug !== model && entry.id !== model)
       continue;
@@ -94385,7 +94558,7 @@ function readRootModelCatalogPath(config) {
   const single = config.match(/^\s*model_catalog_json\s*=\s*'([^']+)'/m);
   return single?.[1] ?? null;
 }
-function isRecord11(value) {
+function isRecord12(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function removeFeatureFlagSetting(config, featureName) {
@@ -97194,7 +97367,7 @@ async function readSettings(settingsPath) {
     throw error;
   }
   const parsed = JSON.parse(raw);
-  if (!isRecord14(parsed))
+  if (!isRecord15(parsed))
     throw new Error(`${settingsPath} must contain a JSON object`);
   return parsed;
 }
@@ -97255,7 +97428,7 @@ async function nextBackupPath(settingsPath) {
 function timestampForBackup() {
   return new Date().toISOString().replace(/[-:.]/g, "");
 }
-function isRecord14(value) {
+function isRecord15(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 async function readPackageName(packagePath) {
@@ -97275,7 +97448,7 @@ async function readPackageName(packagePath) {
       return;
     throw error;
   }
-  return isRecord14(parsed) && typeof parsed.name === "string" ? parsed.name : undefined;
+  return isRecord15(parsed) && typeof parsed.name === "string" ? parsed.name : undefined;
 }
 async function fileExists(path) {
   try {
@@ -97299,6 +97472,7 @@ var REQUIRED_PLUGIN_ARTIFACTS = [
   join61("extensions", "memory-run-supervisor.mjs"),
   ...PERSONA_ASSET_FILES.map((filename) => join61("extensions", filename)),
   join61("skills", "ast-grep", "SKILL.md"),
+  join61("skills", "browser", "SKILL.md"),
   join61("skills", "coding-agent-sessions", "SKILL.md"),
   join61("skills", "debugging", "SKILL.md"),
   join61("skills", "frontend", "SKILL.md"),
@@ -97390,7 +97564,7 @@ async function verifyAstGrepRuntimeIntegrity(pluginPath, platform) {
   }
 }
 function isAstGrepRuntimeManifest(value) {
-  if (!isRecord14(value))
+  if (!isRecord15(value))
     return false;
   return typeof value.sha256 === "string" && /^[a-f0-9]{64}$/.test(value.sha256) && typeof value.mode === "number" && Number.isInteger(value.mode) && typeof value.stagedAtUtc === "string" && !Number.isNaN(Date.parse(value.stagedAtUtc));
 }
@@ -97480,23 +97654,88 @@ function findRepoRoot2(importerDir) {
 function fileExistsSync(path) {
   return existsSync30(path);
 }
-// packages/omo-opencode/src/cli/senpi-edition-hint.ts
-var SENPI_EDITION_INSTALL_COMMAND = "bun add -g omo-ai@beta";
-var SENPI_EDITION_GUIDE_URL = "https://github.com/code-yeongyu/oh-my-openagent/blob/dev/docs/guide/installation.md#senpi-edition-beta-omo-via-omo-ai";
-var SENPI_EDITION_HINT_TITLE = "Standalone Senpi edition (beta)";
+// packages/omo-opencode/src/cli/install-native-dev/index.ts
+async function runNativeDevInstaller(options) {
+  return runSenpiInstaller(options);
+}
+
+// packages/omo-opencode/src/cli/install-native/plan.ts
+var NATIVE_PACKAGE_SPEC = "omo-ai@beta";
+var NATIVE_SETUP_COMMAND = "omo setup";
+var NATIVE_RECOMMENDED_RUNTIME_NOTE = "bun is the recommended runtime for OmO Native; npm works, but bun is what the beta channel is tested on.";
+var PLANS = {
+  bun: { packageManager: "bun", command: "bun", args: ["add", "-g", NATIVE_PACKAGE_SPEC] },
+  npm: { packageManager: "npm", command: "npm", args: ["i", "-g", NATIVE_PACKAGE_SPEC] }
+};
+function resolveNativeInstallPlan(bunAvailable) {
+  return bunAvailable ? PLANS.bun : PLANS.npm;
+}
+function formatNativeInstallCommand(plan) {
+  return [plan.command, ...plan.args].join(" ");
+}
+// packages/omo-opencode/src/cli/install-native/run-native-install.ts
+init_bun_which_shim();
+init_spawn_with_windows_hide();
+function describeExit(plan, result) {
+  const stderr = result.stderr?.trim();
+  const head = `${plan.packageManager} exited with code ${result.exitCode}`;
+  return stderr ? `${head}: ${stderr.split(`
+`).slice(-3).join(" ")}` : head;
+}
+async function runNativeInstall(dependencies = defaultNativeInstallDependencies()) {
+  const plan = resolveNativeInstallPlan(await dependencies.isBunAvailable());
+  const notes = plan.packageManager === "npm" ? [NATIVE_RECOMMENDED_RUNTIME_NOTE] : [];
+  const manualCommand = formatNativeInstallCommand(plan);
+  try {
+    const result = await dependencies.spawn(plan.command, plan.args);
+    if (result.exitCode === 0)
+      return { ok: true, plan, notes };
+    return { ok: false, plan, notes, failure: { reason: describeExit(plan, result), manualCommand } };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return { ok: false, plan, notes, failure: { reason, manualCommand } };
+  }
+}
+function nativeInstallSuccessLine() {
+  return `OmO Native installed. Run ${NATIVE_SETUP_COMMAND} to finish onboarding.`;
+}
+function nativeInstallFailureLines(failure) {
+  return [
+    `OmO Native install failed: ${failure.reason}`,
+    `Install it yourself with: ${failure.manualCommand}`,
+    `Then run ${NATIVE_SETUP_COMMAND}.`
+  ];
+}
+function defaultNativeInstallDependencies() {
+  return {
+    isBunAvailable: () => bunWhich("bun") !== null,
+    spawn: async (command, args) => {
+      const proc = spawnWithWindowsHide([command, ...args], {
+        env: process.env,
+        stdout: "inherit",
+        stderr: "inherit"
+      });
+      return { exitCode: await proc.exited };
+    }
+  };
+}
+// packages/omo-opencode/src/cli/native-edition-hint.ts
+var NATIVE_EDITION_INSTALL_COMMAND = "bun add -g omo-ai@beta";
+var NATIVE_EDITION_GUIDE_URL = "https://github.com/code-yeongyu/oh-my-openagent/blob/dev/docs/guide/installation.md#omo-native-beta-omo-via-omo-ai";
+var NATIVE_EDITION_HINT_TITLE = "OmO Native (beta)";
 var PLAIN_PAINT = {
   command: (text) => text,
   link: (text) => text
 };
-function shouldShowSenpiEditionHint(config) {
-  return !config.hasSenpi;
+function shouldShowNativeEditionHint(config) {
+  return !config.hasNative && !config.hasNativeDev;
 }
-function senpiEditionHintLines(paint = PLAIN_PAINT) {
+function nativeEditionHintLines(paint = PLAIN_PAINT) {
   return [
-    `omo also ships as a standalone Senpi edition: one ${paint.command("omo")} command, no OpenCode host required.`,
-    `Try it next to this install: ${paint.command(SENPI_EDITION_INSTALL_COMMAND)}, then run ${paint.command("omo")}.`,
+    `omo also ships as OmO Native: the same omo as one ${paint.command("omo")} command, with no OpenCode host required.`,
+    `Try it next to this install: ${paint.command(NATIVE_EDITION_INSTALL_COMMAND)}, then run ${paint.command("omo")}.`,
     "This install keeps working as-is.",
-    `Guide: ${paint.link(SENPI_EDITION_GUIDE_URL)}`
+    `Guide: ${paint.link(NATIVE_EDITION_GUIDE_URL)}`
   ];
 }
 
@@ -97511,7 +97750,8 @@ var PLATFORM_REPOSITORIES = {
   opencode: ["code-yeongyu/oh-my-openagent"],
   codex: STAR_REPOSITORIES,
   both: STAR_REPOSITORIES,
-  senpi: STAR_REPOSITORIES
+  native: STAR_REPOSITORIES,
+  "native-dev": STAR_REPOSITORIES
 };
 var execFileAsync2 = promisify3(execFile4);
 async function runGitHubStarCommand(repository) {
@@ -98013,14 +98253,27 @@ async function runCliInstaller(args, version) {
     }
     console.log();
   }
-  if (config.hasSenpi) {
-    printInfo("Installing Senpi harness adapter...");
+  if (config.hasNative) {
+    printInfo("Installing OmO Native...");
+    const outcome = await runNativeInstall();
+    if (outcome.failure) {
+      for (const line of nativeInstallFailureLines(outcome.failure))
+        printError(line);
+      return 1;
+    }
+    for (const note of outcome.notes)
+      printInfo(note);
+    printSuccess(nativeInstallSuccessLine());
+    console.log();
+  }
+  if (config.hasNativeDev) {
+    printInfo("Installing the OmO Native development adapter...");
     try {
-      const senpiResult = await runSenpiInstaller();
-      printSuccess(`Senpi adapter installed ${SYMBOLS.arrow} ${import_picocolors3.default.dim(senpiResult.settingsPath)}`);
+      const nativeDevResult = await runNativeDevInstaller();
+      printSuccess(`OmO Native development adapter installed ${SYMBOLS.arrow} ${import_picocolors3.default.dim(nativeDevResult.settingsPath)}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      printError(`Senpi install failed: ${message}`);
+      printError(`OmO Native development adapter install failed: ${message}`);
       return 1;
     }
     console.log();
@@ -98031,9 +98284,9 @@ async function runCliInstaller(args, version) {
   printBox(`${import_picocolors3.default.bold("Pro Tip:")} Include ${import_picocolors3.default.cyan("ultrawork")} (or ${import_picocolors3.default.cyan("ulw")}) in your prompt.
 ` + `All features work like magic-parallel agents, background tasks,
 ` + `deep exploration, and relentless execution until completion.`, "The Magic Word");
-  if (shouldShowSenpiEditionHint(config)) {
-    printInfo(import_picocolors3.default.bold(SENPI_EDITION_HINT_TITLE));
-    for (const line of senpiEditionHintLines({ command: import_picocolors3.default.cyan, link: import_picocolors3.default.underline })) {
+  if (shouldShowNativeEditionHint(config)) {
+    printInfo(import_picocolors3.default.bold(NATIVE_EDITION_HINT_TITLE));
+    for (const line of nativeEditionHintLines({ command: import_picocolors3.default.cyan, link: import_picocolors3.default.underline })) {
       console.log(`    ${line}`);
     }
     console.log();
@@ -99173,16 +99426,20 @@ var import_picocolors4 = __toESM(require_picocolors(), 1);
 // packages/omo-opencode/src/cli/tui-install-prompts.ts
 init_model_fallback();
 
-// packages/omo-opencode/src/cli/senpi-platform-flag.ts
-var SENPI_PLATFORM_ENV_FLAG = "OMO_ENABLE_SENPI_PLATFORM";
-function isSenpiPlatformEnabled(env = process.env) {
-  const value = env[SENPI_PLATFORM_ENV_FLAG]?.trim().toLowerCase();
-  return value === "1" || value === "true";
+// packages/omo-opencode/src/cli/native-dev-platform-flag.ts
+var NATIVE_DEV_PLATFORM_ENV_FLAG = "OMO_ENABLE_NATIVE_DEV_PLATFORM";
+var LEGACY_NATIVE_DEV_PLATFORM_ENV_FLAG = "OMO_ENABLE_SENPI_PLATFORM";
+function isTruthy(value) {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
+function isNativeDevPlatformEnabled(env = process.env) {
+  return isTruthy(env[NATIVE_DEV_PLATFORM_ENV_FLAG]) || isTruthy(env[LEGACY_NATIVE_DEV_PLATFORM_ENV_FLAG]);
 }
 function availableInstallPlatforms(env = process.env) {
-  const platforms = ["opencode", "codex", "both"];
-  if (isSenpiPlatformEnabled(env))
-    platforms.push("senpi");
+  const platforms = ["opencode", "codex", "both", "native"];
+  if (isNativeDevPlatformEnabled(env))
+    platforms.push("native-dev");
   return platforms;
 }
 
@@ -99205,10 +99462,15 @@ async function promptInstallPlatform(initialValue = "opencode") {
   const options = [
     { value: "opencode", label: "OpenCode", hint: "Install OpenCode plugin only" },
     { value: "codex", label: "Codex", hint: "Install Codex harness adapter only" },
-    { value: "both", label: "Both", hint: "Install OpenCode plugin and Codex adapter" }
+    { value: "both", label: "Both", hint: "Install OpenCode plugin and Codex adapter" },
+    { value: "native", label: "OmO Native", hint: "Install the standalone omo command (no host required)" }
   ];
-  if (isSenpiPlatformEnabled()) {
-    options.push({ value: "senpi", label: "Senpi", hint: "Install Senpi harness adapter only" });
+  if (isNativeDevPlatformEnabled()) {
+    options.push({
+      value: "native-dev",
+      label: "OmO Native (development adapter)",
+      hint: "Register this checkout into a local engine install"
+    });
   }
   return selectOrCancel({
     message: "Which platform do you want to install?",
@@ -99219,7 +99481,8 @@ async function promptInstallPlatform(initialValue = "opencode") {
 async function promptInstallConfig(detected, platform, codexAutonomousOverride) {
   const hasOpenCode = platform === "opencode" || platform === "both";
   const hasCodex = platform === "codex" || platform === "both";
-  const hasSenpi = platform === "senpi";
+  const hasNative = platform === "native";
+  const hasNativeDev = platform === "native-dev";
   const codexAutonomous = await resolveCodexAutonomous(hasCodex, codexAutonomousOverride);
   if (codexAutonomous === null)
     return null;
@@ -99233,7 +99496,8 @@ async function promptInstallConfig(detected, platform, codexAutonomousOverride) 
       hasGemini: false,
       hasCopilot: false,
       hasCodex,
-      hasSenpi,
+      hasNative,
+      hasNativeDev,
       hasOpencodeZen: false,
       hasZaiCodingPlan: false,
       hasKimiForCoding: false,
@@ -99376,7 +99640,8 @@ async function promptInstallConfig(detected, platform, codexAutonomousOverride) 
     hasGemini: gemini === "yes",
     hasCopilot: copilot === "yes",
     hasCodex,
-    hasSenpi,
+    hasNative,
+    hasNativeDev,
     hasOpencodeZen: opencodeZen === "yes",
     hasZaiCodingPlan: zaiCodingPlan === "yes",
     hasKimiForCoding: kimiForCoding === "yes",
@@ -99507,15 +99772,29 @@ async function runTuiInstaller(args, version) {
       log4.info("The Codex harness is NOT installed. Fix the error above, then re-run: bunx oh-my-openagent install --platform=codex");
     }
   }
-  if (config.hasSenpi) {
-    spinner2.start("Installing Senpi harness adapter");
+  if (config.hasNative) {
+    spinner2.start("Installing OmO Native");
+    const outcome = await runNativeInstall();
+    if (outcome.failure) {
+      spinner2.stop(`OmO Native install failed ${import_picocolors4.default.yellow("[!]")}`);
+      for (const line of nativeInstallFailureLines(outcome.failure))
+        log4.error(line);
+      outro(import_picocolors4.default.red("Installation failed."));
+      return 1;
+    }
+    spinner2.stop(nativeInstallSuccessLine());
+    for (const note of outcome.notes)
+      log4.info(note);
+  }
+  if (config.hasNativeDev) {
+    spinner2.start("Installing the OmO Native development adapter");
     try {
-      const senpiResult = await runSenpiInstaller();
-      spinner2.stop(`Senpi adapter installed to ${import_picocolors4.default.cyan(senpiResult.settingsPath)}`);
+      const nativeDevResult = await runNativeDevInstaller();
+      spinner2.stop(`OmO Native development adapter installed to ${import_picocolors4.default.cyan(nativeDevResult.settingsPath)}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      spinner2.stop(`Senpi install failed ${import_picocolors4.default.yellow("[!]")}`);
-      log4.error(`Senpi install failed: ${message}`);
+      spinner2.stop(`OmO Native development adapter install failed ${import_picocolors4.default.yellow("[!]")}`);
+      log4.error(`OmO Native development adapter install failed: ${message}`);
       outro(import_picocolors4.default.red("Installation failed."));
       return 1;
     }
@@ -99529,9 +99808,9 @@ async function runTuiInstaller(args, version) {
   note(`Include ${import_picocolors4.default.cyan("ultrawork")} (or ${import_picocolors4.default.cyan("ulw")}) in your prompt.
 ` + `All features work like magic-parallel agents, background tasks,
 ` + `deep exploration, and relentless execution until completion.`, "The Magic Word");
-  if (shouldShowSenpiEditionHint(config)) {
-    log4.info(import_picocolors4.default.bold(SENPI_EDITION_HINT_TITLE));
-    log4.message(senpiEditionHintLines({ command: import_picocolors4.default.cyan, link: import_picocolors4.default.underline }).join(`
+  if (shouldShowNativeEditionHint(config)) {
+    log4.info(import_picocolors4.default.bold(NATIVE_EDITION_HINT_TITLE));
+    log4.message(nativeEditionHintLines({ command: import_picocolors4.default.cyan, link: import_picocolors4.default.underline }).join(`
 `));
   }
   const shouldStar = await confirm({
@@ -99572,7 +99851,7 @@ async function runTuiInstaller(args, version) {
 
 // packages/omo-opencode/src/cli/install.ts
 var VERSION = package_default.version;
-async function install3(args) {
+async function install2(args) {
   return args.tui ? runTuiInstaller(args, VERSION) : runCliInstaller(args, VERSION);
 }
 // packages/omo-opencode/src/cli/cleanup.ts
@@ -101073,7 +101352,8 @@ var HookNameSchema = _enum([
   "webfetch-redirect-guard",
   "fsync-skip-warning",
   "plan-format-validator",
-  "legacy-plugin-toast"
+  "legacy-plugin-toast",
+  "native-edition-nudge"
 ]);
 // packages/omo-opencode/src/config/schema/i18n.ts
 init_zod();
@@ -103176,14 +103456,14 @@ var NO_OP_POSTHOG2 = {
 function isFalsy(value) {
   return value === "0" || value === "false" || value === "no";
 }
-function isTruthy(value) {
+function isTruthy2(value) {
   return value === "1" || value === "true" || value === "yes";
 }
 function shouldDisablePostHog(env, configEnabled) {
   if (configEnabled === false) {
     return true;
   }
-  if (isTruthy(env.OMO_DISABLE_POSTHOG?.trim().toLowerCase())) {
+  if (isTruthy2(env.OMO_DISABLE_POSTHOG?.trim().toLowerCase())) {
     return true;
   }
   return isFalsy(env.OMO_SEND_ANONYMOUS_TELEMETRY?.trim().toLowerCase());
@@ -104706,14 +104986,14 @@ var CANONICAL_REPLACEMENT = new Map([
 var MIGRATE_SUFFIX = ", or run: oh-my-openagent config migrate";
 var TUNING_CONTAINERS = new Set(["agents", "categories", "models"]);
 var PASSTHROUGH_CONTAINERS = new Set(["provider_options", "providerOptions"]);
-function isRecord15(value) {
+function isRecord16(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function isHarnessBlock(key) {
   return key.startsWith("[") && key.endsWith("]");
 }
 function collectIssues(configPath, value, prefix, fixSuffix) {
-  if (!isRecord15(value))
+  if (!isRecord16(value))
     return [];
   const issues = [];
   for (const [key, child] of Object.entries(value)) {
@@ -104729,7 +105009,7 @@ function collectIssues(configPath, value, prefix, fixSuffix) {
       });
       continue;
     }
-    if (!isRecord15(child))
+    if (!isRecord16(child))
       continue;
     if (PASSTHROUGH_CONTAINERS.has(key))
       continue;
@@ -104748,7 +105028,7 @@ function collectIssues(configPath, value, prefix, fixSuffix) {
   return issues;
 }
 function migrateFixSuffix(parsed) {
-  if (isRecord15(parsed) && hasMigrationMarker(parsed, REASONING_UNIFICATION_MIGRATION_ID))
+  if (isRecord16(parsed) && hasMigrationMarker(parsed, REASONING_UNIFICATION_MIGRATION_ID))
     return "";
   return MIGRATE_SUFFIX;
 }
@@ -105986,12 +106266,12 @@ async function auditBundleTargets(pluginRoot) {
   let referencedCount = 0;
   for (const manifestPath of await findManifestPaths(pluginRoot, ".mcp.json")) {
     const manifest = await readJson2(manifestPath);
-    if (manifest === null || !isRecord16(manifest["mcpServers"]))
+    if (manifest === null || !isRecord17(manifest["mcpServers"]))
       continue;
     const manifestRoot = dirname33(manifestPath);
     const isRootManifest = resolve24(manifestRoot) === resolve24(pluginRoot);
     for (const server of Object.values(manifest["mcpServers"])) {
-      if (!isRecord16(server) || !Array.isArray(server["args"]))
+      if (!isRecord17(server) || !Array.isArray(server["args"]))
         continue;
       for (const arg of server["args"]) {
         if (typeof arg !== "string" || !isPluginRuntimePathArg(arg))
@@ -106077,7 +106357,7 @@ function collectHookCommands(value, commands) {
       collectHookCommands(item, commands);
     return;
   }
-  if (!isRecord16(value))
+  if (!isRecord17(value))
     return;
   if (value["type"] === "command") {
     if (typeof value["command"] === "string")
@@ -106132,7 +106412,7 @@ function parseDegradedEntries(value) {
     return [];
   const entries = [];
   for (const item of value) {
-    if (!isRecord16(item))
+    if (!isRecord17(item))
       continue;
     if (typeof item["component"] !== "string" || typeof item["reason"] !== "string")
       continue;
@@ -106166,7 +106446,7 @@ function degradedDetailLines(entries) {
 async function readJson2(path) {
   try {
     const parsed = JSON.parse(await readFile29(path, "utf8"));
-    return isRecord16(parsed) ? parsed : null;
+    return isRecord17(parsed) ? parsed : null;
   } catch (error) {
     if (error instanceof Error)
       return null;
@@ -106187,7 +106467,7 @@ function normalizeRelative(root, target) {
 function normalizePathSeparators(path) {
   return path.split("\\").join("/");
 }
-function isRecord16(value) {
+function isRecord17(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -108297,8 +108577,8 @@ var program2 = new Command;
 function resolveInstallArgs(options, invocationName = process.env.OMO_INVOCATION_NAME) {
   const defaultPlatform = process.env.OMO_EDITION === "codex" || invocationName === "lazycodex" || invocationName === "lazycodex-ai" ? "codex" : undefined;
   const platform = options.platform ?? defaultPlatform;
-  if (platform === "senpi" && !isSenpiPlatformEnabled()) {
-    throw new Error(`The senpi install platform is not available in this release. Set ${SENPI_PLATFORM_ENV_FLAG}=1 to enable it from a source checkout.`);
+  if (platform === "native-dev" && !isNativeDevPlatformEnabled()) {
+    throw new Error(`The native-dev install platform is not available in this release. Set ${NATIVE_DEV_PLATFORM_ENV_FLAG}=1 to enable it from a source checkout.`);
   }
   return {
     tui: options.tui !== false,
@@ -108343,7 +108623,7 @@ Model Providers (Priority: Native > Copilot > OpenCode Zen > Z.ai > Kimi > Baili
 `).action(async (options) => {
   const rootOptions = program2.opts();
   const args = resolveInstallArgs({ ...options, platform: options.platform ?? rootOptions.platform });
-  const exitCode = await install3(args);
+  const exitCode = await install2(args);
   process.exit(exitCode);
 });
 configureCleanupCommand(program2);
