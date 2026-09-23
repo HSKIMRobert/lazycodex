@@ -65,7 +65,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.86",
+    version: "5.0.0-beta.87",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -248,7 +248,7 @@ var init_package = __esm(() => {
       zod: "^4.6.5"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.23-2",
+      "@code-yeongyu/senpi": "2026.9.23-4",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -284,22 +284,23 @@ var init_package = __esm(() => {
       "@xterm/xterm": "^6.0.0",
       "bun-types": "1.4.2",
       "node-pty": "^1.1.0",
+      omowright: "github:code-yeongyu/omowright#25781c8ac04f9aae358b06551520b792ac45c6ed",
       "puppeteer-core": "^25.11.0",
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.86",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.86",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.86",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.86",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.86",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.86",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.86",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.86",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.86",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.86",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.86",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.86"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.87",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.87",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.87",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.87",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.87",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.87",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.87",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.87",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.87",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.87",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.87",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.87"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -7420,7 +7421,7 @@ var init_category_model_requirements = __esm(() => {
     },
     quick: {
       fallbackChain: [
-        { providers: ["chatgpt-subscription"], model: "gpt-6-luna-fast", variant: "low" },
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-luna-fast", variant: "low" },
         { providers: ["deepseek"], model: "deepseek-flash", variant: "off" },
         {
           providers: ["qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan"],
@@ -7465,7 +7466,7 @@ var init_category_model_requirements = __esm(() => {
         {
           providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
           model: "claude-opus-5-5",
-          variant: "max"
+          variant: "medium"
         },
         { providers: ["zai-coding-plan", "opencode-go"], model: "glm-5.3", variant: "max" },
         {
@@ -7476,6 +7477,7 @@ var init_category_model_requirements = __esm(() => {
       ]
     },
     writing: {
+      requiresAnyModel: true,
       fallbackChain: [
         {
           providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
@@ -9461,7 +9463,7 @@ var init_openai_categories = __esm(() => {
     },
     {
       name: "unspecified-high",
-      config: { model: "anthropic/claude-opus-5-5", variant: "max" },
+      config: { model: "anthropic/claude-opus-5-5", variant: "medium" },
       description: "Tasks that don't fit other categories, high effort required",
       callerGuidance: UNSPECIFIED_HIGH_CATEGORY_CALLER_GUIDANCE,
       promptAppend: UNSPECIFIED_HIGH_CATEGORY_PROMPT_APPEND,
@@ -74561,6 +74563,8 @@ var init_model_profile = __esm(() => {
   init_fallback_models();
   OmoModelProfileInputSchema = object({
     display_name: string2().optional(),
+    family: _enum(["daily", "geeky"]).optional(),
+    tier: _enum(["normal", "heavy"]).optional(),
     models: array(union([string2(), OmoFallbackModelObjectSchema])).optional()
   }).strict();
   OmoModelProfileSchema = preprocess((value) => isRecord8(value) ? normalizeLegacyModelFields(value) : value, OmoModelProfileInputSchema);
@@ -77154,8 +77158,7 @@ var init_openai_only_model_catalog = __esm(() => {
   OPENAI_ONLY_CATEGORY_OVERRIDES = {
     artistry: { model: "openai/gpt-5.6-sol", variant: "xhigh" },
     quick: { model: "openai/gpt-6-luna-fast" },
-    "visual-engineering": { model: "openai/gpt-5.6-sol", variant: "high" },
-    writing: { model: "openai/gpt-5.6-sol", variant: "medium" }
+    "visual-engineering": { model: "openai/gpt-5.6-sol", variant: "high" }
   };
 });
 
@@ -77346,7 +77349,7 @@ function generateModelConfig(config) {
     return {
       $schema: SCHEMA_URL,
       agents: Object.fromEntries(Object.entries(CLI_AGENT_MODEL_REQUIREMENTS).filter(([role, req]) => !(role === "sisyphus" && req.requiresAnyModel)).map(([role]) => [role, { model: ULTIMATE_FALLBACK }])),
-      categories: Object.fromEntries(Object.keys(CLI_CATEGORY_MODEL_REQUIREMENTS).map((cat) => [cat, { model: ULTIMATE_FALLBACK }]))
+      categories: Object.fromEntries(Object.entries(CLI_CATEGORY_MODEL_REQUIREMENTS).filter(([, req]) => !req.requiresAnyModel).map(([cat]) => [cat, { model: ULTIMATE_FALLBACK }]))
     };
   }
   const agents = {};
@@ -77414,6 +77417,9 @@ function generateModelConfig(config) {
   }
   for (const [cat, req] of Object.entries(CLI_CATEGORY_MODEL_REQUIREMENTS)) {
     const fallbackChain = cat === "unspecified-high" && !avail.isMaxPlan ? CLI_CATEGORY_MODEL_REQUIREMENTS["unspecified-low"].fallbackChain : req.fallbackChain;
+    if (req.requiresAnyModel && !isAnyFallbackEntryAvailable(fallbackChain, avail)) {
+      continue;
+    }
     if (req.requiresModel && !isRequiredModelAvailable(req.requiresModel, req.fallbackChain, avail)) {
       continue;
     }
@@ -88832,7 +88838,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.86",
+    version: "5.0.0-beta.87",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
