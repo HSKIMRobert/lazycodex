@@ -3890,6 +3890,18 @@ var MODEL_CONTEXT_BUDGETS = [
     contextWindowTokens: 600000,
     effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT
   },
+  { slug: "gpt-6-sol", contextWindowTokens: 400000, effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT },
+  {
+    slug: "gpt-6-sol-fast",
+    contextWindowTokens: 400000,
+    effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT
+  },
+  { slug: "gpt-6-luna", contextWindowTokens: 922000, effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT },
+  {
+    slug: "gpt-6-luna-fast",
+    contextWindowTokens: 922000,
+    effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT
+  },
   { slug: "gpt-5.6-sol", contextWindowTokens: 650000, effectivePercent: DEFAULT_EFFECTIVE_CONTEXT_WINDOW_PERCENT },
   {
     slug: "gpt-5.6-terra",
