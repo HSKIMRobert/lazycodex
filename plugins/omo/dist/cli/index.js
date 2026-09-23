@@ -64,7 +64,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.85",
+    version: "5.0.0-beta.86",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -247,7 +247,7 @@ var init_package = __esm(() => {
       zod: "^4.6.5"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.23",
+      "@code-yeongyu/senpi": "2026.9.23-2",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -287,18 +287,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.85",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.85",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.85",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.85",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.85",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.85",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.85",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.85",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.85",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.85",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.85",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.85"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.86",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.86",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.86",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.86",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.86",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.86",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.86",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.86",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.86",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.86",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.86",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.86"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -7234,26 +7234,20 @@ var init_agent_model_requirements = __esm(() => {
       fallbackChain: [
         { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
         { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-luna-fast", variant: "low" },
-        { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
+        { providers: ["deepseek"], model: "deepseek-flash", variant: "max" },
         { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
-        { providers: ["opencode-go"], model: "minimax-m3" },
-        { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
         { providers: ["opencode-go"], model: "minimax-m2.7" },
-        { providers: ["anthropic", "github-copilot"], model: "claude-haiku-4-5" },
-        { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.4-nano" }
+        { providers: ["anthropic", "github-copilot"], model: "claude-haiku-4-5" }
       ]
     },
     explore: {
       fallbackChain: [
         { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
         { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-luna-fast", variant: "low" },
-        { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
+        { providers: ["deepseek"], model: "deepseek-flash", variant: "max" },
         { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
-        { providers: ["opencode-go"], model: "minimax-m3" },
-        { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
         { providers: ["opencode-go"], model: "minimax-m2.7" },
-        { providers: ["anthropic", "github-copilot"], model: "claude-haiku-4-5" },
-        { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.4-nano" }
+        { providers: ["anthropic", "github-copilot"], model: "claude-haiku-4-5" }
       ]
     },
     "multimodal-looker": {
@@ -7387,14 +7381,10 @@ var init_category_model_requirements = __esm(() => {
     },
     "deep-low": {
       fallbackChain: [
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-sol-fast", variant: "medium" },
         {
           providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-6-sol",
-          variant: "medium"
-        },
-        {
-          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
-          model: "gpt-5.6-sol",
           variant: "medium"
         }
       ]
@@ -7404,7 +7394,7 @@ var init_category_model_requirements = __esm(() => {
         {
           providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-6-astra",
-          variant: "high"
+          variant: "xhigh"
         }
       ]
     },
@@ -7430,7 +7420,7 @@ var init_category_model_requirements = __esm(() => {
     quick: {
       fallbackChain: [
         { providers: ["chatgpt-subscription"], model: "gpt-6-luna-fast", variant: "low" },
-        { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "off" },
+        { providers: ["deepseek"], model: "deepseek-flash", variant: "off" },
         {
           providers: ["qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan"],
           model: "qwen3.6-flash",
@@ -8175,6 +8165,22 @@ var init_supplemental_entries = __esm(() => {
         output: 128000
       }
     },
+    "gpt-6-sol-fast": {
+      id: "gpt-6-sol-fast",
+      family: "gpt",
+      reasoning: true,
+      temperature: false,
+      toolCall: true,
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      },
+      limit: {
+        context: 1050000,
+        input: 922000,
+        output: 128000
+      }
+    },
     "gpt-6-luna": {
       id: "gpt-6-luna",
       family: "gpt-nano",
@@ -8253,6 +8259,21 @@ var init_supplemental_entries = __esm(() => {
         context: 400000,
         input: 272000,
         output: 128000
+      }
+    },
+    "deepseek-flash": {
+      id: "deepseek-flash",
+      family: "deepseek-flash",
+      reasoning: true,
+      temperature: true,
+      toolCall: true,
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      },
+      limit: {
+        context: 1e6,
+        output: 384000
       }
     },
     "gpt-6-luna-fast": {
@@ -9396,7 +9417,7 @@ You are working on tasks that don't fit specific categories but require substant
 </Category_Context>`, UNSPECIFIED_HIGH_CATEGORY_CALLER_GUIDANCE = `<Selection_Gate>Use only when no specialist category fits and substantial effort spans systems/modules with broad impact. Use unspecified-low for contained moderate work.</Selection_Gate>`, DEEP_LOW_CATEGORY_CALLER_GUIDANCE = `<Selection_Gate>Route here when one subsystem plus its callers holds the mechanism and the evidence, once read, leaves one right answer. Wide but mechanical work belongs here or in a quick batch. When unsure, choose deep-low: a misrouted child returns \`ESCALATE: deep-high\` after one cheap attempt; re-spawn the same brief as deep-high with its findings.</Selection_Gate>`, DEEP_HIGH_CATEGORY_CALLER_GUIDANCE = `<Selection_Gate>Route here only when you can name the decision evidence cannot settle: a trade-off with no single right answer, a contract change crossing a package or process boundary, a mechanism with no in-repo pattern to copy, or correctness argued from invariants rather than observed in a test. Wide scope with easy decisions is deep-low or unspecified-high; reasoning as the deliverable is ultrabrain.</Selection_Gate>`, DEEP_LOW_GATE_MODELS, DEEP_HIGH_GATE_MODEL = "gpt-6-astra", OPENAI_CATEGORIES;
 var init_openai_categories = __esm(() => {
   init_types();
-  DEEP_LOW_GATE_MODELS = ["gpt-6-sol", "gpt-5.6-sol"];
+  DEEP_LOW_GATE_MODELS = ["gpt-6-sol-fast", "gpt-6-sol"];
   OPENAI_CATEGORIES = [
     {
       name: "ultrabrain",
@@ -9407,7 +9428,7 @@ var init_openai_categories = __esm(() => {
     },
     {
       name: "deep-low",
-      config: { model: "openai/gpt-6-sol", variant: "medium" },
+      config: { model: "openai/gpt-6-sol-fast", variant: "medium" },
       description: "Default deep lane: one goal, one deliverable, decisions the child can settle from what it reads. **3D graphics, computer/browser use, CAPTCHA, multimodal, backend, logic, and algorithm work is routed here.** Multiple goals fan out as parallel calls.",
       callerGuidance: DEEP_LOW_CATEGORY_CALLER_GUIDANCE,
       promptAppend: DEEP_LOW_CATEGORY_PROMPT_APPEND,
@@ -9416,7 +9437,7 @@ var init_openai_categories = __esm(() => {
     },
     {
       name: "deep-high",
-      config: { model: "openai/gpt-6-astra", variant: "high" },
+      config: { model: "openai/gpt-6-astra", variant: "xhigh" },
       description: "Escalation deep lane: a goal whose central decision cannot be settled from evidence alone. Same one-goal, one-deliverable contract as deep-low.",
       callerGuidance: DEEP_HIGH_CATEGORY_CALLER_GUIDANCE,
       promptAppend: DEEP_HIGH_CATEGORY_PROMPT_APPEND,
@@ -88732,7 +88753,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.85",
+    version: "5.0.0-beta.86",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
