@@ -64,7 +64,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.87",
+    version: "5.0.0-beta.88",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -247,7 +247,7 @@ var init_package = __esm(() => {
       zod: "^4.6.5"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.23-4",
+      "@code-yeongyu/senpi": "2026.9.23-5",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -288,18 +288,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.87",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.87",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.87",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.87",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.87",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.87",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.87",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.87",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.87",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.87",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.87",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.87"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.88",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.88",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.88",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.88",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.88",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.88",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.88",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.88",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.88",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.88",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.88",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.88"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -88759,7 +88759,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.87",
+    version: "5.0.0-beta.88",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -105363,28 +105363,41 @@ init_src();
 import { existsSync as existsSync53 } from "fs";
 import { createRequire as createRequire2 } from "module";
 import { homedir as homedir19 } from "os";
-import { dirname as dirname31, join as join82 } from "path";
+import { dirname as dirname31, join as join83 } from "path";
 
+// packages/omo-opencode/src/hooks/comment-checker/downloader.ts
+import { join as join82 } from "path";
+import { homedir as homedir18, tmpdir as tmpdir4 } from "os";
+// packages/comment-checker-core/src/release.ts
+import { join as join81 } from "path";
+function commentCheckerBinaryName(platform) {
+  return platform === "win32" ? "comment-checker.exe" : "comment-checker";
+}
+function commentCheckerCacheDir(input) {
+  if (input.platform === "win32") {
+    const localAppData = input.env.LOCALAPPDATA || input.env.APPDATA;
+    const base = localAppData || join81(input.homedir, "AppData", "Local");
+    return join81(base, input.cacheDirName, "bin");
+  }
+  const base = input.env.XDG_CACHE_HOME || join81(input.homedir, ".cache");
+  return join81(base, input.cacheDirName, "bin");
+}
 // packages/omo-opencode/src/hooks/comment-checker/downloader.ts
 init_binary_downloader();
 init_logger2();
 init_plugin_identity();
-import { join as join81 } from "path";
-import { homedir as homedir18, tmpdir as tmpdir4 } from "os";
 var DEBUG = process.env.COMMENT_CHECKER_DEBUG === "1";
-var DEBUG_FILE = join81(tmpdir4(), "comment-checker-debug.log");
+var DEBUG_FILE = join82(tmpdir4(), "comment-checker-debug.log");
 function getCacheDir2() {
-  if (process.platform === "win32") {
-    const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
-    const base = localAppData || join81(homedir18(), "AppData", "Local");
-    return join81(base, CACHE_DIR_NAME, "bin");
-  }
-  const xdgCache = process.env.XDG_CACHE_HOME;
-  const base = xdgCache || join81(homedir18(), ".cache");
-  return join81(base, CACHE_DIR_NAME, "bin");
+  return commentCheckerCacheDir({
+    platform: process.platform,
+    env: process.env,
+    homedir: homedir18(),
+    cacheDirName: CACHE_DIR_NAME
+  });
 }
 function getBinaryName() {
-  return process.platform === "win32" ? "comment-checker.exe" : "comment-checker";
+  return commentCheckerBinaryName(process.platform);
 }
 function getCachedBinaryPath2() {
   return getCachedBinaryPath(getCacheDir2(), getBinaryName());
@@ -105431,7 +105444,7 @@ async function getBinaryVersion(binary) {
   }
 }
 async function checkAstGrepCli() {
-  const runtimeDir = astGrepRuntimeDir(join82(homedir19(), ".omo"));
+  const runtimeDir = astGrepRuntimeDir(join83(homedir19(), ".omo"));
   const sgPath = findSgBinarySync({ runtimeDir });
   if (sgPath === null) {
     return {
@@ -105461,10 +105474,10 @@ function findCommentCheckerPackageBinary(baseDirOverride, resolvePackageJsonPath
   const platformKey = `${process.platform}-${process.arch === "x64" ? "x64" : process.arch}`;
   try {
     const packageDir = baseDirOverride ?? dirname31(resolvePackageJsonPath());
-    const vendorPath = join82(packageDir, "vendor", platformKey, binaryName);
+    const vendorPath = join83(packageDir, "vendor", platformKey, binaryName);
     if (existsSync53(vendorPath))
       return vendorPath;
-    const binPath = join82(packageDir, "bin", binaryName);
+    const binPath = join83(packageDir, "bin", binaryName);
     if (existsSync53(binPath))
       return binPath;
   } catch (error) {
@@ -105840,13 +105853,13 @@ function getInstalledLspServers(options = {}) {
 init_shared();
 import { existsSync as existsSync55, readFileSync as readFileSync35 } from "fs";
 import { homedir as homedir20 } from "os";
-import { join as join83 } from "path";
+import { join as join84 } from "path";
 var BUILTIN_MCP_SERVERS = ["websearch", "context7", "grep_app", "lsp"];
 function getMcpConfigPaths() {
   return [
-    join83(homedir20(), ".claude", ".mcp.json"),
-    join83(process.cwd(), ".mcp.json"),
-    join83(process.cwd(), ".claude", ".mcp.json")
+    join84(homedir20(), ".claude", ".mcp.json"),
+    join84(process.cwd(), ".mcp.json"),
+    join84(process.cwd(), ".claude", ".mcp.json")
   ];
 }
 function loadUserMcpConfig() {
@@ -106128,7 +106141,7 @@ init_src();
 import { existsSync as existsSync57 } from "fs";
 import { lstat as lstat16, readdir as readdir14, readFile as readFile28 } from "fs/promises";
 import { homedir as homedir22 } from "os";
-import { basename as basename11, join as join84, resolve as resolve23 } from "path";
+import { basename as basename11, join as join85, resolve as resolve23 } from "path";
 // packages/omo-opencode/package.json
 var package_default3 = {
   name: "@oh-my-opencode/omo-opencode",
@@ -106140,6 +106153,10 @@ var package_default3 = {
     "./config-migration": {
       types: "./src/config-migration/index.ts",
       import: "./src/config-migration/index.ts"
+    },
+    "./binary-downloader": {
+      types: "./src/shared/binary-downloader.ts",
+      import: "./src/shared/binary-downloader.ts"
     }
   },
   scripts: {
@@ -106194,13 +106211,13 @@ var CODEX_BIN_NAMES = [
   "omo-git-bash-hook"
 ];
 async function gatherCodexSummary(deps = {}) {
-  const codexHome = resolve23(deps.codexHome ?? process.env.CODEX_HOME ?? join84(homedir22(), ".codex"));
+  const codexHome = resolve23(deps.codexHome ?? process.env.CODEX_HOME ?? join85(homedir22(), ".codex"));
   const binDir = resolveCodexInstallerBinDir({ binDir: deps.binDir, codexHome, env: process.env });
   const detection = await (deps.detectCodexInstallation ?? detectCodexInstallation)();
   const pluginRoot = await resolveInstalledPluginRoot(codexHome);
-  const manifest = pluginRoot === null ? null : await readJson(join84(pluginRoot, ".codex-plugin", "plugin.json"));
-  const installSnapshot = pluginRoot === null ? null : await readJson(join84(pluginRoot, "lazycodex-install.json"));
-  const configPath = join84(codexHome, "config.toml");
+  const manifest = pluginRoot === null ? null : await readJson(join85(pluginRoot, ".codex-plugin", "plugin.json"));
+  const installSnapshot = pluginRoot === null ? null : await readJson(join85(pluginRoot, "lazycodex-install.json"));
+  const configPath = join85(codexHome, "config.toml");
   const pluginVersion = stringField(manifest, "version");
   return {
     codexPath: detection.found && "path" in detection ? detection.path : null,
@@ -106257,7 +106274,7 @@ function buildCodexIssues(summary) {
   if (summary.pluginRoot === null) {
     issues.push({
       title: "OMO Codex plugin is not installed",
-      description: `Expected cached plugin at ${join84("plugins", "cache", MARKETPLACE_NAME, PLUGIN_NAME2, DEFAULT_PLUGIN_VERSION)} under CODEX_HOME.`,
+      description: `Expected cached plugin at ${join85("plugins", "cache", MARKETPLACE_NAME, PLUGIN_NAME2, DEFAULT_PLUGIN_VERSION)} under CODEX_HOME.`,
       fix: "Run: npx lazycodex-ai install",
       severity: "error",
       affects: ["plugin loading"]
@@ -106322,12 +106339,12 @@ function buildCodexIssues(summary) {
   return issues;
 }
 async function resolveInstalledPluginRoot(codexHome) {
-  const pluginRoot = join84(codexHome, "plugins", "cache", MARKETPLACE_NAME, PLUGIN_NAME2);
+  const pluginRoot = join85(codexHome, "plugins", "cache", MARKETPLACE_NAME, PLUGIN_NAME2);
   if (!existsSync57(pluginRoot))
     return null;
   const versions = await readdir14(pluginRoot, { withFileTypes: true });
   const candidates = versions.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort(compareVersionsDescending);
-  return candidates.length === 0 ? null : join84(pluginRoot, candidates[0] ?? DEFAULT_PLUGIN_VERSION);
+  return candidates.length === 0 ? null : join85(pluginRoot, candidates[0] ?? DEFAULT_PLUGIN_VERSION);
 }
 async function readCodexConfigSummary(configPath) {
   if (!existsSync57(configPath)) {
@@ -106355,13 +106372,13 @@ async function readCodexConfigSummary(configPath) {
 async function readLinkedBins(binDir) {
   const linked = [];
   for (const name of CODEX_BIN_NAMES) {
-    if (await pathExists2(join84(binDir, process.platform === "win32" ? `${name}.cmd` : name)))
+    if (await pathExists2(join85(binDir, process.platform === "win32" ? `${name}.cmd` : name)))
       linked.push(name);
   }
   return linked;
 }
 async function readLinkedAgents(codexHome) {
-  const agentsDir = join84(codexHome, "agents");
+  const agentsDir = join85(codexHome, "agents");
   if (!existsSync57(agentsDir))
     return [];
   const entries = await readdir14(agentsDir, { withFileTypes: true });
@@ -106495,7 +106512,7 @@ function resolveLatestVersion(input) {
 init_src();
 import { readdir as readdir15, readFile as readFile29, stat as stat7 } from "fs/promises";
 import { homedir as homedir23 } from "os";
-import { dirname as dirname33, isAbsolute as isAbsolute13, join as join85, relative as relative9, resolve as resolve24, sep as sep9 } from "path";
+import { dirname as dirname33, isAbsolute as isAbsolute13, join as join86, relative as relative9, resolve as resolve24, sep as sep9 } from "path";
 var CODEX_COMPONENTS_CHECK_ID = "codex-components";
 var CODEX_COMPONENTS_CHECK_NAME = "codex-components";
 var PLUGIN_DATA_DIR_NAME = "omo-sisyphuslabs";
@@ -106505,7 +106522,7 @@ async function checkCodexComponents(deps = {}) {
   const env = deps.env ?? process.env;
   const platform = deps.platform ?? process.platform;
   const arch = deps.arch ?? process.arch;
-  const codexHome = resolve24(deps.codexHome ?? env["CODEX_HOME"] ?? join85(homedir23(), ".codex"));
+  const codexHome = resolve24(deps.codexHome ?? env["CODEX_HOME"] ?? join86(homedir23(), ".codex"));
   const summary = await gatherCodexSummary({ ...deps, codexHome });
   if (summary.pluginRoot === null) {
     return {
@@ -106530,7 +106547,7 @@ async function checkCodexComponents(deps = {}) {
     });
   }
   const runtimeSgDir = runtimeSgDirectory(codexHome, platform, arch);
-  const runtimeSgPath = join85(runtimeSgDir, sgBinaryName(platform));
+  const runtimeSgPath = join86(runtimeSgDir, sgBinaryName(platform));
   const sg = findSgBinarySync({
     arch,
     env,
@@ -106567,12 +106584,12 @@ async function auditBundleTargets(pluginRoot) {
   let referencedCount = 0;
   for (const manifestPath of await findManifestPaths(pluginRoot, ".mcp.json")) {
     const manifest = await readJson2(manifestPath);
-    if (manifest === null || !isRecord17(manifest["mcpServers"]))
+    if (manifest === null || !isRecord18(manifest["mcpServers"]))
       continue;
     const manifestRoot = dirname33(manifestPath);
     const isRootManifest = resolve24(manifestRoot) === resolve24(pluginRoot);
     for (const server of Object.values(manifest["mcpServers"])) {
-      if (!isRecord17(server) || !Array.isArray(server["args"]))
+      if (!isRecord18(server) || !Array.isArray(server["args"]))
         continue;
       for (const arg of server["args"]) {
         if (typeof arg !== "string" || !isPluginRuntimePathArg(arg))
@@ -106642,7 +106659,7 @@ async function findManifestPaths(root, manifestName) {
   for (const entry of entries) {
     if (entry.name === "node_modules" || entry.name === ".git")
       continue;
-    const entryPath = join85(root, entry.name);
+    const entryPath = join86(root, entry.name);
     if (entry.isDirectory()) {
       paths.push(...await findManifestPaths(entryPath, manifestName));
       continue;
@@ -106658,7 +106675,7 @@ function collectHookCommands(value, commands) {
       collectHookCommands(item, commands);
     return;
   }
-  if (!isRecord17(value))
+  if (!isRecord18(value))
     return;
   if (value["type"] === "command") {
     if (typeof value["command"] === "string")
@@ -106686,18 +106703,18 @@ function isPluginRuntimePathArg(arg) {
   return normalized.endsWith(".js") && normalized.includes("/dist/") && (normalized.startsWith("./") || normalized.startsWith("../") || normalized.startsWith("components/") || normalized.startsWith("/") || isAbsolute13(arg));
 }
 function runtimeSgDirectory(codexHome, platform, arch) {
-  return join85(codexHome, "runtime", "ast-grep", runtimeSlug(platform, arch));
+  return join86(codexHome, "runtime", "ast-grep", runtimeSlug(platform, arch));
 }
 function describeSgSource(sgPath, env, runtimeSgDir, platform) {
   const override = env[SG_PATH_ENV_KEY]?.trim();
   if (override !== undefined && override.length > 0 && sgPath === override)
     return `env override ${SG_PATH_ENV_KEY}`;
-  if (sgPath === join85(runtimeSgDir, sgBinaryName(platform)))
+  if (sgPath === join86(runtimeSgDir, sgBinaryName(platform)))
     return "runtime dir";
   return "PATH";
 }
 async function readBootstrapStateSummary(codexHome) {
-  const statePath = join85(codexHome, "plugins", "data", PLUGIN_DATA_DIR_NAME, "bootstrap", "state.json");
+  const statePath = join86(codexHome, "plugins", "data", PLUGIN_DATA_DIR_NAME, "bootstrap", "state.json");
   const raw = await readJson2(statePath);
   if (raw === null)
     return null;
@@ -106713,7 +106730,7 @@ function parseDegradedEntries(value) {
     return [];
   const entries = [];
   for (const item of value) {
-    if (!isRecord17(item))
+    if (!isRecord18(item))
       continue;
     if (typeof item["component"] !== "string" || typeof item["reason"] !== "string")
       continue;
@@ -106747,7 +106764,7 @@ function degradedDetailLines(entries) {
 async function readJson2(path) {
   try {
     const parsed = JSON.parse(await readFile29(path, "utf8"));
-    return isRecord17(parsed) ? parsed : null;
+    return isRecord18(parsed) ? parsed : null;
   } catch (error) {
     if (error instanceof Error)
       return null;
@@ -106768,7 +106785,7 @@ function normalizeRelative(root, target) {
 function normalizePathSeparators(path) {
   return path.split("\\").join("/");
 }
-function isRecord17(value) {
+function isRecord18(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -106776,16 +106793,16 @@ function isRecord17(value) {
 import { existsSync as existsSync58 } from "fs";
 import { readFile as readFile30 } from "fs/promises";
 import { homedir as homedir24 } from "os";
-import { join as join86, resolve as resolve25 } from "path";
+import { join as join87, resolve as resolve25 } from "path";
 var RUNTIME_WRAPPER_MARKER2 = "OMO_GENERATED_RUNTIME_WRAPPER";
 var CHECK_NAME = "codex-runtime-wrapper";
 var REINSTALL_COMMAND = "npx --yes lazycodex-ai@latest install --no-tui";
 async function checkCodexRuntimeWrapper(deps = {}) {
-  const codexHome = resolve25(deps.codexHome ?? process.env.CODEX_HOME ?? join86(homedir24(), ".codex"));
+  const codexHome = resolve25(deps.codexHome ?? process.env.CODEX_HOME ?? join87(homedir24(), ".codex"));
   const binDir = resolveCodexInstallerBinDir({ binDir: deps.binDir, codexHome, env: process.env });
   const platform = deps.platform ?? process.platform;
-  const wrapperPath = join86(binDir, platform === "win32" ? "omo-agent-toolkit.cmd" : "omo-agent-toolkit");
-  const legacyWrapperPath = join86(binDir, platform === "win32" ? "omo.cmd" : "omo");
+  const wrapperPath = join87(binDir, platform === "win32" ? "omo-agent-toolkit.cmd" : "omo-agent-toolkit");
+  const legacyWrapperPath = join87(binDir, platform === "win32" ? "omo.cmd" : "omo");
   const [wrapper, legacyWrapper] = await Promise.all([readRuntimeWrapper(wrapperPath), readRuntimeWrapper(legacyWrapperPath)]);
   const issues = [];
   if (wrapper?.includes(RUNTIME_WRAPPER_MARKER2) === true) {
@@ -107321,12 +107338,12 @@ import {
   unlinkSync as unlinkSync9,
   writeFileSync as writeFileSync12
 } from "fs";
-import { basename as basename12, dirname as dirname34, join as join89 } from "path";
+import { basename as basename12, dirname as dirname34, join as join90 } from "path";
 
 // packages/mcp-client-core/src/config-dir.ts
 import { existsSync as existsSync59, realpathSync as realpathSync8 } from "fs";
 import { homedir as homedir25 } from "os";
-import { join as join87, resolve as resolve26 } from "path";
+import { join as join88, resolve as resolve26 } from "path";
 function resolveConfigPath2(pathValue) {
   const resolvedPath = resolve26(pathValue);
   if (!existsSync59(resolvedPath))
@@ -107344,13 +107361,13 @@ function getOpenCodeCliConfigDir(env = process.env) {
   if (customConfigDir) {
     return resolveConfigPath2(customConfigDir);
   }
-  const xdgConfigDir = env["XDG_CONFIG_HOME"]?.trim() || join87(homedir25(), ".config");
-  return resolveConfigPath2(join87(xdgConfigDir, "opencode"));
+  const xdgConfigDir = env["XDG_CONFIG_HOME"]?.trim() || join88(homedir25(), ".config");
+  return resolveConfigPath2(join88(xdgConfigDir, "opencode"));
 }
 
 // packages/mcp-client-core/src/mcp-oauth/storage-index.ts
 import { chmodSync as chmodSync4, existsSync as existsSync60, readFileSync as readFileSync37, renameSync as renameSync6, writeFileSync as writeFileSync11 } from "fs";
-import { join as join88 } from "path";
+import { join as join89 } from "path";
 var INDEX_FILE_NAME = "index.json";
 function isTokenIndex(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value))
@@ -107358,7 +107375,7 @@ function isTokenIndex(value) {
   return Object.values(value).every((entry) => typeof entry === "string");
 }
 function getIndexPath(storageDir) {
-  return join88(storageDir, INDEX_FILE_NAME);
+  return join89(storageDir, INDEX_FILE_NAME);
 }
 function readTokenIndex(storageDir) {
   const indexPath = getIndexPath(storageDir);
@@ -107402,16 +107419,16 @@ function deleteTokenIndexEntry(storageDir, hash) {
 var STORAGE_DIR_NAME = "mcp-oauth";
 var LEGACY_STORAGE_FILE_NAME = "mcp-oauth.json";
 function getMcpOauthStorageDir() {
-  return join89(getOpenCodeCliConfigDir(), STORAGE_DIR_NAME);
+  return join90(getOpenCodeCliConfigDir(), STORAGE_DIR_NAME);
 }
 function getMcpOauthServerHash(serverHost, resource) {
   return createHash7("sha256").update(buildKey(serverHost, resource)).digest("hex").slice(0, 32);
 }
 function getMcpOauthStoragePath(serverHost, resource) {
-  return join89(getMcpOauthStorageDir(), `${getMcpOauthServerHash(serverHost, resource)}.json`);
+  return join90(getMcpOauthStorageDir(), `${getMcpOauthServerHash(serverHost, resource)}.json`);
 }
 function getLegacyStoragePath() {
-  return join89(getOpenCodeCliConfigDir(), LEGACY_STORAGE_FILE_NAME);
+  return join90(getOpenCodeCliConfigDir(), LEGACY_STORAGE_FILE_NAME);
 }
 function normalizeHost2(serverHost) {
   let host = serverHost.trim();
@@ -107590,7 +107607,7 @@ function listTokensByHost(serverHost) {
   for (const [hash, indexedKey] of Object.entries(index)) {
     if (!indexedKey.startsWith(prefix))
       continue;
-    const indexedToken = readTokenFile(join89(getMcpOauthStorageDir(), `${hash}.json`));
+    const indexedToken = readTokenFile(join90(getMcpOauthStorageDir(), `${hash}.json`));
     if (indexedToken)
       result[indexedKey] = indexedToken;
   }
@@ -107605,7 +107622,7 @@ function listAllTokens() {
   for (const entry of readdirSync12(dir, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".json") || entry.name === "index.json")
       continue;
-    const token = readTokenFile(join89(dir, entry.name));
+    const token = readTokenFile(join90(dir, entry.name));
     const hash = basename12(entry.name, ".json");
     if (token)
       result[index[hash] ?? hash] = token;
