@@ -64,7 +64,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.88",
+    version: "5.0.0-beta.89",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -247,7 +247,7 @@ var init_package = __esm(() => {
       zod: "^4.6.5"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.23-5",
+      "@code-yeongyu/senpi": "2026.9.24",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -288,18 +288,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.88",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.88",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.88",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.88",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.88",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.88",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.88",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.88",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.88",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.88",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.88",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.88"
+      "oh-my-opencode-darwin-arm64": "5.0.0-beta.89",
+      "oh-my-opencode-darwin-x64": "5.0.0-beta.89",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.89",
+      "oh-my-opencode-linux-arm64": "5.0.0-beta.89",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.89",
+      "oh-my-opencode-linux-x64": "5.0.0-beta.89",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.89",
+      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.89",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.89",
+      "oh-my-opencode-windows-arm64": "5.0.0-beta.89",
+      "oh-my-opencode-windows-x64": "5.0.0-beta.89",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.89"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -88759,7 +88759,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.88",
+    version: "5.0.0-beta.89",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
