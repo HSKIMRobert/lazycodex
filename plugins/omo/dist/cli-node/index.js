@@ -65,7 +65,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0-beta.90",
+    version: "5.0.0",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -248,7 +248,7 @@ var init_package = __esm(() => {
       zod: "^4.6.5"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.24-3",
+      "@code-yeongyu/senpi": "2026.9.26",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -289,18 +289,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0-beta.90",
-      "oh-my-opencode-darwin-x64": "5.0.0-beta.90",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.90",
-      "oh-my-opencode-linux-arm64": "5.0.0-beta.90",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.90",
-      "oh-my-opencode-linux-x64": "5.0.0-beta.90",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.90",
-      "oh-my-opencode-linux-x64-musl": "5.0.0-beta.90",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.90",
-      "oh-my-opencode-windows-arm64": "5.0.0-beta.90",
-      "oh-my-opencode-windows-x64": "5.0.0-beta.90",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.90"
+      "oh-my-opencode-darwin-arm64": "5.0.0",
+      "oh-my-opencode-darwin-x64": "5.0.0",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.0",
+      "oh-my-opencode-linux-arm64": "5.0.0",
+      "oh-my-opencode-linux-arm64-musl": "5.0.0",
+      "oh-my-opencode-linux-x64": "5.0.0",
+      "oh-my-opencode-linux-x64-baseline": "5.0.0",
+      "oh-my-opencode-linux-x64-musl": "5.0.0",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0",
+      "oh-my-opencode-windows-arm64": "5.0.0",
+      "oh-my-opencode-windows-x64": "5.0.0",
+      "oh-my-opencode-windows-x64-baseline": "5.0.0"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -7383,10 +7383,10 @@ var init_category_model_requirements = __esm(() => {
     },
     "deep-low": {
       fallbackChain: [
-        { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-sol-fast", variant: "medium" },
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.6-sol-fast", variant: "medium" },
         {
           providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
-          model: "gpt-6-sol",
+          model: "gpt-5.6-sol",
           variant: "medium"
         }
       ]
@@ -9420,7 +9420,7 @@ You are working on tasks that don't fit specific categories but require substant
 </Category_Context>`, UNSPECIFIED_HIGH_CATEGORY_CALLER_GUIDANCE = `<Selection_Gate>Use only when no specialist category fits and substantial effort spans systems/modules with broad impact. Use unspecified-low for contained moderate work.</Selection_Gate>`, DEEP_LOW_CATEGORY_CALLER_GUIDANCE = `<Selection_Gate>Route here when one subsystem plus its callers holds the mechanism and the evidence, once read, leaves one right answer. Wide but mechanical work belongs here or in a quick batch. When unsure, choose deep-low: a misrouted child returns \`ESCALATE: deep-high\` after one cheap attempt; re-spawn the same brief as deep-high with its findings.</Selection_Gate>`, DEEP_HIGH_CATEGORY_CALLER_GUIDANCE = `<Selection_Gate>Route here only when you can name the decision evidence cannot settle: a trade-off with no single right answer, a contract change crossing a package or process boundary, a mechanism with no in-repo pattern to copy, or correctness argued from invariants rather than observed in a test. Wide scope with easy decisions is deep-low or unspecified-high; reasoning as the deliverable is ultrabrain.</Selection_Gate>`, DEEP_LOW_GATE_MODELS, DEEP_HIGH_GATE_MODEL = "gpt-6-astra", OPENAI_CATEGORIES;
 var init_openai_categories = __esm(() => {
   init_types();
-  DEEP_LOW_GATE_MODELS = ["gpt-6-sol-fast", "gpt-6-sol"];
+  DEEP_LOW_GATE_MODELS = ["gpt-5.6-sol-fast", "gpt-5.6-sol"];
   OPENAI_CATEGORIES = [
     {
       name: "ultrabrain",
@@ -9431,7 +9431,7 @@ var init_openai_categories = __esm(() => {
     },
     {
       name: "deep-low",
-      config: { model: "openai/gpt-6-sol-fast", variant: "medium" },
+      config: { model: "openai/gpt-5.6-sol-fast", variant: "medium" },
       description: "Default deep lane: one goal, one deliverable, decisions the child can settle from what it reads. **3D graphics, computer/browser use, CAPTCHA, multimodal, backend, logic, and algorithm work is routed here.** Multiple goals fan out as parallel calls.",
       callerGuidance: DEEP_LOW_CATEGORY_CALLER_GUIDANCE,
       promptAppend: DEEP_LOW_CATEGORY_PROMPT_APPEND,
@@ -79121,6 +79121,40 @@ var init_config_manager = __esm(() => {
   init_backup_config();
 });
 
+// packages/omo-opencode/src/hooks/auto-update-checker/checker/bundled-version.ts
+function getBundledVersion() {
+  return package_default.version;
+}
+var init_bundled_version = __esm(() => {
+  init_package();
+});
+
+// packages/omo-opencode/src/hooks/auto-update-checker/version-channel.ts
+function isPrereleaseVersion(version) {
+  return version.includes("-");
+}
+function isDistTag(version) {
+  const startsWithDigit = /^\d/.test(version);
+  return !startsWithDigit;
+}
+function extractChannel(version) {
+  if (!version)
+    return "latest";
+  if (isDistTag(version)) {
+    return version;
+  }
+  if (isPrereleaseVersion(version)) {
+    const prereleasePart = version.split("-")[1];
+    if (prereleasePart) {
+      const channelMatch = prereleasePart.match(/^(alpha|beta|rc|canary|next)/);
+      if (channelMatch) {
+        return channelMatch[1];
+      }
+    }
+  }
+  return "latest";
+}
+
 // packages/telemetry-core/src/day-claim.ts
 import { closeSync as closeSync3, mkdirSync as mkdirSync9, openSync as openSync3, readdirSync as readdirSync8, rmSync as rmSync3 } from "node:fs";
 import { join as join52 } from "node:path";
@@ -88999,7 +89033,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.90",
+    version: "5.0.0",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -89188,40 +89222,6 @@ var init_posthog = __esm(() => {
 var init_telemetry2 = __esm(() => {
   init_posthog();
 });
-
-// packages/omo-opencode/src/hooks/auto-update-checker/checker/bundled-version.ts
-function getBundledVersion() {
-  return package_default.version;
-}
-var init_bundled_version = __esm(() => {
-  init_package();
-});
-
-// packages/omo-opencode/src/hooks/auto-update-checker/version-channel.ts
-function isPrereleaseVersion(version) {
-  return version.includes("-");
-}
-function isDistTag(version) {
-  const startsWithDigit = /^\d/.test(version);
-  return !startsWithDigit;
-}
-function extractChannel(version) {
-  if (!version)
-    return "latest";
-  if (isDistTag(version)) {
-    return version;
-  }
-  if (isPrereleaseVersion(version)) {
-    const prereleasePart = version.split("-")[1];
-    if (prereleasePart) {
-      const channelMatch = prereleasePart.match(/^(alpha|beta|rc|canary|next)/);
-      if (channelMatch) {
-        return channelMatch[1];
-      }
-    }
-  }
-  return "latest";
-}
 
 // node_modules/.bun/sisteransi@1.0.5/node_modules/sisteransi/src/index.js
 var require_src = __commonJS(function(exports, module) {
@@ -92292,6 +92292,33 @@ import { createInterface as createInterface2 } from "node:readline/promises";
 
 // packages/omo-opencode/src/cli/install-validators.ts
 var import_picocolors = __toESM(require_picocolors(), 1);
+
+// packages/omo-opencode/src/cli/install-native/plan.ts
+init_shared();
+init_bundled_version();
+function nativePackageSpec(pluginVersion = getBundledVersion()) {
+  return isPrereleaseVersion(pluginVersion) ? "omo-ai@beta" : "omo-ai";
+}
+var NATIVE_PACKAGE_SPEC = nativePackageSpec();
+var NATIVE_SETUP_COMMAND = "omo setup";
+var NATIVE_RECOMMENDED_RUNTIME_NOTE = "bun is the recommended runtime for OmO Native; npm works, but bun is what OmO Native is tested on.";
+var PLANS = {
+  bun: { packageManager: "bun", command: "bun", args: ["add", "-g", NATIVE_PACKAGE_SPEC] },
+  npm: { packageManager: "npm", command: "npm", args: ["i", "-g", NATIVE_PACKAGE_SPEC] }
+};
+function resolveNativeInstallPlan(bunAvailable) {
+  return bunAvailable ? PLANS.bun : PLANS.npm;
+}
+function formatNativeInstallCommand(plan) {
+  return [plan.command, ...plan.args].join(" ");
+}
+function formatNativeInstallEntryCommand(plan, pluginVersion = getBundledVersion()) {
+  const runner = plan.packageManager === "bun" ? "bunx" : "npx";
+  const tag = isPrereleaseVersion(pluginVersion) ? "@beta" : "";
+  return `${runner} ${PUBLISHED_PACKAGE_NAME}${tag} install --platform=native`;
+}
+
+// packages/omo-opencode/src/cli/install-validators.ts
 var SYMBOLS = {
   check: import_picocolors.default.green("[OK]"),
   cross: import_picocolors.default.red("[X]"),
@@ -92317,7 +92344,7 @@ function formatConfigSummary(config) {
     lines.push(`  ${SYMBOLS.info} Codex autonomous mode: ${config.codexAutonomous ? "enabled" : "disabled"}`);
   }
   if (config.hasNative) {
-    lines.push(`  ${SYMBOLS.info} OmO Native: installing from omo-ai@beta`);
+    lines.push(`  ${SYMBOLS.info} OmO Native: installing from ${NATIVE_PACKAGE_SPEC}`);
   }
   if (config.hasNativeDev) {
     lines.push(`  ${SYMBOLS.info} OmO Native development adapter: enabled`);
@@ -97930,7 +97957,12 @@ function localLauncherPath(homeDir = homedir10()) {
 function localLauncherCmdPath(homeDir = homedir10()) {
   return join60(homeDir, ".local", "bin", "omo.cmd");
 }
+function releaseChannel(version) {
+  return version !== undefined && version.includes("-") ? "beta" : "latest";
+}
 function renderLocalLauncher(options) {
+  const channel = releaseChannel(options.version);
+  const updateCommand = channel === "beta" ? "bun add -g omo-ai@beta" : "bun add -g omo-ai";
   const brand = {
     name: "OmO",
     command: "omo",
@@ -97945,8 +97977,8 @@ function renderLocalLauncher(options) {
     },
     update: {
       packageName: "omo-ai",
-      distTag: "beta",
-      command: "npm i -g omo-ai@beta",
+      distTag: channel,
+      command: updateCommand,
       changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases"
     }
   };
@@ -97976,7 +98008,7 @@ const selfUpdate = process.argv[2] === "update"
   && process.argv.slice(3).every((arg) => arg.startsWith("-") || ["self", "senpi", "omo"].includes(arg))
   && !process.argv.slice(3).some((arg) => arg === "--extensions" || arg === "--models")
 if (selfUpdate) {
-  console.log("omo is updated via npm: npm i -g omo-ai@beta")
+  console.log(${JSON.stringify(`omo is updated via bun: ${updateCommand}`)})
   process.exit(0)
 }
 // windowsHide-exempt: this is the interactive foreground CLI, spawned with inherited stdio.
@@ -98340,28 +98372,6 @@ function fileExistsSync(path) {
 // packages/omo-opencode/src/cli/install-native-dev/index.ts
 async function runNativeDevInstaller(options) {
   return runSenpiInstaller(options);
-}
-
-// packages/omo-opencode/src/cli/install-native/plan.ts
-init_shared();
-init_bundled_version();
-var NATIVE_PACKAGE_SPEC = "omo-ai@beta";
-var NATIVE_SETUP_COMMAND = "omo setup";
-var NATIVE_RECOMMENDED_RUNTIME_NOTE = "bun is the recommended runtime for OmO Native; npm works, but bun is what the beta channel is tested on.";
-var PLANS = {
-  bun: { packageManager: "bun", command: "bun", args: ["add", "-g", NATIVE_PACKAGE_SPEC] },
-  npm: { packageManager: "npm", command: "npm", args: ["i", "-g", NATIVE_PACKAGE_SPEC] }
-};
-function resolveNativeInstallPlan(bunAvailable) {
-  return bunAvailable ? PLANS.bun : PLANS.npm;
-}
-function formatNativeInstallCommand(plan) {
-  return [plan.command, ...plan.args].join(" ");
-}
-function formatNativeInstallEntryCommand(plan, pluginVersion = getBundledVersion()) {
-  const runner = plan.packageManager === "bun" ? "bunx" : "npx";
-  const tag = isPrereleaseVersion(pluginVersion) ? "@beta" : "";
-  return `${runner} ${PUBLISHED_PACKAGE_NAME}${tag} install --platform=native`;
 }
 // packages/omo-opencode/src/cli/install-native/legacy-omo-bin.ts
 import { lstatSync as lstatSync4, readFileSync as readFileSync15, realpathSync as realpathSync8 } from "node:fs";
