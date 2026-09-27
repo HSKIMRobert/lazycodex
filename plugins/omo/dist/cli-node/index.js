@@ -65,7 +65,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.0.0",
+    version: "5.0.1",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -248,7 +248,7 @@ var init_package = __esm(() => {
       zod: "^4.6.5"
     },
     devDependencies: {
-      "@code-yeongyu/senpi": "2026.9.26",
+      "@code-yeongyu/senpi": "2026.9.27",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
       "@oh-my-opencode/boulder-state": "workspace:*",
@@ -289,18 +289,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.0.0",
-      "oh-my-opencode-darwin-x64": "5.0.0",
-      "oh-my-opencode-darwin-x64-baseline": "5.0.0",
-      "oh-my-opencode-linux-arm64": "5.0.0",
-      "oh-my-opencode-linux-arm64-musl": "5.0.0",
-      "oh-my-opencode-linux-x64": "5.0.0",
-      "oh-my-opencode-linux-x64-baseline": "5.0.0",
-      "oh-my-opencode-linux-x64-musl": "5.0.0",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.0.0",
-      "oh-my-opencode-windows-arm64": "5.0.0",
-      "oh-my-opencode-windows-x64": "5.0.0",
-      "oh-my-opencode-windows-x64-baseline": "5.0.0"
+      "oh-my-opencode-darwin-arm64": "5.0.1",
+      "oh-my-opencode-darwin-x64": "5.0.1",
+      "oh-my-opencode-darwin-x64-baseline": "5.0.1",
+      "oh-my-opencode-linux-arm64": "5.0.1",
+      "oh-my-opencode-linux-arm64-musl": "5.0.1",
+      "oh-my-opencode-linux-x64": "5.0.1",
+      "oh-my-opencode-linux-x64-baseline": "5.0.1",
+      "oh-my-opencode-linux-x64-musl": "5.0.1",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.0.1",
+      "oh-my-opencode-windows-arm64": "5.0.1",
+      "oh-my-opencode-windows-x64": "5.0.1",
+      "oh-my-opencode-windows-x64-baseline": "5.0.1"
     },
     overrides: {
       "@earendil-works/pi-agent-core": "0.84.2",
@@ -7481,11 +7481,6 @@ var init_category_model_requirements = __esm(() => {
       fallbackChain: [
         {
           providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-          model: "claude-fable-5-1",
-          variant: "low"
-        },
-        {
-          providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
           model: "claude-opus-5-5",
           variant: "low"
         },
@@ -9282,7 +9277,7 @@ var init_kimi_categories = __esm(() => {
   KIMI_CATEGORIES = [
     {
       name: "writing",
-      config: { model: "anthropic/claude-fable-5-1", variant: "low" },
+      config: { model: "anthropic/claude-opus-5-5", variant: "low" },
       description: "Documentation, prose, technical writing",
       promptAppend: WRITING_CATEGORY_PROMPT_APPEND
     }
@@ -89033,7 +89028,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0",
+    version: "5.0.1",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
