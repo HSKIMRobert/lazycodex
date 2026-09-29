@@ -4989,7 +4989,8 @@ function missingDependencyAvailability(error) {
         extensions: [...error.lookup.server.extensions],
         installHint: error.lookup.installHint,
         installDecisionTool: context.capabilities.installDecisionTool,
-        installDecisionsPath: context.installDecisionsPath
+        installDecisionsPath: context.installDecisionsPath,
+        decision: loadInstallDecision(error.lookup.server.id)?.decision ?? null
       };
     default: {
       const exhaustive = error.lookup;
@@ -5782,109 +5783,18 @@ function callDiagnosticsViaDaemon2(filePath, options) {
   return callDiagnosticsViaDaemon(filePath, options);
 }
 
-// ../../../../lsp-core/src/post-edit/orchestration.ts
-import { extname as extname2 } from "node:path";
-var DEFAULT_MAX_CONCURRENCY = 4;
-var CLEAN_DIAGNOSTICS_TEXT = "No diagnostics found";
-function createPostEditNotConfiguredCache() {
-  return { notConfiguredExtensions: new Set };
-}
-async function collectPostEditDiagnostics(input) {
-  const cache = input.cache === undefined ? createPostEditNotConfiguredCache() : input.cache;
-  const filePaths = firstSeenDiagnosticTargets(input.filePaths, cache);
-  const results = await runBoundedDiagnostics(filePaths, input.runDiagnostics, input.maxConcurrency);
-  const blocks = [];
-  const observations = [];
-  for (const result of results) {
-    const classification = classifyDiagnostics(result.outcome);
-    switch (classification.kind) {
-      case "clean":
-        observations.push({ filePath: result.filePath, kind: "clean" });
-        break;
-      case "not_configured":
-        cache.notConfiguredExtensions.add(classification.extension);
-        observations.push({ filePath: result.filePath, kind: "not_configured" });
-        break;
-      case "block":
-        blocks.push({ filePath: result.filePath, diagnostics: classification.diagnostics });
-        observations.push({ filePath: result.filePath, kind: "block" });
-        break;
-      default: {
-        const exhaustive = classification;
-        return exhaustive;
-      }
-    }
-  }
-  return { blocks, observations };
-}
-function firstSeenDiagnosticTargets(filePaths, cache) {
-  const seen = new Set;
-  const targets = [];
-  for (const filePath of filePaths) {
-    if (filePath.length === 0 || seen.has(filePath))
-      continue;
-    seen.add(filePath);
-    const extension = extensionKey(filePath);
-    if (extension !== undefined && cache.notConfiguredExtensions.has(extension))
-      continue;
-    targets.push({ index: targets.length, filePath });
-  }
-  return targets;
-}
-async function runBoundedDiagnostics(filePaths, runDiagnostics, maxConcurrency) {
-  const results = [];
-  const workerCount = Math.min(Math.max(1, maxConcurrency ?? DEFAULT_MAX_CONCURRENCY), filePaths.length);
-  let nextIndex = 0;
-  async function worker() {
-    for (;; ) {
-      const target = filePaths[nextIndex];
-      nextIndex += 1;
-      if (target === undefined)
-        return;
-      results[target.index] = {
-        index: target.index,
-        filePath: target.filePath,
-        outcome: await collectFileDiagnostics(target.filePath, runDiagnostics)
-      };
-    }
-  }
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return results.filter((result) => result !== undefined);
-}
-async function collectFileDiagnostics(filePath, runDiagnostics) {
-  try {
-    return normalizeDiagnosticsOutcome(await runDiagnostics(filePath));
-  } catch (error) {
-    if (error instanceof Error)
-      return formatDiagnosticsError(error);
-    return normalizeDiagnosticsText(String(error));
-  }
-}
-function normalizeDiagnosticsOutcome(outcome) {
-  if (typeof outcome === "string")
-    return normalizeDiagnosticsText(outcome);
-  return outcome;
-}
-function normalizeDiagnosticsText(text) {
-  return text.trim();
-}
-function formatDiagnosticsError(error) {
-  const message = normalizeDiagnosticsText(error.message);
-  return message.length > 0 ? message : normalizeDiagnosticsText(String(error));
-}
-function classifyDiagnostics(outcome) {
-  if (typeof outcome !== "string") {
-    return { kind: "not_configured", extension: outcome.extension };
-  }
-  const diagnostics = outcome;
-  if (diagnostics.length === 0 || diagnostics === CLEAN_DIAGNOSTICS_TEXT)
-    return { kind: "clean" };
-  return { kind: "block", diagnostics };
-}
-function extensionKey(filePath) {
-  const extension = extname2(filePath).toLowerCase();
-  return extension.length === 0 ? undefined : extension;
-}
+// ../../../../lsp-core/src/lsp/workspace-markers.ts
+var GIT_WORKSPACE_MARKER2 = ".git";
+var PROJECT_WORKSPACE_MARKERS2 = [
+  "package.json",
+  "pyproject.toml",
+  "Cargo.toml",
+  "go.mod",
+  "pom.xml",
+  "build.gradle"
+];
+var WORKSPACE_MARKERS2 = [GIT_WORKSPACE_MARKER2, ...PROJECT_WORKSPACE_MARKERS2];
+
 // ../../../../lsp-core/src/request-context.ts
 import { AsyncLocalStorage as AsyncLocalStorage2 } from "node:async_hooks";
 import { existsSync as existsSync13, realpathSync as realpathSync6, statSync as statSync6 } from "node:fs";
@@ -6007,7 +5917,131 @@ function errorCode2(error) {
   const code = Reflect.get(error, "code");
   return typeof code === "string" ? code : undefined;
 }
-
+// ../../../../lsp-core/src/post-edit/not-installed-guidance.ts
+function notInstalledGuidance(filePath, outcome, state, locateFile) {
+  if (outcome.decision !== undefined)
+    return outcome.text;
+  if (locateFile !== undefined && locateFile(filePath) !== "project")
+    return;
+  if (outcome.installDecisionTool)
+    return outcome.text;
+  if (state.notInstalledServers.has(outcome.serverId))
+    return;
+  state.notInstalledServers.add(outcome.serverId);
+  return outcome.text;
+}
+// ../../../../lsp-core/src/post-edit/orchestration.ts
+import { extname as extname2 } from "node:path";
+var DEFAULT_MAX_CONCURRENCY = 4;
+var CLEAN_DIAGNOSTICS_TEXT = "No diagnostics found";
+function createPostEditNotConfiguredCache() {
+  return { notConfiguredExtensions: new Set, notInstalledServers: new Set };
+}
+async function collectPostEditDiagnostics(input) {
+  const cache = input.cache === undefined ? createPostEditNotConfiguredCache() : input.cache;
+  const filePaths = firstSeenDiagnosticTargets(input.filePaths, cache);
+  const results = await runBoundedDiagnostics(filePaths, input.runDiagnostics, input.maxConcurrency);
+  const blocks = [];
+  const observations = [];
+  for (const result of results) {
+    const outcome = result.outcome;
+    const classification = typeof outcome !== "string" && outcome.kind === "not_installed" ? classifyNotInstalled(notInstalledGuidance(result.filePath, outcome, cache, input.locateFile)) : classifyDiagnostics(outcome);
+    switch (classification.kind) {
+      case "not_installed":
+        observations.push({ filePath: result.filePath, kind: "not_installed" });
+        break;
+      case "clean":
+        observations.push({ filePath: result.filePath, kind: "clean" });
+        break;
+      case "not_configured":
+        cache.notConfiguredExtensions.add(classification.extension);
+        observations.push({ filePath: result.filePath, kind: "not_configured" });
+        break;
+      case "block":
+        blocks.push({ filePath: result.filePath, diagnostics: classification.diagnostics });
+        observations.push({ filePath: result.filePath, kind: "block" });
+        break;
+      default: {
+        const exhaustive = classification;
+        return exhaustive;
+      }
+    }
+  }
+  return { blocks, observations };
+}
+function firstSeenDiagnosticTargets(filePaths, cache) {
+  const seen = new Set;
+  const targets = [];
+  for (const filePath of filePaths) {
+    if (filePath.length === 0 || seen.has(filePath))
+      continue;
+    seen.add(filePath);
+    const extension = extensionKey(filePath);
+    if (extension !== undefined && cache.notConfiguredExtensions.has(extension))
+      continue;
+    targets.push({ index: targets.length, filePath });
+  }
+  return targets;
+}
+async function runBoundedDiagnostics(filePaths, runDiagnostics, maxConcurrency) {
+  const results = [];
+  const workerCount = Math.min(Math.max(1, maxConcurrency ?? DEFAULT_MAX_CONCURRENCY), filePaths.length);
+  let nextIndex = 0;
+  async function worker() {
+    for (;; ) {
+      const target = filePaths[nextIndex];
+      nextIndex += 1;
+      if (target === undefined)
+        return;
+      results[target.index] = {
+        index: target.index,
+        filePath: target.filePath,
+        outcome: await collectFileDiagnostics(target.filePath, runDiagnostics)
+      };
+    }
+  }
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results.filter((result) => result !== undefined);
+}
+async function collectFileDiagnostics(filePath, runDiagnostics) {
+  try {
+    return normalizeDiagnosticsOutcome(await runDiagnostics(filePath));
+  } catch (error) {
+    if (error instanceof Error)
+      return formatDiagnosticsError(error);
+    return normalizeDiagnosticsText(String(error));
+  }
+}
+function normalizeDiagnosticsOutcome(outcome) {
+  if (typeof outcome === "string")
+    return normalizeDiagnosticsText(outcome);
+  if (outcome.kind === "not_installed")
+    return { ...outcome, text: normalizeDiagnosticsText(outcome.text) };
+  return outcome;
+}
+function classifyNotInstalled(guidance) {
+  return guidance === undefined ? { kind: "not_installed" } : { kind: "block", diagnostics: guidance };
+}
+function normalizeDiagnosticsText(text) {
+  return text.trim();
+}
+function formatDiagnosticsError(error) {
+  const message = normalizeDiagnosticsText(error.message);
+  return message.length > 0 ? message : normalizeDiagnosticsText(String(error));
+}
+function classifyDiagnostics(outcome) {
+  if (typeof outcome !== "string") {
+    return { kind: "not_configured", extension: outcome.extension };
+  }
+  const diagnostics = outcome;
+  if (diagnostics.length === 0 || diagnostics === CLEAN_DIAGNOSTICS_TEXT)
+    return { kind: "clean" };
+  return { kind: "block", diagnostics };
+}
+function extensionKey(filePath) {
+  const extension = extname2(filePath).toLowerCase();
+  return extension.length === 0 ? undefined : extension;
+}
 // src/daemon-cli-path.ts
 import { existsSync as existsSync14, readFileSync as readFileSync7 } from "node:fs";
 import { createRequire as createRequire2 } from "node:module";
@@ -6081,9 +6115,9 @@ function sessionIdFrom(input) {
 }
 function readLspPostEditCache(sessionId) {
   if (sessionId === undefined)
-    return { notConfiguredExtensions: new Set };
+    return { notConfiguredExtensions: new Set, notInstalledServers: new Set };
   const state = readSessionState(sessionStatePath(sessionId));
-  return { notConfiguredExtensions: new Set(state.notConfiguredExtensions) };
+  return { notConfiguredExtensions: new Set(state.notConfiguredExtensions), notInstalledServers: new Set };
 }
 function writeLspPostEditCache(sessionId, cache) {
   if (sessionId === undefined)

@@ -65,7 +65,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.1.3",
+    version: "5.1.4",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -242,7 +242,7 @@ var init_package = __esm(() => {
     },
     devDependencies: {
       "@clack/prompts": "^1.8.1",
-      "@code-yeongyu/senpi": "2026.9.29-4",
+      "@code-yeongyu/senpi": "2026.9.29-5",
       "@modelcontextprotocol/sdk": "^1.30.0",
       "@oh-my-opencode/agents-md-core": "workspace:*",
       "@oh-my-opencode/ast-grep-mcp": "workspace:*",
@@ -300,18 +300,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.1.3",
-      "oh-my-opencode-darwin-x64": "5.1.3",
-      "oh-my-opencode-darwin-x64-baseline": "5.1.3",
-      "oh-my-opencode-linux-arm64": "5.1.3",
-      "oh-my-opencode-linux-arm64-musl": "5.1.3",
-      "oh-my-opencode-linux-x64": "5.1.3",
-      "oh-my-opencode-linux-x64-baseline": "5.1.3",
-      "oh-my-opencode-linux-x64-musl": "5.1.3",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.1.3",
-      "oh-my-opencode-windows-arm64": "5.1.3",
-      "oh-my-opencode-windows-x64": "5.1.3",
-      "oh-my-opencode-windows-x64-baseline": "5.1.3"
+      "oh-my-opencode-darwin-arm64": "5.1.4",
+      "oh-my-opencode-darwin-x64": "5.1.4",
+      "oh-my-opencode-darwin-x64-baseline": "5.1.4",
+      "oh-my-opencode-linux-arm64": "5.1.4",
+      "oh-my-opencode-linux-arm64-musl": "5.1.4",
+      "oh-my-opencode-linux-x64": "5.1.4",
+      "oh-my-opencode-linux-x64-baseline": "5.1.4",
+      "oh-my-opencode-linux-x64-musl": "5.1.4",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.1.4",
+      "oh-my-opencode-windows-arm64": "5.1.4",
+      "oh-my-opencode-windows-x64": "5.1.4",
+      "oh-my-opencode-windows-x64-baseline": "5.1.4"
     },
     overrides: {
       hono: "^4.13.8",
@@ -7393,6 +7393,8 @@ var init_category_model_requirements = __esm(() => {
     },
     "deep-low": {
       fallbackChain: [
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-6.1-sol", variant: "medium" },
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-6.1-sol-fast", variant: "medium" },
         {
           providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",
@@ -7445,7 +7447,9 @@ var init_category_model_requirements = __esm(() => {
           providers: ["anthropic", "anthropic-api", "github-copilot"],
           model: "claude-haiku-4-5",
           variant: "off"
-        }
+        },
+        { providers: ["zai-coding-plan"], model: "glm-5.3-flash", variant: "low" },
+        { providers: ["xiaomi"], model: "mimo-v2.6-flash", variant: "low" }
       ]
     },
     "unspecified-low": {
@@ -7610,7 +7614,7 @@ var init_model_capability_aliases = __esm(() => {
       description: "Normalizes OpenCode's OpenAI GPT fast service-tier IDs to canonical snapshot IDs.",
       providerIDs: ["openai"],
       allowedSubproviderHosts: ["vercel"],
-      match: (normalizedModelID) => /^(?:gpt-5\.6-(?:sol|terra|luna)|gpt-6-(?:astra|sol|luna))-fast$/.test(normalizedModelID),
+      match: (normalizedModelID) => /^(?:gpt-5\.6-(?:sol|terra|luna)|gpt-6-(?:astra|sol|luna)|gpt-6\.1-sol)-fast$/.test(normalizedModelID),
       canonicalize: (normalizedModelID) => normalizedModelID.slice(0, -"-fast".length)
     },
     {
@@ -7753,6 +7757,14 @@ var init_model_capability_heuristics = __esm(() => {
     {
       family: "gpt-6-astra",
       pattern: /gpt-6-astra/,
+      variants: ["low", "medium", "high", "xhigh", "max"],
+      reasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
+      reasoningEffortAliases: { none: "low", minimal: "low" },
+      supportsTemperature: false
+    },
+    {
+      family: "gpt-6.1-sol",
+      pattern: /gpt-6-1-sol/,
       variants: ["low", "medium", "high", "xhigh", "max"],
       reasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
       reasoningEffortAliases: { none: "low", minimal: "low" },
@@ -8186,6 +8198,36 @@ var init_supplemental_entries = __esm(() => {
       limit: {
         context: 1050000,
         input: 922000,
+        output: 128000
+      }
+    },
+    "gpt-6.1-sol": {
+      id: "gpt-6.1-sol",
+      family: "gpt",
+      reasoning: true,
+      temperature: false,
+      toolCall: true,
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      },
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    "gpt-6.1-sol-fast": {
+      id: "gpt-6.1-sol-fast",
+      family: "gpt",
+      reasoning: true,
+      temperature: false,
+      toolCall: true,
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"]
+      },
+      limit: {
+        context: 400000,
         output: 128000
       }
     },
@@ -9455,7 +9497,7 @@ You are working on tasks that don't fit specific categories but require substant
 </Category_Context>`, UNSPECIFIED_HIGH_CATEGORY_CALLER_GUIDANCE = `<Selection_Gate>Use only when no specialist category fits and substantial effort spans systems/modules with broad impact. Use unspecified-low for contained moderate work.</Selection_Gate>`, DEEP_LOW_CATEGORY_CALLER_GUIDANCE = `<Selection_Gate>Route here when one subsystem plus its callers holds the mechanism and the evidence, once read, leaves one right answer. Wide but mechanical work belongs here or in a quick batch. When unsure, choose deep-low: a misrouted child returns \`ESCALATE: deep-high\` after one cheap attempt; re-spawn the same brief as deep-high with its findings.</Selection_Gate>`, DEEP_HIGH_CATEGORY_CALLER_GUIDANCE = `<Selection_Gate>Route here only when you can name the decision evidence cannot settle: a trade-off with no single right answer, a contract change crossing a package or process boundary, a mechanism with no in-repo pattern to copy, or correctness argued from invariants rather than observed in a test. Wide scope with easy decisions is deep-low or unspecified-high; reasoning as the deliverable is ultrabrain.</Selection_Gate>`, DEEP_LOW_GATE_MODELS, DEEP_HIGH_GATE_MODEL = "gpt-6-astra", OPENAI_CATEGORIES;
 var init_openai_categories = __esm(() => {
   init_types();
-  DEEP_LOW_GATE_MODELS = ["gpt-5.6-sol-fast", "gpt-5.6-sol"];
+  DEEP_LOW_GATE_MODELS = ["gpt-6.1-sol", "gpt-6.1-sol-fast", "gpt-5.6-sol-fast", "gpt-5.6-sol"];
   OPENAI_CATEGORIES = [
     {
       name: "ultrabrain",
@@ -9466,7 +9508,7 @@ var init_openai_categories = __esm(() => {
     },
     {
       name: "deep-low",
-      config: { model: "openai/gpt-5.6-sol", variant: "medium" },
+      config: { model: "openai/gpt-6.1-sol", variant: "medium" },
       description: "Default deep lane: one goal, one deliverable, decisions the child can settle from what it reads. **3D graphics, computer/browser use, CAPTCHA, multimodal, backend, logic, and algorithm work is routed here.** Multiple goals fan out as parallel calls.",
       callerGuidance: DEEP_LOW_CATEGORY_CALLER_GUIDANCE,
       promptAppend: DEEP_LOW_CATEGORY_PROMPT_APPEND,
@@ -64780,6 +64822,94 @@ var init_model_capabilities_generated = __esm(() => {
           context: 1e6,
           output: 128000
         }
+      },
+      "glm-5.3-flash": {
+        id: "glm-5.3-flash",
+        family: "glm-flash",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "video"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1048576,
+          output: 1048576
+        }
+      },
+      "zai/glm-5.3-flash": {
+        id: "zai/glm-5.3-flash",
+        family: "glm-flash",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "video",
+            "pdf"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1e6,
+          output: 131072
+        }
+      },
+      "mimo-v2.6-flash": {
+        id: "mimo-v2.6-flash",
+        family: "mimo",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "audio",
+            "video"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1048576,
+          output: 131072
+        }
+      },
+      "xiaomi/mimo-v2.6-flash": {
+        id: "xiaomi/mimo-v2.6-flash",
+        family: "mimo",
+        reasoning: true,
+        temperature: true,
+        toolCall: true,
+        modalities: {
+          input: [
+            "text",
+            "image",
+            "audio",
+            "video"
+          ],
+          output: [
+            "text"
+          ]
+        },
+        limit: {
+          context: 1048576,
+          input: 1048576,
+          output: 131072
+        }
       }
     }
   };
@@ -89099,7 +89229,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.1.3",
+    version: "5.1.4",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
