@@ -64,7 +64,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "oh-my-opencode",
-    version: "5.1.4",
+    version: "5.1.5",
     description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
     main: "./dist/index.js",
     types: "dist/index.d.ts",
@@ -299,18 +299,18 @@ var init_package = __esm(() => {
       typescript: "^7.0.2"
     },
     optionalDependencies: {
-      "oh-my-opencode-darwin-arm64": "5.1.4",
-      "oh-my-opencode-darwin-x64": "5.1.4",
-      "oh-my-opencode-darwin-x64-baseline": "5.1.4",
-      "oh-my-opencode-linux-arm64": "5.1.4",
-      "oh-my-opencode-linux-arm64-musl": "5.1.4",
-      "oh-my-opencode-linux-x64": "5.1.4",
-      "oh-my-opencode-linux-x64-baseline": "5.1.4",
-      "oh-my-opencode-linux-x64-musl": "5.1.4",
-      "oh-my-opencode-linux-x64-musl-baseline": "5.1.4",
-      "oh-my-opencode-windows-arm64": "5.1.4",
-      "oh-my-opencode-windows-x64": "5.1.4",
-      "oh-my-opencode-windows-x64-baseline": "5.1.4"
+      "oh-my-opencode-darwin-arm64": "5.1.5",
+      "oh-my-opencode-darwin-x64": "5.1.5",
+      "oh-my-opencode-darwin-x64-baseline": "5.1.5",
+      "oh-my-opencode-linux-arm64": "5.1.5",
+      "oh-my-opencode-linux-arm64-musl": "5.1.5",
+      "oh-my-opencode-linux-x64": "5.1.5",
+      "oh-my-opencode-linux-x64-baseline": "5.1.5",
+      "oh-my-opencode-linux-x64-musl": "5.1.5",
+      "oh-my-opencode-linux-x64-musl-baseline": "5.1.5",
+      "oh-my-opencode-windows-arm64": "5.1.5",
+      "oh-my-opencode-windows-x64": "5.1.5",
+      "oh-my-opencode-windows-x64-baseline": "5.1.5"
     },
     overrides: {
       hono: "^4.13.8",
@@ -74379,7 +74379,6 @@ function normalizeLegacyModelFields(entry) {
   delete normalized["reasoningEffort"];
   delete normalized["thinking"];
   delete normalized["textVerbosity"];
-  delete normalized["maxTokens"];
   delete normalized["providerOptions"];
   if (typeof entry["model"] === "string")
     normalized["model"] = canonicalModelString(entry["model"]);
@@ -74397,10 +74396,15 @@ function normalizeLegacyModelFields(entry) {
     providerOptions["textVerbosity"] = entry["textVerbosity"];
   if (Object.keys(providerOptions).length > 0)
     normalized["provider_options"] = providerOptions;
-  if (entry["max_tokens"] !== undefined)
+  if (entry["max_tokens"] !== undefined) {
     normalized["max_tokens"] = entry["max_tokens"];
-  else if (entry["maxTokens"] !== undefined)
+    if (entry["maxTokens"] === undefined || typeof entry["maxTokens"] === "number") {
+      delete normalized["maxTokens"];
+    }
+  } else if (typeof entry["maxTokens"] === "number") {
     normalized["max_tokens"] = entry["maxTokens"];
+    delete normalized["maxTokens"];
+  }
   return normalized;
 }
 function normalizeLegacyModelEntry(entry) {
@@ -74443,12 +74447,25 @@ var init_fallback_models = __esm(() => {
 function isRecord5(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-var OmoAgentModelEntrySchema, OmoAgentDefInputSchema, OmoAgentDefSchema, OmoAgentsConfigSchema;
+var OmoAgentModelEntrySchema, PermissionValueSchema, BashPermissionSchema, OmoAgentPermissionSchema, OmoAgentDefInputSchema, OmoAgentDefSchema, OmoAgentsConfigSchema;
 var init_agent = __esm(() => {
   init_zod();
   init_fallback_models();
   init_model_ref();
   OmoAgentModelEntrySchema = union([string2(), OmoFallbackModelObjectSchema]);
+  PermissionValueSchema = _enum(["ask", "allow", "deny"]);
+  BashPermissionSchema = union([
+    PermissionValueSchema,
+    record(string2(), PermissionValueSchema)
+  ]);
+  OmoAgentPermissionSchema = object({
+    edit: PermissionValueSchema.optional(),
+    bash: BashPermissionSchema.optional(),
+    webfetch: PermissionValueSchema.optional(),
+    task: PermissionValueSchema.optional(),
+    doom_loop: PermissionValueSchema.optional(),
+    external_directory: PermissionValueSchema.optional()
+  }).catchall(PermissionValueSchema.optional());
   OmoAgentDefInputSchema = object({
     description: string2().optional(),
     prompt: string2().optional(),
@@ -74465,7 +74482,9 @@ var init_agent = __esm(() => {
     disallowed_tools: array(string2()).optional(),
     max_turns: number2().int().nonnegative().optional(),
     temperature: number2().min(0).max(2).optional(),
-    disable: boolean2().optional()
+    disable: boolean2().optional(),
+    permission: OmoAgentPermissionSchema.optional(),
+    prompt_append: string2().optional()
   }).strict();
   OmoAgentDefSchema = preprocess((value) => isRecord5(value) ? normalizeLegacyModelFields(value) : value, OmoAgentDefInputSchema);
   OmoAgentsConfigSchema = record(string2(), OmoAgentDefSchema);
@@ -75251,6 +75270,64 @@ var init_schema = __esm(() => {
   init_computer();
 });
 
+// packages/omo-config-core/src/loader/types.ts
+import { existsSync as existsSync13, lstatSync as lstatSync2, readFileSync as readFileSync5, realpathSync as realpathSync5 } from "fs";
+var MERGED_OMO_CONFIG_PATH = "(merged omo config)", DEFAULT_READ_FILE_SYSTEM;
+var init_types3 = __esm(() => {
+  DEFAULT_READ_FILE_SYSTEM = {
+    existsSync: existsSync13,
+    lstatSync: lstatSync2,
+    readFileSync: readFileSync5,
+    realpathSync: realpathSync5
+  };
+});
+
+// packages/omo-config-core/src/loader/diagnostic-lines.ts
+function displayOmoConfigPath(path, homeDir) {
+  if (path === MERGED_OMO_CONFIG_PATH)
+    return "merged config";
+  if (homeDir === undefined || homeDir.length === 0)
+    return path;
+  const slashed = (value) => value.replaceAll("\\", "/");
+  const home = slashed(homeDir).replace(/\/+$/, "");
+  const file = slashed(path);
+  const fold = (value) => /^[A-Za-z]:\//.test(home) ? value.toLowerCase() : value;
+  if (fold(file) === fold(home))
+    return "~";
+  return fold(file).startsWith(`${fold(home)}/`) ? `~${file.slice(home.length)}` : path;
+}
+function notLoadedReason(diagnostic) {
+  switch (diagnostic.kind) {
+    case "parse":
+      return "JSONC parse error";
+    case "read":
+      return "unreadable";
+    default:
+      return diagnostic.issuePaths === undefined || diagnostic.issuePaths.length === 0 ? "invalid config" : `invalid: ${diagnostic.issuePaths.join(", ")}`;
+  }
+}
+function omoConfigDiagnosticLines(diagnostics, options = {}) {
+  return diagnostics.flatMap((diagnostic) => {
+    const file = displayOmoConfigPath(diagnostic.path, options.homeDir);
+    switch (diagnostic.kind) {
+      case "invalid-value":
+        return (diagnostic.issuePaths ?? []).map((key) => `config: ${file}: ${key} ignored (invalid value)`);
+      case "unknown-keys":
+        return (diagnostic.issuePaths ?? []).map((key) => `config: ${file}: ${key} ignored (unknown key)`);
+      case "parse":
+      case "read":
+      case "validation":
+        return diagnostic.path === MERGED_OMO_CONFIG_PATH ? [`config: ${file}: reset to defaults (${notLoadedReason(diagnostic)})`] : [`config: ${file}: not loaded (${notLoadedReason(diagnostic)})`];
+      case "deprecated-keys":
+      case "profile":
+        return [];
+    }
+  });
+}
+var init_diagnostic_lines = __esm(() => {
+  init_types3();
+});
+
 // packages/omo-config-core/src/loader/disabled-skills.ts
 var init_disabled_skills = () => {};
 
@@ -75290,23 +75367,264 @@ var init_merge = __esm(() => {
   DANGEROUS_KEYS2 = new Set(["__proto__", "constructor", "prototype"]);
 });
 
+// packages/omo-config-core/src/loader/prune-invalid-leaves.ts
+function isContainer(value) {
+  return typeof value === "object" && value !== null;
+}
+function childOf(container, segment) {
+  return Array.isArray(container) ? container[Number(segment)] : container[String(segment)];
+}
+function hasChild(container, segment) {
+  if (Array.isArray(container)) {
+    const index = Number(segment);
+    return Number.isInteger(index) && index >= 0 && index < container.length;
+  }
+  return Object.hasOwn(container, String(segment));
+}
+function segmentsOf(path) {
+  return path.map((segment) => typeof segment === "number" ? segment : String(segment));
+}
+function targetPaths(root, issue) {
+  const base = segmentsOf(issue.path);
+  if (issue.code === "unrecognized_keys")
+    return issue.keys.map((key) => [...base, key]);
+  let node = root;
+  let depth = 0;
+  for (const segment of base) {
+    if (!isContainer(node) || !hasChild(node, segment))
+      break;
+    node = childOf(node, segment);
+    depth += 1;
+  }
+  return [base.slice(0, depth)];
+}
+function isAncestor(ancestor, path) {
+  return ancestor.length < path.length && ancestor.every((segment, index) => segment === path[index]);
+}
+function compareDescending(left, right) {
+  const length = Math.min(left.length, right.length);
+  for (let index = 0;index < length; index += 1) {
+    const a = left[index];
+    const b = right[index];
+    if (a === b)
+      continue;
+    if (typeof a === "number" && typeof b === "number")
+      return b - a;
+    return String(b).localeCompare(String(a));
+  }
+  return right.length - left.length;
+}
+function removeChild(container, segment) {
+  if (Array.isArray(container))
+    container.splice(Number(segment), 1);
+  else
+    delete container[String(segment)];
+}
+function isEmpty(container) {
+  return Array.isArray(container) ? container.length === 0 : Object.keys(container).length === 0;
+}
+function removePathAndEmptiedAncestors(root, path) {
+  const chain = [root];
+  for (const segment of path.slice(0, -1)) {
+    const current = chain[chain.length - 1];
+    if (current === undefined)
+      return;
+    const next = childOf(current, segment);
+    if (!isContainer(next))
+      return;
+    chain.push(next);
+  }
+  for (let depth = path.length - 1;depth >= 0; depth -= 1) {
+    const container = chain[depth];
+    const segment = path[depth];
+    if (container === undefined || segment === undefined)
+      return;
+    removeChild(container, segment);
+    if (depth === 0 || !isEmpty(container))
+      return;
+  }
+}
+function prunePass(root, issues) {
+  const byKey = new Map;
+  for (const issue of issues) {
+    for (const path of targetPaths(root, issue)) {
+      if (path.length === 0)
+        return null;
+      const key = path.map((segment) => String(segment)).join(".");
+      if (!byKey.has(key))
+        byKey.set(key, { key, message: issue.message, path });
+    }
+  }
+  const targets = [...byKey.values()];
+  const outermost = targets.filter((target) => !targets.some((other) => isAncestor(other.path, target.path))).sort((left, right) => compareDescending(left.path, right.path));
+  const next = structuredClone(root);
+  for (const target of outermost)
+    removePathAndEmptiedAncestors(next, target.path);
+  return { dropped: outermost, next };
+}
+function pruneInvalidConfigPaths(config, issues, validate, maxPasses = MAX_PRUNE_PASSES) {
+  const dropped = [];
+  let current = config;
+  let pending = issues;
+  for (let pass = 0;pass < maxPasses; pass += 1) {
+    const step = prunePass(current, pending);
+    if (step === null || step.dropped.length === 0)
+      return { ok: false, dropped };
+    dropped.push(...step.dropped);
+    current = step.next;
+    if (Object.keys(current).length === 0)
+      return { ok: false, dropped };
+    const validation = validate(current);
+    if (validation.success)
+      return { ok: true, config: current, dropped };
+    pending = validation.issues;
+  }
+  return { ok: false, dropped };
+}
+var MAX_PRUNE_PASSES = 32;
+
+// packages/omo-config-core/src/loader/layer-validation.ts
+function validationDiagnostic(path, issues) {
+  const issuePaths = issues.map((issue) => issue.path.map((segment) => String(segment)).join("."));
+  return {
+    kind: "validation",
+    message: `Invalid omo config at ${path}: ${issuePaths.join(", ")}`,
+    path,
+    issuePaths
+  };
+}
+function invalidValueDiagnostics(path, dropped) {
+  return dropped.map((entry) => ({
+    kind: "invalid-value",
+    message: `Ignored invalid value in ${path}: ${entry.key}: ${entry.message}`,
+    path,
+    issuePaths: [entry.key]
+  }));
+}
+function unrecognizedKeyIssues(issues) {
+  return issues.flatMap((issue) => issue.code === "unrecognized_keys" ? [{ keys: issue.keys, path: issue.path.map((segment) => String(segment)) }] : []);
+}
+function isRecord11(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function sanitizeUnsafeKeys(value, path = []) {
+  if (Array.isArray(value)) {
+    const issues = [];
+    const sanitized = value.map((entry, index) => {
+      const nested = sanitizeUnsafeKeys(entry, [...path, String(index)]);
+      issues.push(...nested.issues);
+      return nested.value;
+    });
+    return { issues, value: sanitized };
+  }
+  if (!isRecord11(value))
+    return { issues: [], value };
+  const issues = [];
+  if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) {
+    issues.push({ keys: ["__proto__"], path });
+  }
+  const sanitized = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (isUnsafeObjectKey2(key)) {
+      issues.push({ keys: [key], path });
+      continue;
+    }
+    const nested = sanitizeUnsafeKeys(entry, [...path, key]);
+    issues.push(...nested.issues);
+    sanitized[key] = nested.value;
+  }
+  return { issues, value: sanitized };
+}
+function containerAt(record, path) {
+  let node = record;
+  for (const segment of path) {
+    if (Array.isArray(node)) {
+      const index = Number(segment);
+      if (!Number.isInteger(index) || index < 0 || index >= node.length)
+        return null;
+      node = node[index];
+    } else if (isRecord11(node) && Object.hasOwn(node, segment)) {
+      node = node[segment];
+    } else {
+      return null;
+    }
+  }
+  return isRecord11(node) ? node : null;
+}
+function stripUnrecognizedKeys(record, issues) {
+  const stripped = structuredClone(record);
+  const issuePaths = [];
+  for (const issue of issues) {
+    const container = containerAt(stripped, issue.path);
+    if (container === null)
+      continue;
+    for (const key of issue.keys) {
+      delete container[key];
+      issuePaths.push([...issue.path, key].join("."));
+    }
+  }
+  return { issuePaths, stripped };
+}
+function toRecord(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    return null;
+  const record = {};
+  for (const [key, entry] of Object.entries(value)) {
+    record[key] = entry;
+  }
+  return record;
+}
+function validateConfigLayer(path, data) {
+  const sanitized = sanitizeUnsafeKeys(data);
+  const record = toRecord(sanitized.value);
+  const unsafeIssuePaths = sanitized.issues.flatMap((issue) => issue.keys.map((key) => [...issue.path, key].join(".")));
+  const unsafeDiagnostics = unsafeIssuePaths.length === 0 ? [] : [{ kind: "unknown-keys", message: `Ignored unknown keys in ${path}: ${unsafeIssuePaths.join(", ")}`, path, issuePaths: unsafeIssuePaths }];
+  const validation = OmoConfigLayerSchema.safeParse(sanitized.value);
+  if (validation.success) {
+    if (record !== null)
+      return { loaded: true, diagnostics: unsafeDiagnostics, value: record };
+    return {
+      loaded: false,
+      diagnostics: [{ kind: "validation", message: `Invalid omo config at ${path}: root must be an object`, path }]
+    };
+  }
+  const rejected = { loaded: false, diagnostics: [validationDiagnostic(path, validation.error.issues)] };
+  const unknownIssues = unrecognizedKeyIssues(validation.error.issues);
+  if (record === null)
+    return rejected;
+  let candidate = record;
+  let issues = validation.error.issues;
+  const diagnostics = [...unsafeDiagnostics];
+  if (unknownIssues.length > 0) {
+    const { issuePaths, stripped } = stripUnrecognizedKeys(record, unknownIssues);
+    if (issuePaths.length > 0) {
+      diagnostics.push({ kind: "unknown-keys", message: `Ignored unknown keys in ${path}: ${issuePaths.join(", ")}`, path, issuePaths });
+    }
+    const strippedValidation = validateLayerRecord(stripped);
+    if (strippedValidation.success)
+      return { loaded: true, diagnostics, value: stripped };
+    candidate = stripped;
+    issues = strippedValidation.issues;
+  }
+  const pruned = pruneInvalidConfigPaths(candidate, issues, validateLayerRecord);
+  if (!pruned.ok)
+    return rejected;
+  return { loaded: true, diagnostics: [...diagnostics, ...invalidValueDiagnostics(path, pruned.dropped)], value: pruned.config };
+}
+var validateLayerRecord = (record) => {
+  const parsed = OmoConfigLayerSchema.safeParse(record);
+  return parsed.success ? { success: true } : { success: false, issues: parsed.error.issues };
+};
+var init_layer_validation = __esm(() => {
+  init_schema();
+  init_merge();
+});
+
 // packages/omo-config-core/src/internal/posix-path.ts
 function toPosixPath(path) {
   return path.split("\\").join("/");
 }
 var init_posix_path = () => {};
-
-// packages/omo-config-core/src/loader/types.ts
-import { existsSync as existsSync13, lstatSync as lstatSync2, readFileSync as readFileSync5, realpathSync as realpathSync5 } from "fs";
-var DEFAULT_READ_FILE_SYSTEM;
-var init_types3 = __esm(() => {
-  DEFAULT_READ_FILE_SYSTEM = {
-    existsSync: existsSync13,
-    lstatSync: lstatSync2,
-    readFileSync: readFileSync5,
-    realpathSync: realpathSync5
-  };
-});
 
 // packages/omo-config-core/src/loader/paths.ts
 import { userInfo } from "os";
@@ -75411,7 +75729,7 @@ function resolveOmoProfileName(options = {}) {
   const env = options.env ?? process.env;
   return profileName(options.profile) ?? profileName(env["OMO_PROFILE"]) ?? profileName(env["OCX_PROFILE"]) ?? profileNameFromOpenCodeConfigDir(env["OPENCODE_CONFIG_DIR"]);
 }
-function toRecord(value) {
+function toRecord2(value) {
   if (value === null || typeof value !== "object" || Array.isArray(value))
     return;
   return Object.fromEntries(Object.entries(value));
@@ -75432,13 +75750,13 @@ function harnessLayer(config, harness) {
   const legacyKeys = Object.entries(OMO_CONFIG_LEGACY_HARNESS_ALIASES).filter(([, target]) => target === canonical).map(([legacy]) => harnessBlockKey(legacy));
   let layer = {};
   for (const key of [...legacyKeys, harnessBlockKey(canonical)]) {
-    layer = mergeOmoConfigRecords(layer, toRecord(config[key]) ?? {});
+    layer = mergeOmoConfigRecords(layer, toRecord2(config[key]) ?? {});
   }
   return layer;
 }
 function resolveOmoConfigView(options) {
-  const profiles = toRecord(options.config["profiles"]);
-  const profile = options.profile === undefined ? undefined : toRecord(profiles?.[options.profile]);
+  const profiles = toRecord2(options.config["profiles"]);
+  const profile = options.profile === undefined ? undefined : toRecord2(profiles?.[options.profile]);
   const diagnostics = profile === undefined && options.profile !== undefined ? [{
     kind: "profile",
     message: `Activated omo profile "${options.profile}" does not exist; using the base configuration`,
@@ -75493,70 +75811,9 @@ function stripResolutionControlKeys(config) {
   } = config;
   return resolved;
 }
-function validationDiagnostic(path, issues) {
-  const issuePaths = issues.map((issue) => issue.path.map((segment) => String(segment)).join("."));
-  return {
-    kind: "validation",
-    message: `Invalid omo config at ${path}: ${issuePaths.join(", ")}`,
-    path,
-    issuePaths
-  };
-}
-function unrecognizedKeyIssues(issues) {
-  return issues.flatMap((issue) => issue.code === "unrecognized_keys" ? [{ keys: issue.keys, path: issue.path.map((segment) => String(segment)) }] : []);
-}
-function hasUnsafeUnrecognizedKey(issues) {
-  return issues.some((issue) => issue.keys.some((key) => isUnsafeObjectKey2(key)));
-}
-function hasTamperedPrototype(value) {
-  if (Array.isArray(value))
-    return value.some((entry) => hasTamperedPrototype(entry));
-  if (!isRecord11(value))
-    return false;
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null)
-    return true;
-  return Object.values(value).some((entry) => hasTamperedPrototype(entry));
-}
-function isRecord11(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function containerAt(record, path) {
-  let container = record;
-  for (const segment of path) {
-    const next = container[segment];
-    if (!isRecord11(next))
-      return null;
-    container = next;
-  }
-  return container;
-}
-function stripUnrecognizedKeys(record, issues) {
-  const stripped = structuredClone(record);
-  const issuePaths = [];
-  for (const issue of issues) {
-    const container = containerAt(stripped, issue.path);
-    if (container === null)
-      continue;
-    for (const key of issue.keys) {
-      delete container[key];
-      issuePaths.push([...issue.path, key].join("."));
-    }
-  }
-  return { issuePaths, stripped };
-}
-function toRecord2(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value))
-    return null;
-  const record = {};
-  for (const [key, entry] of Object.entries(value)) {
-    record[key] = entry;
-  }
-  return record;
-}
 function readConfigSource(path, scope, fileSystem) {
   if (!fileSystem.existsSync(path)) {
-    return { source: { exists: false, loaded: false, path, scope } };
+    return { diagnostics: [], source: { exists: false, loaded: false, path, scope } };
   }
   let content;
   try {
@@ -75564,68 +75821,23 @@ function readConfigSource(path, scope, fileSystem) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {
-      diagnostic: { kind: "read", message: `Failed to read ${path}: ${message}`, path },
+      diagnostics: [{ kind: "read", message: `Failed to read ${path}: ${message}`, path }],
       source: { exists: true, loaded: false, path, scope }
     };
   }
   const parsed = parseJsoncSafe2(content);
   if (parsed.errors.length > 0) {
     return {
-      diagnostic: {
+      diagnostics: [{
         kind: "parse",
         message: `JSONC parse error in ${path}: ${parsed.errors.map((error) => error.message).join(", ")}`,
         path
-      },
+      }],
       source: { exists: true, loaded: false, path, scope }
     };
   }
-  if (hasTamperedPrototype(parsed.data)) {
-    return {
-      diagnostic: { kind: "validation", message: `Invalid omo config at ${path}: "__proto__" member is not allowed`, path },
-      source: { exists: true, loaded: false, path, scope }
-    };
-  }
-  const parsedRecord = toRecord2(parsed.data);
-  const validation = OmoConfigLayerSchema.safeParse(parsed.data);
-  if (!validation.success) {
-    const unrecognized = unrecognizedKeyIssues(validation.error.issues);
-    if (hasUnsafeUnrecognizedKey(unrecognized)) {
-      return {
-        diagnostic: validationDiagnostic(path, validation.error.issues),
-        source: { exists: true, loaded: false, path, scope }
-      };
-    }
-    const rejected = {
-      diagnostic: validationDiagnostic(path, validation.error.issues),
-      source: { exists: true, loaded: false, path, scope }
-    };
-    const unknownIssues = unrecognizedKeyIssues(validation.error.issues);
-    if (parsedRecord === null || unknownIssues.length === 0)
-      return rejected;
-    const { issuePaths, stripped } = stripUnrecognizedKeys(parsedRecord, unknownIssues);
-    if (!OmoConfigLayerSchema.safeParse(stripped).success)
-      return rejected;
-    return {
-      diagnostic: {
-        kind: "unknown-keys",
-        message: `Ignored unknown keys in ${path}: ${issuePaths.join(", ")}`,
-        path,
-        issuePaths
-      },
-      source: { exists: true, loaded: true, path, scope },
-      value: stripped
-    };
-  }
-  if (parsedRecord === null) {
-    return {
-      diagnostic: { kind: "validation", message: `Invalid omo config at ${path}: root must be an object`, path },
-      source: { exists: true, loaded: false, path, scope }
-    };
-  }
-  return {
-    source: { exists: true, loaded: true, path, scope },
-    value: parsedRecord
-  };
+  const layer = validateConfigLayer(path, parsed.data);
+  return layer.loaded ? { diagnostics: layer.diagnostics, source: { exists: true, loaded: true, path, scope }, value: layer.value } : { diagnostics: layer.diagnostics, source: { exists: true, loaded: false, path, scope } };
 }
 function legacyCategoryDiagnostic(path, renames) {
   const detail = renames.map((rename) => rename.dropped ? `${rename.path} ignored because ${rename.canonical} is also configured` : `${rename.path} renamed to ${rename.canonical}`).join(", ");
@@ -75660,8 +75872,7 @@ function loadOmoConfig(options = {}) {
   })) {
     const loaded = readConfigSource(candidate.path, candidate.scope, fileSystem);
     sources.push(loaded.source);
-    if (loaded.diagnostic !== undefined)
-      diagnostics.push(loaded.diagnostic);
+    diagnostics.push(...loaded.diagnostics);
     if (loaded.value !== undefined) {
       const canonicalized = canonicalizeLegacyCategoryNames(loaded.value);
       if (canonicalized.renames.length > 0) {
@@ -75684,7 +75895,8 @@ function loadOmoConfig(options = {}) {
     ...options.harness === undefined ? {} : { harness: options.harness },
     ...requestedProfile === undefined ? {} : { profile: requestedProfile }
   });
-  const finalConfig = OmoConfigSchema.safeParse(mergeOmoConfigRecords(DEFAULT_RAW_CONFIG, resolved.config));
+  const finalInput = mergeOmoConfigRecords(DEFAULT_RAW_CONFIG, resolved.config);
+  const finalConfig = OmoConfigSchema.safeParse(finalInput);
   if (finalConfig.success) {
     return {
       config: stripResolutionControlKeys(finalConfig.data),
@@ -75694,9 +75906,22 @@ function loadOmoConfig(options = {}) {
       sources
     };
   }
+  const pruned = pruneInvalidConfigPaths(finalInput, finalConfig.error.issues, (record) => {
+    const parsed = OmoConfigSchema.safeParse(record);
+    return parsed.success ? { success: true } : { success: false, issues: parsed.error.issues };
+  });
+  if (pruned.ok) {
+    return {
+      config: stripResolutionControlKeys(OmoConfigSchema.parse(pruned.config)),
+      diagnostics: [...diagnostics, ...resolved.diagnostics, ...invalidValueDiagnostics(MERGED_OMO_CONFIG_PATH, pruned.dropped)],
+      layers,
+      ...resolved.profile === undefined ? {} : { profile: resolved.profile },
+      sources
+    };
+  }
   return {
     config: stripResolutionControlKeys(OmoConfigSchema.parse(DEFAULT_RAW_CONFIG)),
-    diagnostics: [...diagnostics, ...resolved.diagnostics, validationDiagnostic("(merged omo config)", finalConfig.error.issues)],
+    diagnostics: [...diagnostics, ...resolved.diagnostics, validationDiagnostic(MERGED_OMO_CONFIG_PATH, finalConfig.error.issues)],
     layers,
     ...resolved.profile === undefined ? {} : { profile: resolved.profile },
     sources
@@ -75706,6 +75931,7 @@ var DEFAULT_RAW_CONFIG;
 var init_loader2 = __esm(() => {
   init_main();
   init_schema();
+  init_layer_validation();
   init_merge();
   init_paths();
   init_resolution();
@@ -75720,6 +75946,7 @@ var init_loader2 = __esm(() => {
 
 // packages/omo-config-core/src/loader/index.ts
 var init_loader3 = __esm(() => {
+  init_diagnostic_lines();
   init_disabled_skills();
   init_loader2();
   init_merge();
@@ -89150,7 +89377,7 @@ var package_default2;
 var init_package2 = __esm(() => {
   package_default2 = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.1.4",
+    version: "5.1.5",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -102151,6 +102378,7 @@ async function processEvents(ctx, stream, state) {
   }
 }
 // packages/omo-opencode/src/config/validate.ts
+init_src4();
 import { relative as relative7 } from "path";
 
 // packages/omo-opencode/src/shared/disabled-providers.ts
@@ -102271,11 +102499,11 @@ function baseView(config) {
   }
   return result;
 }
-function appendViews(views, layers, select) {
+function appendViews(views, layers, select, keyPrefix) {
   for (const layer of layers) {
     const config = select(layer.config);
     if (Object.keys(config).length > 0)
-      views.push({ config, path: layer.source.path });
+      views.push({ config, keyPrefix, path: layer.source.path });
   }
 }
 function recordFields(value, fields) {
@@ -102304,10 +102532,21 @@ function modelInput(view) {
   };
 }
 function modelView(view) {
-  const parsed = OmoConfigSchema.safeParse(modelInput(view));
-  if (!parsed.success)
+  const input = modelInput(view);
+  const parsed = OmoConfigSchema.safeParse(input);
+  const modelConfig = parsed.success ? parsed.data : (() => {
+    const pruned = pruneInvalidConfigPaths(input, parsed.error.issues, (record) => {
+      const validation = OmoConfigSchema.safeParse(record);
+      return validation.success ? { success: true } : { success: false, issues: validation.error.issues };
+    });
+    if (!pruned.ok)
+      return;
+    const validation = OmoConfigSchema.safeParse(pruned.config);
+    return validation.success ? validation.data : undefined;
+  })();
+  if (modelConfig === undefined)
     return { config: {}, diagnostics: [] };
-  const resolved = resolveModelReferences(parsed.data);
+  const resolved = resolveModelReferences(modelConfig);
   return {
     config: {
       ...resolved.view.agents === undefined ? {} : { agents: resolved.view.agents },
@@ -102326,14 +102565,15 @@ function loadOmoOpenCodeConfigChain(directory, environment = process.env) {
   });
   const views = [];
   const selectedProfile = loaded.profile;
-  appendViews(views, loaded.layers, baseView);
-  appendViews(views, loaded.layers, block2);
-  appendViews(views, loaded.layers, (config) => baseView(profile(config, selectedProfile)));
-  appendViews(views, loaded.layers, (config) => block2(profile(config, selectedProfile)));
+  const profilePrefix = selectedProfile === undefined ? "" : `profiles.${selectedProfile}.`;
+  appendViews(views, loaded.layers, baseView, "");
+  appendViews(views, loaded.layers, block2, "[opencode].");
+  appendViews(views, loaded.layers, (config) => baseView(profile(config, selectedProfile)), profilePrefix);
+  appendViews(views, loaded.layers, (config) => block2(profile(config, selectedProfile)), `${profilePrefix}[opencode].`);
   const resolvedModels = modelView(resolved.config);
   if (Object.keys(resolvedModels.config).length > 0) {
     const source = loaded.layers[0]?.source.path ?? directory;
-    views.push({ config: resolvedModels.config, path: source });
+    views.push({ config: resolvedModels.config, keyPrefix: "", path: source });
   }
   let protectedUserView = {};
   for (const layer of loaded.layers) {
@@ -102420,7 +102660,7 @@ function unknownPaths(schema, value, path) {
   if (def.type === "object" && isPlainRecord5(value) && def.shape !== undefined) {
     const catchall = def.catchall !== undefined && definition(def.catchall).type !== "never" ? def.catchall : undefined;
     return Object.entries(value).flatMap(([key, entry]) => {
-      const propertySchema = def.shape?.[key];
+      const propertySchema = def.shape !== undefined && Object.hasOwn(def.shape, key) ? def.shape[key] : undefined;
       if (propertySchema !== undefined)
         return unknownPaths(propertySchema, entry, [...path, key]);
       if (catchall !== undefined)
@@ -102457,6 +102697,9 @@ function unknownPaths(schema, value, path) {
 function findUnknownKeyPaths(schema, value) {
   return unknownPaths(schema, value, []);
 }
+
+// packages/omo-opencode/src/config/prune-plugin-view.ts
+init_src4();
 
 // packages/omo-opencode/src/config/schema/agent-names.ts
 init_zod();
@@ -102535,19 +102778,19 @@ var FallbackModelsSchema = union([
 
 // packages/omo-opencode/src/config/schema/internal/permission.ts
 init_zod();
-var PermissionValueSchema = _enum(["ask", "allow", "deny"]);
-var BashPermissionSchema = union([
-  PermissionValueSchema,
-  record(string2(), PermissionValueSchema)
+var PermissionValueSchema2 = _enum(["ask", "allow", "deny"]);
+var BashPermissionSchema2 = union([
+  PermissionValueSchema2,
+  record(string2(), PermissionValueSchema2)
 ]);
 var AgentPermissionSchema = object({
-  edit: PermissionValueSchema.optional(),
-  bash: BashPermissionSchema.optional(),
-  webfetch: PermissionValueSchema.optional(),
-  task: PermissionValueSchema.optional(),
-  doom_loop: PermissionValueSchema.optional(),
-  external_directory: PermissionValueSchema.optional()
-}).catchall(PermissionValueSchema.optional());
+  edit: PermissionValueSchema2.optional(),
+  bash: BashPermissionSchema2.optional(),
+  webfetch: PermissionValueSchema2.optional(),
+  task: PermissionValueSchema2.optional(),
+  doom_loop: PermissionValueSchema2.optional(),
+  external_directory: PermissionValueSchema2.optional()
+}).catchall(PermissionValueSchema2.optional());
 
 // packages/omo-opencode/src/config/schema/agent-overrides.ts
 var AgentOverrideConfigSchema = object({
@@ -103112,6 +103355,26 @@ var OhMyOpenCodeConfigSchema = object({
   default_mode: DefaultModeConfigSchema.optional(),
   _migrations: array(string2()).optional()
 });
+// packages/omo-opencode/src/config/prune-plugin-view.ts
+var validatePluginRecord = (record) => {
+  const parsed = OhMyOpenCodeConfigSchema.safeParse(record);
+  return parsed.success ? { success: true } : { success: false, issues: parsed.error.issues };
+};
+function prunePluginView(input) {
+  const validation = OhMyOpenCodeConfigSchema.safeParse(input.config);
+  if (validation.success)
+    return { config: input.config, issues: [], warnings: [] };
+  const pruned = pruneInvalidConfigPaths(input.config, validation.error.issues, validatePluginRecord);
+  if (!pruned.ok)
+    return { config: input.config, issues: validation.error.issues, warnings: [] };
+  const file = displayOmoConfigPath(input.path, input.homeDir);
+  return {
+    config: pruned.config,
+    issues: [],
+    warnings: pruned.dropped.map((entry) => `config: ${file}: ${input.keyPrefix}${entry.key} ignored (invalid value)`)
+  };
+}
+
 // packages/omo-opencode/src/config/validate.ts
 function shortPath(configPath) {
   const candidate = relative7(process.cwd(), configPath);
@@ -103121,9 +103384,8 @@ function formatIssuePath(path) {
   const formatted = path.map((segment) => String(segment)).join(".");
   return formatted.length > 0 ? formatted : "<root>";
 }
-function schemaMessages(configPath, rawConfig) {
-  const result = OhMyOpenCodeConfigSchema.safeParse(rawConfig);
-  const validationMessages = result.success ? [] : result.error.issues.map((issue) => `${shortPath(configPath)}: ${formatIssuePath(issue.path)}: ${issue.message}`);
+function schemaMessages(configPath, rawConfig, issues) {
+  const validationMessages = issues.map((issue) => `${shortPath(configPath)}: ${formatIssuePath(issue.path)}: ${issue.message}`);
   const unknownKeyMessages = findUnknownKeyPaths(OhMyOpenCodeConfigSchema, rawConfig).map((path) => `${shortPath(configPath)}: Unknown config key: ${formatIssuePath(path)}`);
   return [...validationMessages, ...unknownKeyMessages];
 }
@@ -103139,11 +103401,13 @@ function parseConfig(rawConfig) {
   }
   return config;
 }
-function parseConfigView(path, rawConfig) {
+function parseConfigView(view, homeDir) {
+  const pruned = prunePluginView({ config: view.config, homeDir, keyPrefix: view.keyPrefix, path: view.path });
   return {
-    config: parseConfig(rawConfig),
-    messages: schemaMessages(path, rawConfig),
-    path
+    config: parseConfig(pruned.config),
+    messages: schemaMessages(view.path, view.config, pruned.issues),
+    path: view.path,
+    warnings: pruned.warnings
   };
 }
 function mergeViews(views) {
@@ -103235,18 +103499,25 @@ function migrateRalphLoopConfig(config) {
 }
 function validatePluginConfig(directory, environment = process.env) {
   const chain = loadOmoOpenCodeConfigChain(directory, environment);
-  const views = chain.views.map((view) => parseConfigView(view.path, view.config));
-  const chainMessages = chain.diagnostics.filter((diagnostic) => diagnostic.kind !== "deprecated-keys").map((diagnostic) => `${shortPath(diagnostic.path)}: ${diagnostic.message}`);
+  const homeDir = environment.HOME ?? environment.USERPROFILE;
+  const views = chain.views.map((view) => parseConfigView(view, homeDir));
+  const failing = chain.diagnostics.filter((diagnostic) => diagnostic.kind !== "deprecated-keys" && diagnostic.kind !== "invalid-value");
+  const chainMessages = failing.map((diagnostic) => `${shortPath(diagnostic.path)}: ${diagnostic.message}`);
   const messages = [...chainMessages, ...views.flatMap((view) => view.messages)];
+  const warnings = [
+    ...omoConfigDiagnosticLines(chain.diagnostics.flatMap((diagnostic) => diagnostic.kind === "invalid-value" ? [diagnostic] : []), { homeDir }),
+    ...views.flatMap((view) => view.warnings)
+  ];
   const firstFailingView = views.find((view) => view.messages.length > 0);
   const firstView = views[0];
-  const userConfig = parseConfig(chain.protectedUserView);
+  const userConfig = parseConfig(prunePluginView({ config: chain.protectedUserView, homeDir, keyPrefix: "", path: "" }).config);
   const config = applyDisabledProviders(materializeAgentModelChains(protectUserFields(mergeViews(views), userConfig)));
   warnLegacyUlwExecuteKey(chain.views);
   return {
     valid: messages.length === 0,
     messages,
-    path: chainMessages.length > 0 ? chain.diagnostics[0]?.path ?? null : firstFailingView?.path ?? firstView?.path ?? null,
+    warnings,
+    path: failing[0]?.path ?? firstFailingView?.path ?? firstView?.path ?? null,
     config: migrateRalphLoopConfig(migrateLegacyUlwExecuteKey(config))
   };
 }
@@ -106370,14 +106641,15 @@ function toOmoConfig(config) {
 function validateConfig() {
   const validation = validatePluginConfig(process.cwd());
   if (!validation.path) {
-    return { exists: false, path: null, valid: true, config: null, errors: [] };
+    return { exists: false, path: null, valid: true, config: null, errors: [], warnings: validation.warnings };
   }
   return {
     exists: true,
     path: validation.path,
     valid: validation.valid,
     config: toOmoConfig(validation.config),
-    errors: [...validation.messages]
+    errors: [...validation.messages],
+    warnings: validation.warnings
   };
 }
 function collectModelResolutionIssues(config) {
@@ -106430,6 +106702,12 @@ async function checkConfig() {
   }));
   if (legacyWarning !== undefined)
     issues.push(legacyWarning);
+  issues.push(...validation.warnings.map((warning) => ({
+    title: warning,
+    description: "The rest of that file still applies; fix or remove this value to use it.",
+    severity: "warning",
+    affects: ["configuration"]
+  })));
   if (!validation.exists) {
     return {
       name: CHECK_NAMES[CHECK_IDS.CONFIG],
